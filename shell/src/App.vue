@@ -169,7 +169,7 @@ onMounted(() => {
           >设</div>
         </div>
       </div>
-      <aside v-if="store.sidebarOpen && store.sidebarView === 'connections'" class="sidebar">
+      <aside class="sidebar" :class="{ collapsed: !store.sidebarOpen || store.sidebarView !== 'connections' }">
         <div class="sidebar-header">
           <span>当前连接</span>
           <button type="button" class="new-btn" @click="openNewConnection">+ 新建连接</button>
@@ -389,6 +389,17 @@ button, input {
   flex-direction: column;
   border-right: 1px solid #1f1f1f;
   flex-shrink: 0;
+  transition: width 0.15s ease;
+  overflow: hidden;
+}
+
+.sidebar.collapsed {
+  width: 0;
+  border-right: none;
+}
+
+.sidebar.collapsed > * {
+  display: none;
 }
 
 .sidebar-header {
