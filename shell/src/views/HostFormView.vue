@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { create } from '@bufbuild/protobuf'
 import { HostProfileSchema } from '../proto/photon_pb'
 import { store } from '../stores/app'
-import { createHost, listHosts } from '../services/ws'
+import { connectToHost, createHost, listHosts } from '../services/ws'
 import { randomId } from '../utils/id'
 
 const address = ref('127.0.0.1')
@@ -22,6 +22,15 @@ function addHost() {
   })
   createHost(host)
 }
+
+function connect(host: typeof store.hosts[0]) {
+  const password = window.prompt(`SSH password for ${host.username}@${host.address}:${host.port}`)
+  if (!password) return
+  store.error = ''
+  store.selectedHostId = host.id
+  connectToHost(host.id, password)
+  store.view = 'shell'
+}
 </script>
 
 <template>
@@ -31,6 +40,7 @@ function addHost() {
       <li v-for="h in store.hosts" :key="h.id">
         <span class="addr">{{ h.address }}:{{ h.port }}</span>
         <span class="user">{{ h.username }}</span>
+        <button class="connect" type="button" @click="connect(h)">Connect</button>
       </li>
     </ul>
     <p v-else class="empty">No saved hosts yet.</p>
@@ -66,6 +76,7 @@ h2, h3 {
 .host-list li {
   display: flex;
   gap: 1rem;
+  align-items: center;
   padding: 0.5rem;
   background: #1e293b;
   border: 1px solid #334155;
@@ -75,10 +86,25 @@ h2, h3 {
 
 .addr {
   font-weight: 600;
+  flex: 1;
 }
 
 .user {
   color: #94a3b8;
+}
+
+.connect {
+  background: #22c55e;
+  color: #0f172a;
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.connect:hover {
+  background: #16a34a;
 }
 
 .empty {
