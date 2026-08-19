@@ -144,7 +144,7 @@ onMounted(() => {
             title="当前连接"
             @click="toggleConnections"
           >
-            <IconList :size="18" />
+            <IconList :size="24" />
           </div>
           <div
             class="icon"
@@ -152,7 +152,7 @@ onMounted(() => {
             title="终端"
             @click="switchToShell"
           >
-            <IconTerminal2 :size="18" />
+            <IconTerminal2 :size="24" />
           </div>
         </div>
         <div class="bottom-icons">
@@ -161,7 +161,7 @@ onMounted(() => {
             title="设置"
             @click="store.settingsMenuOpen = true"
           >
-            <IconSettings :size="18" />
+            <IconSettings :size="24" />
           </div>
         </div>
       </div>
@@ -322,31 +322,28 @@ button, input {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 0.5rem 0;
   border-right: 1px solid #252526;
   flex-shrink: 0;
-  gap: 0.5rem;
+  gap: 0;
 }
 
 .logo {
-  width: 32px;
-  height: 32px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #0e639c;
   color: #fff;
-  border-radius: 4px;
   cursor: default;
   user-select: none;
-  margin-bottom: 0.5rem;
 }
 
 .top-icons {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0;
   width: 100%;
   align-items: center;
 }
@@ -354,33 +351,31 @@ button, input {
 .bottom-icons {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0;
   width: 100%;
   align-items: center;
   margin-top: auto;
 }
 
 .activity .icon {
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
-  border-radius: 4px;
+  color: #858585;
   cursor: pointer;
-  font-size: 12px;
   user-select: none;
 }
 
 .activity .icon:hover {
   color: #fff;
-  background: #3c3c3c;
 }
 
 .activity .icon.active {
   color: #fff;
-  background: #0e639c;
+  background: #37373d;
+  border-left: 2px solid #fff;
 }
 
 .sidebar {
