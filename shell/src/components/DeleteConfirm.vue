@@ -20,9 +20,6 @@ function close() {
 
 function confirm() {
   deleteHosts(store.deleteConfirmIds)
-  store.selectedHostIds = new Set(
-    Array.from(store.selectedHostIds).filter((id) => !store.deleteConfirmIds.includes(id))
-  )
   close()
 }
 </script>
