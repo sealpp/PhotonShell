@@ -18,9 +18,11 @@ import { IconChartLine, IconX } from '@tabler/icons-vue'
 import '@xterm/xterm/css/xterm.css'
 
 const termEl = ref<HTMLDivElement | null>(null)
+const tabsEl = ref<HTMLDivElement | null>(null)
 let terminal: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let resizeObserver: ResizeObserver | null = null
+let wheelHandler: ((e: WheelEvent) => void) | null = null
 const terminalId = randomId()
 
 const selectedHost = computed(() => store.hosts.find((h) => h.id === store.selectedHostId))
@@ -72,6 +74,15 @@ onMounted(() => {
   })
   resizeObserver.observe(termEl.value)
 
+  wheelHandler = (e: WheelEvent) => {
+    if (!tabsEl.value) return
+    if (Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) > 0) {
+      tabsEl.value.scrollLeft += e.deltaX || e.deltaY
+      e.preventDefault()
+    }
+  }
+  tabsEl.value?.addEventListener('wheel', wheelHandler, { passive: false })
+
   const unwatch = watch(() => store.shellState, (state) => {
     if (state === 'online') {
       const { cols, rows } = terminal!
@@ -90,6 +101,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   setTerminalOutputHandler(null)
+  if (wheelHandler && tabsEl.value) {
+    tabsEl.value.removeEventListener('wheel', wheelHandler)
+    wheelHandler = null
+  }
   if (store.view === 'shell') {
     if (store.selectedHostId) {
       stopTelemetry(store.selectedHostId)
@@ -116,7 +131,7 @@ function disconnect() {
 <template>
   <div class="shell">
     <div class="terminal-toolbar">
-      <div class="tabs">
+      <div ref="tabsEl" class="tabs">
         <div class="tab active">
           <span class="tab-label">{{ tabLabel }}</span>
           <button type="button" class="tab-close" title="断开连接" @click.stop="disconnect">
@@ -164,7 +179,32 @@ function disconnect() {
   align-items: stretch;
   flex: 1;
   gap: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.tabs:hover {
+  scrollbar-color: #424242 transparent;
+}
+
+.tabs::-webkit-scrollbar {
+  height: 3px;
+}
+
+.tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tabs::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+}
+
+.tabs:hover::-webkit-scrollbar-thumb {
+  background: #424242;
 }
 
 .tab {
