@@ -143,7 +143,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="app" @contextmenu.prevent>
+  <div class="app">
     <div class="main">
       <div class="activity">
         <div class="logo" title="PhotonShell">P</div>
@@ -174,7 +174,7 @@ onMounted(() => {
           <span>当前连接</span>
           <button type="button" class="new-btn" @click="openNewConnection">+ 新建连接</button>
         </div>
-        <div class="conn-list">
+        <div class="conn-list" @contextmenu.prevent>
           <div
             v-for="h in store.hosts"
             :key="h.id"
