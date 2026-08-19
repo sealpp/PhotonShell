@@ -27,6 +27,13 @@ export interface AppState {
   connectionModalOpen: boolean
   editingHostId: string
   settingsMenuOpen: boolean
+  selectedHostIds: Set<string>
+  selectionAnchor: string
+  deleteConfirmOpen: boolean
+  deleteConfirmIds: string[]
+  contextMenuOpen: boolean
+  contextMenuX: number
+  contextMenuY: number
 }
 
 export const store = reactive<AppState>({
@@ -48,4 +55,11 @@ export const store = reactive<AppState>({
   connectionModalOpen: false,
   editingHostId: '',
   settingsMenuOpen: false,
+  selectedHostIds: new Set(),
+  selectionAnchor: '',
+  deleteConfirmOpen: false,
+  deleteConfirmIds: [],
+  contextMenuOpen: false,
+  contextMenuX: 0,
+  contextMenuY: 0,
 })

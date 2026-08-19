@@ -1,6 +1,7 @@
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
 import {
   HostCreateRequestSchema,
+  HostDeleteRequestSchema,
   HostListRequestSchema,
   NodeHelloSchema,
   PairBeginSchema,
@@ -26,6 +27,7 @@ export function wsUrl(): string {
 let ws: WebSocket | null = null
 let reqId = 0
 let _onOutput: ((data: Uint8Array) => void) | null = null
+const pendingDeletes = new Map<string, string[]>()
 
 function nextReqId(): string {
   return `req-${++reqId}`
@@ -90,6 +92,23 @@ export function pair(pin: string, callbacks: WsCallbacks): void {
       listHosts()
     } else if (body === 'hostListResponse') {
       store.hosts = resp.body.value.hosts as HostProfile[]
+    } else if (body === 'hostDeleteResponse') {
+      const ids = pendingDeletes.get(resp.requestId)
+      pendingDeletes.delete(resp.requestId)
+      const deleted = new Set(ids ?? [])
+      store.hosts = store.hosts.filter((h) => !deleted.has(h.id))
+      store.selectedHostIds = new Set(
+        Array.from(store.selectedHostIds).filter((id) => !deleted.has(id))
+      )
+      if (store.selectedHostId && deleted.has(store.selectedHostId)) {
+        store.selectedHostId = ''
+        store.view = 'welcome'
+        store.shellState = 'idle'
+        store.shellError = ''
+        store.streamId = 0
+        store.sessionId = ''
+        store.telemetry = null
+      }
     } else if (body === 'sessionStateEvent') {
       const evt = resp.body.value
       store.shellState = evt.state as 'idle' | 'connecting' | 'online' | 'error'
@@ -114,6 +133,7 @@ export function pair(pin: string, callbacks: WsCallbacks): void {
         procs: snap.processCount,
       }
     } else if (body === 'requestFailed') {
+      pendingDeletes.delete(resp.requestId)
       const err = resp.body.value.error
       store.error = `${err?.code ?? 'unknown'}: ${err?.message ?? ''}`
       callbacks.onError(store.error)
@@ -154,6 +174,22 @@ export function createHost(host: HostProfile): void {
     body: {
       case: 'hostCreateRequest',
       value: create(HostCreateRequestSchema, { host }),
+    },
+  })
+  send(msg)
+}
+
+export function deleteHosts(hostIds: string[]): void {
+  if (!store.token || !hostIds.length) return
+  const requestId = nextReqId()
+  pendingDeletes.set(requestId, hostIds)
+  const msg = create(PhotonMessageSchema, {
+    protocolVersion: 0,
+    requestId,
+    token: store.token,
+    body: {
+      case: 'hostDeleteRequest',
+      value: create(HostDeleteRequestSchema, { hostIds }),
     },
   })
   send(msg)

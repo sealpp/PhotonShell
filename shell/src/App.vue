@@ -6,6 +6,8 @@ import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import ShellView from './views/ShellView.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
+import HostContextMenu from './components/HostContextMenu.vue'
+import DeleteConfirm from './components/DeleteConfirm.vue'
 
 const selectedHost = computed(() => store.hosts.find((h) => h.id === store.selectedHostId))
 
@@ -32,6 +34,14 @@ const metrics = computed(() => {
   ]
 })
 
+function isSelected(hostId: string): boolean {
+  return store.selectedHostIds.has(hostId)
+}
+
+function isConnected(hostId: string): boolean {
+  return store.view === 'shell' && store.selectedHostId === hostId
+}
+
 function hostStatus(hostId: string): string {
   if (store.selectedHostId === hostId && store.view === 'shell') {
     if (store.shellState === 'online') return '已连接'
@@ -39,6 +49,58 @@ function hostStatus(hostId: string): string {
     if (store.shellState === 'error') return '错误'
   }
   return '已保存'
+}
+
+function toggleSelection(hostId: string) {
+  const next = new Set(store.selectedHostIds)
+  if (next.has(hostId)) {
+    next.delete(hostId)
+  } else {
+    next.add(hostId)
+  }
+  store.selectedHostIds = next
+}
+
+function rangeSelection(targetId: string) {
+  const ids = store.hosts.map((h) => h.id)
+  const anchor = store.selectionAnchor
+  const anchorIndex = anchor ? ids.indexOf(anchor) : -1
+  const targetIndex = ids.indexOf(targetId)
+  if (anchorIndex === -1 || targetIndex === -1) {
+    store.selectedHostIds = new Set([targetId])
+    store.selectionAnchor = targetId
+    return
+  }
+  const start = Math.min(anchorIndex, targetIndex)
+  const end = Math.max(anchorIndex, targetIndex)
+  const next = new Set<string>()
+  for (let i = start; i <= end; i++) {
+    next.add(ids[i])
+  }
+  store.selectedHostIds = next
+}
+
+function onItemClick(host: typeof store.hosts[0], event: MouseEvent) {
+  if (event.ctrlKey || event.metaKey) {
+    toggleSelection(host.id)
+    store.selectionAnchor = host.id
+  } else if (event.shiftKey) {
+    rangeSelection(host.id)
+  } else {
+    store.selectedHostIds = new Set([host.id])
+    store.selectionAnchor = host.id
+  }
+}
+
+function onItemRightClick(host: typeof store.hosts[0], event: MouseEvent) {
+  event.preventDefault()
+  if (!store.selectedHostIds.has(host.id)) {
+    store.selectedHostIds = new Set([host.id])
+    store.selectionAnchor = host.id
+  }
+  store.contextMenuX = event.clientX
+  store.contextMenuY = event.clientY
+  store.contextMenuOpen = true
 }
 
 function openNewConnection() {
@@ -81,7 +143,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" @contextmenu.prevent>
     <div class="main">
       <div class="activity">
         <div class="logo" title="PhotonShell">P</div>
@@ -117,13 +179,15 @@ onMounted(() => {
             v-for="h in store.hosts"
             :key="h.id"
             class="conn-item"
-            :class="{ active: h.id === store.selectedHostId }"
+            :class="{ selected: isSelected(h.id), connected: isConnected(h.id) }"
+            @click="onItemClick(h, $event)"
+            @contextmenu="onItemRightClick(h, $event)"
           >
             <div class="name">{{ h.address }}</div>
             <div class="meta">
               {{ h.username }} · {{ h.port }} · <span class="status">{{ hostStatus(h.id) }}</span>
             </div>
-            <button type="button" class="conn-btn" @click="openConnect(h)">连接</button>
+            <button type="button" class="conn-btn" @click.stop="openConnect(h)">连接</button>
           </div>
           <p v-if="!store.hosts.length" class="empty">暂无保存的主机</p>
         </div>
@@ -146,7 +210,7 @@ onMounted(() => {
           <h2>PhotonShell</h2>
           <p v-if="!store.token">请点击左下角「设置」>「配对」，或左侧活动栏的「连」后点 Node 区域的「配对」。</p>
           <p v-else-if="!store.hosts.length">暂无保存的主机，点击侧边栏「+ 新建连接」添加。</p>
-          <p v-else>选择左侧主机，或新建连接。</p>
+          <p v-else>选择左侧主机（支持 Ctrl/Shift 多选），或右键批量操作。</p>
         </div>
       </div>
       <aside class="panel" :class="{ collapsed: !store.panelOpen }">
@@ -185,6 +249,8 @@ onMounted(() => {
     <PairingView v-if="store.pairingModalOpen" />
     <HostFormView v-if="store.connectionModalOpen" />
     <SettingsMenu v-if="store.settingsMenuOpen" />
+    <HostContextMenu v-if="store.contextMenuOpen" />
+    <DeleteConfirm v-if="store.deleteConfirmOpen" />
   </div>
 </template>
 
@@ -364,14 +430,21 @@ button, input {
   border: 1px solid #333;
   background: #1e1e1e;
   position: relative;
+  cursor: pointer;
+  user-select: none;
 }
 
 .conn-item:hover {
   background: #3c3c3c;
 }
 
-.conn-item.active {
+.conn-item.selected {
   border-color: #0e639c;
+  background: #1a2633;
+}
+
+.conn-item.connected {
+  border-left: 3px solid #4ec9b0;
 }
 
 .conn-item .name {
