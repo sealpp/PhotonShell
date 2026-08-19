@@ -120,6 +120,8 @@ class PhotonServer:
             await self._handle_host_list(websocket, msg)
         elif body_name == "host_create_request":
             await self._handle_host_create(websocket, msg)
+        elif body_name == "host_delete_request":
+            await self._handle_host_delete(websocket, msg)
         elif body_name == "session_connect_request":
             await self._handle_session_connect(websocket, msg)
         elif body_name == "session_disconnect_request":
@@ -247,6 +249,31 @@ class PhotonServer:
             hp.port = h.get("port", 22)
             hp.username = h.get("username", "")
 
+        await self._send(websocket, resp)
+
+    async def _handle_host_delete(
+        self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage
+    ) -> None:
+        if not self._validate_token(msg.token):
+            await self._send_failed(websocket, msg.request_id, "invalid_token", "token is invalid or expired")
+            return
+
+        target_ids = set(msg.host_delete_request.host_ids)
+        hosts = self.state.get("hosts", [])
+
+        for host_id in target_ids:
+            if any(h.get("id") == host_id for h in hosts):
+                await self.sessions.disconnect(host_id)
+
+        new_hosts = [h for h in hosts if h.get("id") not in target_ids]
+        removed = len(hosts) - len(new_hosts)
+        self.state.set("hosts", new_hosts)
+
+        resp = PhotonMessage()
+        resp.protocol_version = PROTOCOL_VERSION
+        resp.request_id = msg.request_id
+        resp.token = msg.token
+        resp.host_delete_response.deleted_count = removed
         await self._send(websocket, resp)
 
     async def _send_client(self, msg: PhotonMessage) -> None:
