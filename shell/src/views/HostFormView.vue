@@ -4,6 +4,7 @@ import { create } from '@bufbuild/protobuf'
 import { HostProfileSchema } from '../proto/photon_pb'
 import { store } from '../stores/app'
 import { createHost, listHosts } from '../services/ws'
+import { randomId } from '../utils/id'
 
 const address = ref('127.0.0.1')
 const port = ref(22)
@@ -14,7 +15,7 @@ listHosts()
 function addHost() {
   store.error = ''
   const host = create(HostProfileSchema, {
-    id: crypto.randomUUID(),
+    id: randomId(),
     address: address.value,
     port: port.value,
     username: username.value,
