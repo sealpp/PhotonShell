@@ -227,6 +227,7 @@ class PhotonServer:
             src.id = secrets.token_urlsafe(8)
 
         hosts = self.state.get("hosts", [])
+        hosts = [h for h in hosts if h.get("id") != src.id]
         hosts.append(
             {
                 "id": src.id,
