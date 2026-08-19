@@ -40,6 +40,7 @@ Then open `http://127.0.0.1:8080`, enter the pairing code, and add a host.
 | --- | --- | --- |
 | `PHOTON_MASTER_PASSWORD` | — | Master password used to derive the AES-256-GCM key for SQLite state. |
 | `PHOTON_STATE_PATH` | `node/data/state.db` | Encrypted SQLite state file. |
+| `PHOTON_HOST` | `127.0.0.1` | WebSocket listen host. Set `0.0.0.0` only for trusted LAN tests. |
 | `PHOTON_PORT` | `17373` | WebSocket listen port. |
 | `PHOTON_ALLOWED_ORIGIN` | `http://127.0.0.1:8080` | Allowed `Origin` header. |
 
@@ -67,6 +68,7 @@ The test uses a temporary state file and a temporary Node process.
 
 ## Notes
 
-- Node refuses to bind to anything other than `127.0.0.1` / `localhost`.
+- Node defaults to `127.0.0.1`. Use `PHOTON_HOST=0.0.0.0` only in trusted LAN tests; a warning is printed.
 - The PWA dev server defaults to `127.0.0.1:8080` to match Node's default allowed origin.
+- SSH passwords are only used for the live session and are never persisted in SQLite state.
 - For slow networks, use a mainland China mirror for `npm` and `uv` (already configured in `~/.npmrc` and `~/.config/uv/uv.toml`).
