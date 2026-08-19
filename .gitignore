@@ -1,1 +1,32 @@
+# Private subrepo
 /me_PhotonShell/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Node / PWA
+node_modules/
+shell/dist/
+shell/.vite/
+
+# Generated protobuf artifacts
+node/photon/photon_pb2.py
+shell/src/proto/
+
+# Runtime state and data
+node/data/
+*.db
+*.enc
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
