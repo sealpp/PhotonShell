@@ -19,22 +19,22 @@ const termEl = ref<HTMLDivElement | null>(null)
 let terminal: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let resizeObserver: ResizeObserver | null = null
+const unwatchState = ref<() => void>()
+const unwatchStream = ref<() => void>()
+const unwatchActive = ref<() => void>()
 
 const tab = computed(() => store.tabs.find((t) => t.id === props.tabId))
 const isActive = computed(() => store.activeTabId === props.tabId)
 const encoder = new TextEncoder()
 
 function fitAndResize() {
-  if (!terminal || !fitAddon || !tab.value) return
-  if (!tab.value.streamId) return
+  if (!terminal || !fitAddon || !tab.value?.streamId) return
   fitAddon.fit()
-  const { cols, rows } = terminal
-  resizeTerminal(tab.value.terminalId, cols, rows)
+  resizeTerminal(tab.value.terminalId, terminal.cols, terminal.rows)
 }
 
 function openTabTerminal() {
-  if (!terminal || !fitAddon || !tab.value) return
-  if (tab.value.streamId) return
+  if (!terminal || !fitAddon || !tab.value || tab.value.streamId) return
   if (isActive.value) {
     fitAddon.fit()
   } else {
@@ -80,7 +80,7 @@ onMounted(() => {
   })
   resizeObserver.observe(termEl.value)
 
-  const unwatchState = watch(
+  unwatchState.value = watch(
     () => tab.value?.state,
     (state) => {
       if (state === 'online') {
@@ -89,10 +89,9 @@ onMounted(() => {
         terminal?.writeln(`\r\n[session error: ${tab.value?.error}]`)
       }
     },
-    { immediate: true },
   )
 
-  const unwatchStream = watch(
+  unwatchStream.value = watch(
     () => tab.value?.streamId,
     (streamId) => {
       if (streamId && tab.value) {
@@ -101,39 +100,42 @@ onMounted(() => {
         })
       }
     },
-    { immediate: true },
   )
 
-  const unwatchActive = watch(
+  unwatchActive.value = watch(
     isActive,
     (active) => {
-      if (active && tab.value) {
+      if (!tab.value) return
+      if (active) {
         fitAndResize()
         store.telemetry = tab.value.telemetry
         if (tab.value.state === 'online' && tab.value.streamId) {
           startTelemetry(tab.value.sessionId, 2000)
         }
-      } else if (tab.value?.sessionId && !active) {
+      } else if (tab.value.sessionId) {
         stopTelemetry(tab.value.sessionId)
       }
     },
-    { immediate: true },
   )
 
-  onBeforeUnmount(() => {
-    resizeObserver?.disconnect()
-    unwatchState()
-    unwatchStream()
-    unwatchActive()
-    if (tab.value?.streamId) {
-      setTerminalOutputHandler(tab.value.streamId, null)
-    }
-    if (tab.value?.sessionId) {
-      stopTelemetry(tab.value.sessionId)
-    }
-    terminal?.dispose()
-    terminal = null
-  })
+  if (tab.value.state === 'online') {
+    openTabTerminal()
+  }
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+  unwatchState.value?.()
+  unwatchStream.value?.()
+  unwatchActive.value?.()
+  if (tab.value?.streamId) {
+    setTerminalOutputHandler(tab.value.streamId, null)
+  }
+  if (tab.value?.sessionId) {
+    stopTelemetry(tab.value.sessionId)
+  }
+  terminal?.dispose()
+  terminal = null
 })
 </script>
 
