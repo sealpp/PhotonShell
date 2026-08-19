@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { store } from './stores/app'
-import { wsUrl, disconnectHost, listHosts } from './services/ws'
+import { wsUrl, listHosts } from './services/ws'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import ShellView from './views/ShellView.vue'
+import SettingsMenu from './components/SettingsMenu.vue'
 
 const selectedHost = computed(() => store.hosts.find((h) => h.id === store.selectedHostId))
 
@@ -54,20 +55,19 @@ function openPairing() {
   store.pairingModalOpen = true
 }
 
-function disconnect() {
-  if (store.view === 'shell') {
-    disconnectHost()
-    store.view = 'welcome'
+function toggleConnections() {
+  if (store.sidebarOpen && store.sidebarView === 'connections') {
+    store.sidebarOpen = false
+  } else {
+    store.sidebarOpen = true
+    store.sidebarView = 'connections'
   }
-}
-
-function switchToWelcome() {
-  store.view = 'welcome'
 }
 
 function switchToShell() {
   if (store.selectedHostId) {
     store.view = 'shell'
+    store.sidebarOpen = false
   }
 }
 
@@ -82,22 +82,32 @@ onMounted(() => {
 
 <template>
   <div class="app">
-    <div class="titlebar">
-      <span class="brand">PhotonShell</span>
-      <div class="menubar">
-        <button type="button" :disabled="store.view !== 'shell'" @click="disconnect">断开</button>
-        <button type="button" disabled>连接</button>
-        <button type="button" disabled>设置</button>
-        <button type="button" disabled>帮助</button>
-      </div>
-    </div>
     <div class="main">
       <div class="activity">
-        <div class="icon" :class="{ active: store.view === 'welcome' }" title="当前连接" @click="switchToWelcome">连</div>
-        <div class="icon" :class="{ active: store.view === 'shell' }" title="终端" @click="switchToShell">终</div>
-        <div class="icon" title="设置">设</div>
+        <div class="logo" title="PhotonShell">P</div>
+        <div class="top-icons">
+          <div
+            class="icon"
+            :class="{ active: store.sidebarOpen && store.sidebarView === 'connections' }"
+            title="当前连接"
+            @click="toggleConnections"
+          >连</div>
+          <div
+            class="icon"
+            :class="{ active: store.view === 'shell' }"
+            title="终端"
+            @click="switchToShell"
+          >终</div>
+        </div>
+        <div class="bottom-icons">
+          <div
+            class="icon"
+            title="设置"
+            @click="store.settingsMenuOpen = true"
+          >设</div>
+        </div>
       </div>
-      <aside class="sidebar">
+      <aside v-if="store.sidebarOpen && store.sidebarView === 'connections'" class="sidebar">
         <div class="sidebar-header">
           <span>当前连接</span>
           <button type="button" class="new-btn" @click="openNewConnection">+ 新建连接</button>
@@ -132,9 +142,10 @@ onMounted(() => {
       <div class="terminal-area">
         <ShellView v-if="store.view === 'shell'" />
         <div v-else class="welcome">
+          <div class="welcome-logo">P</div>
           <h2>PhotonShell</h2>
-          <p v-if="!store.token">请点击左侧「配对」按钮，输入 Node 输出的 6 位配对码。</p>
-          <p v-else-if="!store.hosts.length">暂无保存的主机，点击「+ 新建连接」添加。</p>
+          <p v-if="!store.token">请点击左下角「设置」>「配对」，或左侧活动栏的「连」后点 Node 区域的「配对」。</p>
+          <p v-else-if="!store.hosts.length">暂无保存的主机，点击侧边栏「+ 新建连接」添加。</p>
           <p v-else>选择左侧主机，或新建连接。</p>
         </div>
       </div>
@@ -173,6 +184,7 @@ onMounted(() => {
     </div>
     <PairingView v-if="store.pairingModalOpen" />
     <HostFormView v-if="store.connectionModalOpen" />
+    <SettingsMenu v-if="store.settingsMenuOpen" />
   </div>
 </template>
 
@@ -191,6 +203,33 @@ html, body, #app {
 button, input {
   font-family: inherit;
 }
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4f4f4f;
+}
+
+::-webkit-scrollbar-corner {
+  background: #1e1e1e;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #424242 #1e1e1e;
+}
 </style>
 
 <style scoped>
@@ -200,49 +239,6 @@ button, input {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-}
-
-.titlebar {
-  height: 36px;
-  background: #3c3c3c;
-  display: flex;
-  align-items: center;
-  padding: 0 0.75rem;
-  border-bottom: 1px solid #252526;
-  flex-shrink: 0;
-}
-
-.brand {
-  font-weight: 600;
-  color: #fff;
-  margin-right: 1.5rem;
-  font-size: 13px;
-}
-
-.menubar {
-  display: flex;
-  gap: 1rem;
-  flex: 1;
-}
-
-.menubar button {
-  background: transparent;
-  border: none;
-  color: #cccccc;
-  padding: 0 0.25rem;
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 36px;
-}
-
-.menubar button:hover:not(:disabled) {
-  color: #fff;
-  background: #4a4a4a;
-}
-
-.menubar button:disabled {
-  color: #666;
-  cursor: default;
 }
 
 .main {
@@ -258,9 +254,43 @@ button, input {
   flex-direction: column;
   align-items: center;
   padding: 0.5rem 0;
-  gap: 0.5rem;
   border-right: 1px solid #252526;
   flex-shrink: 0;
+  gap: 0.5rem;
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0e639c;
+  color: #fff;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: default;
+  user-select: none;
+  margin-bottom: 0.5rem;
+}
+
+.top-icons {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  align-items: center;
+}
+
+.bottom-icons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  align-items: center;
+  margin-top: auto;
 }
 
 .activity .icon {
@@ -446,6 +476,19 @@ button, input {
   gap: 0.5rem;
 }
 
+.welcome-logo {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0e639c;
+  color: #fff;
+  border-radius: 12px;
+  font-size: 32px;
+  font-weight: 700;
+}
+
 .welcome h2 {
   margin: 0;
   color: #4aaaff;
@@ -455,6 +498,8 @@ button, input {
 .welcome p {
   margin: 0;
   font-size: 13px;
+  text-align: center;
+  max-width: 320px;
 }
 
 .panel {

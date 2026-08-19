@@ -20,10 +20,13 @@ export interface AppState {
     disk: number
     procs: number
   } | null
+  sidebarOpen: boolean
+  sidebarView: 'connections'
   panelOpen: boolean
   pairingModalOpen: boolean
   connectionModalOpen: boolean
   editingHostId: string
+  settingsMenuOpen: boolean
 }
 
 export const store = reactive<AppState>({
@@ -38,8 +41,11 @@ export const store = reactive<AppState>({
   streamId: 0,
   sessionId: '',
   telemetry: null,
+  sidebarOpen: true,
+  sidebarView: 'connections',
   panelOpen: true,
   pairingModalOpen: false,
   connectionModalOpen: false,
   editingHostId: '',
+  settingsMenuOpen: false,
 })
