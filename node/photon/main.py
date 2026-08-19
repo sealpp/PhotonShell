@@ -14,9 +14,12 @@ def main() -> int:
     port = int(os.environ.get("PHOTON_PORT", "17373"))
     allowed_origin = os.environ.get("PHOTON_ALLOWED_ORIGIN", "http://127.0.0.1:8080")
 
-    if host not in ("127.0.0.1", "localhost"):
-        print(f"error: {host} is not allowed; use 127.0.0.1 or localhost", file=sys.stderr)
-        return 1
+    if host in ("0.0.0.0", "::"):
+        print(
+            f"warning: {host} exposes the WebSocket to all interfaces; "
+            "use only in a trusted LAN test environment",
+            flush=True,
+        )
 
     state_path = os.environ.get("PHOTON_STATE_PATH")
     if state_path:

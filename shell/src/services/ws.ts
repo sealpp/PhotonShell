@@ -10,7 +10,9 @@ import {
 } from '../proto/photon_pb'
 import { store } from '../stores/app'
 
-const URL = 'ws://127.0.0.1:17373'
+function wsUrl(): string {
+  return `ws://${window.location.hostname}:17373`
+}
 
 let ws: WebSocket | null = null
 let reqId = 0
@@ -30,7 +32,7 @@ export interface WsCallbacks {
 }
 
 export function pair(pin: string, callbacks: WsCallbacks): void {
-  ws = new WebSocket(URL)
+  ws = new WebSocket(wsUrl())
   ws.binaryType = 'arraybuffer'
 
   ws.onopen = () => {
