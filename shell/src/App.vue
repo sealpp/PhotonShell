@@ -39,19 +39,6 @@ function isSelected(hostId: string): boolean {
   return store.selectedHostIds.has(hostId)
 }
 
-function isConnected(hostId: string): boolean {
-  return store.view === 'shell' && store.selectedHostId === hostId
-}
-
-function hostStatus(hostId: string): string {
-  if (store.selectedHostId === hostId && store.view === 'shell') {
-    if (store.shellState === 'online') return '已连接'
-    if (store.shellState === 'connecting') return '连接中'
-    if (store.shellState === 'error') return '错误'
-  }
-  return '已保存'
-}
-
 function toggleSelection(hostId: string) {
   const next = new Set(store.selectedHostIds)
   if (next.has(hostId)) {
@@ -191,15 +178,15 @@ onMounted(() => {
             v-for="h in store.hosts"
             :key="h.id"
             class="conn-item"
-            :class="{ selected: isSelected(h.id), connected: isConnected(h.id) }"
+            :class="{ selected: isSelected(h.id) }"
             @click="onItemClick(h, $event)"
             @contextmenu="onItemRightClick(h, $event)"
           >
-            <div class="name">{{ h.address }}</div>
-            <div class="meta">
-              {{ h.username }} · {{ h.port }} · <span class="status">{{ hostStatus(h.id) }}</span>
+            <div class="conn-info">
+              <div class="name">{{ h.address }}</div>
+              <div class="meta">{{ h.username }} · {{ h.port }}</div>
             </div>
-            <button type="button" class="conn-btn" @click.stop="openConnect(h)">
+            <button type="button" class="conn-btn" title="连接" @click.stop="openConnect(h)">
               <IconPlug :size="14" />
             </button>
           </div>
@@ -448,31 +435,31 @@ button, input {
 .conn-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0.5rem;
+  padding: 0;
 }
 
 .conn-item {
-  padding: 0.5rem;
-  border-radius: 4px;
-  margin-bottom: 0.25rem;
-  border: 1px solid #333;
-  background: #1e1e1e;
-  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border-left: 2px solid transparent;
   cursor: pointer;
   user-select: none;
 }
 
 .conn-item:hover {
-  background: #3c3c3c;
+  background: #2a2d2e;
 }
 
 .conn-item.selected {
-  border-color: #0e639c;
-  background: #1a2633;
+  background: #37373d;
+  border-left-color: #fff;
 }
 
-.conn-item.connected {
-  border-left: 3px solid #4ec9b0;
+.conn-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .conn-item .name {
@@ -481,24 +468,16 @@ button, input {
 }
 
 .conn-item .meta {
-  color: #888;
+  color: #858585;
   font-size: 11px;
   margin-top: 0.1rem;
 }
 
-.conn-item .status {
-  color: #4ec9b0;
-}
-
 .conn-btn {
-  position: absolute;
-  right: 0.5rem;
-  top: 0.5rem;
-  background: #3c3c3c;
+  background: transparent;
   border: none;
-  color: #ccc;
-  border-radius: 4px;
-  padding: 0.25rem;
+  color: #858585;
+  padding: 0.2rem;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -506,7 +485,6 @@ button, input {
 }
 
 .conn-btn:hover {
-  background: #4a4a4a;
   color: #fff;
 }
 
