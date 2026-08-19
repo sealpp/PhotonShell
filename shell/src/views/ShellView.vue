@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { store } from '../stores/app'
@@ -37,9 +37,10 @@ onMounted(() => {
   terminal = new Terminal({
     cursorBlink: true,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    fontSize: 13,
     theme: {
-      background: '#0f172a',
-      foreground: '#e2e8f0',
+      background: '#0d0d0d',
+      foreground: '#d4d4d4',
     },
   })
 
@@ -82,9 +83,21 @@ onMounted(() => {
   }, { immediate: true })
 })
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   setTerminalOutputHandler(null)
+  if (store.view === 'shell') {
+    if (store.selectedHostId) {
+      stopTelemetry(store.selectedHostId)
+    }
+    closeTerminal(terminalId)
+    disconnectHost()
+  }
+  terminal?.dispose()
+  terminal = null
+})
+
+function disconnect() {
   if (store.selectedHostId) {
     stopTelemetry(store.selectedHostId)
   }
@@ -92,28 +105,33 @@ onUnmounted(() => {
   disconnectHost()
   terminal?.dispose()
   terminal = null
-})
-
-function goBack() {
-  stopTelemetry(store.selectedHostId)
-  closeTerminal(terminalId)
-  disconnectHost()
-  terminal?.dispose()
-  terminal = null
-  store.view = 'host-form'
+  store.view = 'welcome'
 }
 </script>
 
 <template>
   <div class="shell">
-    <div class="header">
-      <button type="button" class="back" @click="goBack">Back</button>
-      <div class="state" :class="store.shellState">{{ store.shellState }}</div>
-      <div v-if="store.telemetry" class="telemetry">
-        <span>CPU {{ store.telemetry.cpu.toFixed(1) }}%</span>
-        <span>MEM {{ store.telemetry.mem.toFixed(1) }}%</span>
-        <span>DISK {{ store.telemetry.disk.toFixed(1) }}%</span>
-        <span>PROCS {{ store.telemetry.procs }}</span>
+    <div class="terminal-toolbar">
+      <div class="toolbar-left">
+        <button
+          type="button"
+          class="tool-icon"
+          :class="{ active: store.panelOpen }"
+          title="系统监控"
+          @click="store.panelOpen = !store.panelOpen"
+        >
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2,10 L6,7 L10,9 L12,3" />
+          </svg>
+        </button>
+      </div>
+      <div class="toolbar-right">
+        <span class="latency">-- ms</span>
+        <button type="button" class="tool-icon" title="断开连接" @click="disconnect">
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4l6 6M10 4l-6 6" />
+          </svg>
+        </button>
       </div>
     </div>
     <div ref="termEl" class="terminal" />
@@ -125,54 +143,57 @@ function goBack() {
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 }
 
-.header {
+.terminal-toolbar {
+  height: 30px;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.5rem 1rem;
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
+  justify-content: space-between;
+  padding: 0 0.75rem;
+  background: #0f0f0f;
+  border-bottom: 1px solid #252526;
+  flex-shrink: 0;
 }
 
-.back {
-  background: #475569;
-  color: #e2e8f0;
-}
-
-.state {
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.75rem;
-}
-
-.state.online {
-  color: #22c55e;
-}
-
-.state.connecting {
-  color: #f59e0b;
-}
-
-.state.error {
-  color: #f87171;
-}
-
-.state.idle {
-  color: #94a3b8;
-}
-
-.telemetry {
+.toolbar-left,
+.toolbar-right {
   display: flex;
-  gap: 1rem;
-  margin-left: auto;
-  font-size: 0.8rem;
-  color: #94a3b8;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.telemetry span {
-  min-width: 6rem;
+.tool-icon {
+  background: transparent;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-icon:hover {
+  color: #fff;
+  background: #3c3c3c;
+}
+
+.tool-icon.active {
+  color: #4aaaff;
+  background: #1a1a1a;
+}
+
+.tool-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.latency {
+  color: #4ec9b0;
+  font-size: 12px;
 }
 
 .terminal {

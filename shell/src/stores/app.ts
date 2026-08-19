@@ -1,12 +1,11 @@
 import { reactive } from 'vue'
 import type { HostProfile } from '../proto/photon_pb'
 
-export type View = 'pairing' | 'host-form' | 'shell'
+export type View = 'welcome' | 'shell'
 
 export interface AppState {
   view: View
   token: string
-  pin: string
   deviceName: string
   error: string
   hosts: HostProfile[]
@@ -21,12 +20,15 @@ export interface AppState {
     disk: number
     procs: number
   } | null
+  panelOpen: boolean
+  pairingModalOpen: boolean
+  connectionModalOpen: boolean
+  editingHostId: string
 }
 
 export const store = reactive<AppState>({
-  view: 'pairing',
+  view: 'welcome',
   token: '',
-  pin: '',
   deviceName: 'PhotonShell PWA',
   error: '',
   hosts: [],
@@ -36,4 +38,8 @@ export const store = reactive<AppState>({
   streamId: 0,
   sessionId: '',
   telemetry: null,
+  panelOpen: true,
+  pairingModalOpen: false,
+  connectionModalOpen: false,
+  editingHostId: '',
 })

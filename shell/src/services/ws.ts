@@ -19,7 +19,7 @@ import {
 } from '../proto/photon_pb'
 import { store } from '../stores/app'
 
-function wsUrl(): string {
+export function wsUrl(): string {
   return `ws://${window.location.hostname}:17373`
 }
 
@@ -85,7 +85,8 @@ export function pair(pin: string, callbacks: WsCallbacks): void {
       store.token = resp.body.value.token
       sendHello()
     } else if (body === 'nodeHelloAck') {
-      store.view = 'host-form'
+      store.pairingModalOpen = false
+      store.view = 'welcome'
       listHosts()
     } else if (body === 'hostListResponse') {
       store.hosts = resp.body.value.hosts as HostProfile[]
@@ -93,8 +94,8 @@ export function pair(pin: string, callbacks: WsCallbacks): void {
       const evt = resp.body.value
       store.shellState = evt.state as 'idle' | 'connecting' | 'online' | 'error'
       store.shellError = evt.error || ''
-      if (store.shellState === 'error' || store.shellState === 'idle') {
-        store.error = store.shellError || 'session closed'
+      if (store.shellState === 'error') {
+        store.error = store.shellError || 'session error'
       }
     } else if (body === 'terminalOpenedEvent') {
       const evt = resp.body.value
@@ -125,10 +126,8 @@ export function pair(pin: string, callbacks: WsCallbacks): void {
   }
 
   ws.onclose = () => {
-    if (store.view !== 'shell') {
-      store.error = store.error || 'WebSocket closed'
-      callbacks.onError(store.error)
-    }
+    store.error = store.error || 'WebSocket closed'
+    callbacks.onError(store.error)
   }
 }
 
@@ -163,6 +162,8 @@ export function createHost(host: HostProfile): void {
 export function connectToHost(hostId: string, password: string): void {
   if (!store.token) return
   store.selectedHostId = hostId
+  store.connectionModalOpen = false
+  store.view = 'shell'
   store.shellState = 'connecting'
   store.shellError = ''
   const msg = create(PhotonMessageSchema, {
@@ -192,6 +193,11 @@ export function disconnectHost(reason: string = ''): void {
     },
   })
   send(msg)
+  store.shellState = 'idle'
+  store.shellError = ''
+  store.streamId = 0
+  store.sessionId = ''
+  store.telemetry = null
 }
 
 export function openTerminal(terminalId: string, columns: number, rows: number): void {
