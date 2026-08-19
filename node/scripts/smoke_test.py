@@ -1,10 +1,8 @@
-#!/usr/bin/env python3
 """End-to-end smoke test for v0 pairing -> host form -> SSH/terminal slice."""
 
 import asyncio
 import os
 import re
-import subprocess
 import sys
 import tempfile
 import time
@@ -12,27 +10,23 @@ from pathlib import Path
 
 import websockets
 
-from photon.photon_pb2 import (
-    HostProfile,
-    PhotonMessage,
-    PtyOptions,
-    TelemetryStartRequest,
-    TerminalInput,
-    TerminalOpenRequest,
-)
+from photon.photon_pb2 import PhotonMessage
 
 
-async def read_pin(process: subprocess.Popen) -> str:
+async def read_pin(process: asyncio.subprocess.Process) -> str:
     """Wait for the Node to print its pairing PIN."""
+    assert process.stdout is not None
     deadline = time.time() + 10
     while time.time() < deadline:
-        line = process.stdout.readline()
-        if not line:
-            await asyncio.sleep(0.1)
+        try:
+            line = await asyncio.wait_for(process.stdout.readline(), timeout=0.5)
+        except asyncio.TimeoutError:
             continue
-        line = line.strip()
-        print("node:", line)
-        match = re.search(r"pairing code: (\d{6})", line)
+        if not line:
+            continue
+        text = line.decode("utf-8", errors="replace").strip()
+        print("node:", text)
+        match = re.search(r"pairing code: (\d{6})", text)
         if match:
             return match.group(1)
     raise RuntimeError("Node did not print a pairing PIN in time")
@@ -47,14 +41,14 @@ async def run() -> int:
         env["PHOTON_STATE_PATH"] = str(state_path)
         env["PHOTON_ALLOWED_ORIGIN"] = "http://127.0.0.1:8080"
 
-        process = subprocess.Popen(
-            [sys.executable, "-m", "photon.main"],
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-m",
+            "photon.main",
             cwd=root / "node",
             env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
         )
 
         try:
@@ -138,8 +132,8 @@ async def run() -> int:
         finally:
             process.terminate()
             try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
+                await asyncio.wait_for(process.wait(), timeout=5)
+            except asyncio.TimeoutError:
                 process.kill()
 
 
