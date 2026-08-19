@@ -151,9 +151,9 @@ function disconnect() {
 .terminal-toolbar {
   height: 30px;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  padding: 0 0.75rem;
+  padding: 0;
   background: #0f0f0f;
   border-bottom: 1px solid #252526;
   flex-shrink: 0;
@@ -161,7 +161,7 @@ function disconnect() {
 
 .tabs {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   flex: 1;
   gap: 0;
   overflow: hidden;
@@ -176,14 +176,16 @@ function disconnect() {
   background: #1e1e1e;
   color: #cccccc;
   border-right: 1px solid #252526;
+  border-top: 2px solid transparent;
   cursor: default;
   user-select: none;
   min-width: 0;
+  flex-shrink: 0;
 }
 
 .tab.active {
   background: #1a1a1a;
-  border-top: 2px solid #0e639c;
+  border-top-color: #0e639c;
 }
 
 .tab-label {
@@ -216,6 +218,7 @@ function disconnect() {
   display: flex;
   align-items: center;
   margin-left: auto;
+  padding: 0 0.5rem;
 }
 
 .tool-icon {
@@ -242,7 +245,6 @@ function disconnect() {
 
 .terminal {
   flex: 1;
-  padding: 0.5rem;
   overflow: hidden;
 }
 </style>
