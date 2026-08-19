@@ -10,13 +10,17 @@ import HostContextMenu from './components/HostContextMenu.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
 import { IconSquareLetterP, IconList, IconTerminal2, IconSettings, IconPlus, IconPlug } from '@tabler/icons-vue'
 
-const selectedHost = computed(() => store.hosts.find((h) => h.id === store.selectedHostId))
+const activeHost = computed(() => {
+  const tab = store.tabs.find((t) => t.id === store.activeTabId)
+  return tab ? store.hosts.find((h) => h.id === tab.hostId) : undefined
+})
 
 const connectionStatus = computed(() => {
-  if (store.view === 'shell') {
-    if (store.shellState === 'online') return '已连接'
-    if (store.shellState === 'connecting') return '连接中'
-    if (store.shellState === 'error') return '错误'
+  const tab = store.tabs.find((t) => t.id === store.activeTabId)
+  if (tab) {
+    if (tab.state === 'online') return '已连接'
+    if (tab.state === 'connecting') return '连接中'
+    if (tab.state === 'error') return '错误'
   }
   return store.token ? '已配对' : '未配对'
 })
@@ -115,7 +119,7 @@ function toggleConnections() {
 }
 
 function switchToShell() {
-  if (store.selectedHostId) {
+  if (store.activeTabId) {
     store.view = 'shell'
     store.sidebarOpen = false
   }
@@ -242,8 +246,8 @@ onMounted(() => {
     <div class="statusbar">
       <div class="left">
         <span>{{ connectionStatus }}</span>
-        <span v-if="selectedHost">{{ selectedHost.username }}</span>
-        <span v-if="selectedHost">{{ selectedHost.address }}:{{ selectedHost.port }}</span>
+        <span v-if="activeHost">{{ activeHost.username }}</span>
+        <span v-if="activeHost">{{ activeHost.address }}:{{ activeHost.port }}</span>
       </div>
       <div class="right">
         <span>Node: {{ nodeUrl }}</span>

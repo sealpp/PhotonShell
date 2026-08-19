@@ -18,7 +18,8 @@ import {
   type HostProfile,
   type PhotonMessage,
 } from '../proto/photon_pb'
-import { store } from '../stores/app'
+import { store, type ShellState, type Tab, type Telemetry } from '../stores/app'
+import { randomId } from '../utils/id'
 
 export function wsUrl(): string {
   return `ws://${window.location.hostname}:17373`
@@ -26,8 +27,9 @@ export function wsUrl(): string {
 
 let ws: WebSocket | null = null
 let reqId = 0
-let _onOutput: ((data: Uint8Array) => void) | null = null
 const pendingDeletes = new Map<string, string[]>()
+const outputHandlers = new Map<number, (data: Uint8Array) => void>()
+const telemetryStarted = new Set<string>()
 
 function nextReqId(): string {
   return `req-${++reqId}`
@@ -39,8 +41,15 @@ function send(msg: PhotonMessage): void {
   }
 }
 
-export function setTerminalOutputHandler(handler: ((data: Uint8Array) => void) | null): void {
-  _onOutput = handler
+export function setTerminalOutputHandler(
+  streamId: number,
+  handler: ((data: Uint8Array) => void) | null,
+): void {
+  if (handler) {
+    outputHandlers.set(streamId, handler)
+  } else {
+    outputHandlers.delete(streamId)
+  }
 }
 
 function sendHello(): void {
@@ -98,39 +107,44 @@ export function pair(pin: string, callbacks: WsCallbacks): void {
       const deleted = new Set(ids ?? [])
       store.hosts = store.hosts.filter((h) => !deleted.has(h.id))
       store.selectedHostIds = new Set(
-        Array.from(store.selectedHostIds).filter((id) => !deleted.has(id))
+        Array.from(store.selectedHostIds).filter((id) => !deleted.has(id)),
       )
-      if (store.selectedHostId && deleted.has(store.selectedHostId)) {
-        store.selectedHostId = ''
-        store.view = 'welcome'
-        store.shellState = 'idle'
-        store.shellError = ''
-        store.streamId = 0
-        store.sessionId = ''
-        store.telemetry = null
-      }
     } else if (body === 'sessionStateEvent') {
       const evt = resp.body.value
-      store.shellState = evt.state as 'idle' | 'connecting' | 'online' | 'error'
-      store.shellError = evt.error || ''
-      if (store.shellState === 'error') {
-        store.error = store.shellError || 'session error'
+      const tab = store.tabs.find((t) => t.sessionId === evt.sessionId)
+      if (tab) {
+        tab.state = evt.state as ShellState
+        tab.error = evt.error || ''
       }
     } else if (body === 'terminalOpenedEvent') {
       const evt = resp.body.value
-      store.streamId = evt.streamId
-      store.sessionId = evt.sessionId
+      const tab = store.tabs.find((t) => t.terminalId === evt.terminalId)
+      if (tab) {
+        tab.streamId = evt.streamId
+        tab.sessionId = evt.sessionId
+      }
     } else if (body === 'terminalOutput') {
-      if (_onOutput) {
-        _onOutput(resp.body.value.payload)
+      const out = resp.body.value
+      const handler = outputHandlers.get(out.streamId)
+      if (handler) {
+        handler(out.payload)
       }
     } else if (body === 'telemetrySnapshot') {
       const snap = resp.body.value
-      store.telemetry = {
+      const telemetry: Telemetry = {
         cpu: snap.cpuPercent?.value?.case === 'number' ? snap.cpuPercent.value.value : 0,
         mem: snap.memoryPercent?.value?.case === 'number' ? snap.memoryPercent.value.value : 0,
         disk: snap.diskPercent?.value?.case === 'number' ? snap.diskPercent.value.value : 0,
         procs: snap.processCount,
+      }
+      for (const tab of store.tabs) {
+        if (tab.hostId === snap.hostId) {
+          tab.telemetry = telemetry
+        }
+      }
+      const activeTab = store.tabs.find((t) => t.id === store.activeTabId)
+      if (activeTab && activeTab.hostId === snap.hostId) {
+        store.telemetry = telemetry
       }
     } else if (body === 'requestFailed') {
       pendingDeletes.delete(resp.requestId)
@@ -195,49 +209,79 @@ export function deleteHosts(hostIds: string[]): void {
   send(msg)
 }
 
-export function connectToHost(hostId: string, password: string): void {
+export function addTab(host: HostProfile, password: string): void {
   if (!store.token) return
-  store.selectedHostId = hostId
-  store.connectionModalOpen = false
+  const tabId = randomId()
+  const sessionId = randomId()
+  const terminalId = randomId()
+  const tab: Tab = {
+    id: tabId,
+    hostId: host.id,
+    label: host.address,
+    state: 'connecting',
+    error: '',
+    streamId: 0,
+    sessionId,
+    terminalId,
+    telemetry: null,
+  }
+  store.tabs.push(tab)
+  store.activeTabId = tabId
   store.view = 'shell'
-  store.shellState = 'connecting'
-  store.shellError = ''
+  store.connectionModalOpen = false
+  store.editingHostId = ''
+
   const msg = create(PhotonMessageSchema, {
     protocolVersion: 0,
     requestId: nextReqId(),
     token: store.token,
     body: {
       case: 'sessionConnectRequest',
-      value: create(SessionConnectRequestSchema, { hostId, password }),
+      value: create(SessionConnectRequestSchema, { hostId: host.id, password, sessionId }),
     },
   })
   send(msg)
 }
 
-export function disconnectHost(reason: string = ''): void {
-  if (!store.token || !store.selectedHostId) return
+export function closeTab(tabId: string): void {
+  const idx = store.tabs.findIndex((t) => t.id === tabId)
+  if (idx === -1) return
+  const tab = store.tabs[idx]
+  store.tabs.splice(idx, 1)
+
+  if (tab.streamId) {
+    setTerminalOutputHandler(tab.streamId, null)
+  }
+  stopTelemetry(tab.sessionId)
+  disconnectSession(tab.sessionId)
+
+  if (store.activeTabId === tabId) {
+    const next = store.tabs[idx] || store.tabs[idx - 1]
+    store.activeTabId = next ? next.id : ''
+    store.telemetry = next ? next.telemetry : null
+    if (!store.activeTabId) {
+      store.view = 'welcome'
+      store.telemetry = null
+    }
+  }
+}
+
+function disconnectSession(sessionId: string, reason: string = ''): void {
+  if (!store.token || !sessionId) return
   const msg = create(PhotonMessageSchema, {
     protocolVersion: 0,
     requestId: nextReqId(),
     token: store.token,
     body: {
       case: 'sessionDisconnectRequest',
-      value: create(SessionDisconnectRequestSchema, {
-        hostId: store.selectedHostId,
-        reason,
-      }),
+      value: create(SessionDisconnectRequestSchema, { sessionId, reason }),
     },
   })
   send(msg)
-  store.shellState = 'idle'
-  store.shellError = ''
-  store.streamId = 0
-  store.sessionId = ''
-  store.telemetry = null
 }
 
-export function openTerminal(terminalId: string, columns: number, rows: number): void {
-  if (!store.token || !store.selectedHostId) return
+export function openTerminal(sessionId: string, terminalId: string, columns: number, rows: number): void {
+  if (!store.token || !sessionId) return
   const msg = create(PhotonMessageSchema, {
     protocolVersion: 0,
     requestId: nextReqId(),
@@ -245,7 +289,7 @@ export function openTerminal(terminalId: string, columns: number, rows: number):
     body: {
       case: 'terminalOpenRequest',
       value: create(TerminalOpenRequestSchema, {
-        hostId: store.selectedHostId,
+        sessionId,
         terminalId,
         pty: create(PtyOptionsSchema, {
           term: 'xterm-256color',
@@ -307,30 +351,33 @@ export function closeTerminal(terminalId: string): void {
   send(msg)
 }
 
-export function startTelemetry(hostId: string, intervalMs: number = 2000): void {
-  if (!store.token) return
+export function startTelemetry(sessionId: string, intervalMs: number = 2000): void {
+  if (!store.token || !sessionId || telemetryStarted.has(sessionId)) return
+  telemetryStarted.add(sessionId)
   const msg = create(PhotonMessageSchema, {
     protocolVersion: 0,
     requestId: nextReqId(),
     token: store.token,
     body: {
       case: 'telemetryStartRequest',
-      value: create(TelemetryStartRequestSchema, { hostId, intervalMs }),
+      value: create(TelemetryStartRequestSchema, { sessionId, intervalMs }),
     },
   })
   send(msg)
 }
 
-export function stopTelemetry(hostId: string): void {
-  if (!store.token) return
+export function stopTelemetry(sessionId: string): void {
+  if (!store.token || !sessionId || !telemetryStarted.has(sessionId)) return
+  telemetryStarted.delete(sessionId)
   const msg = create(PhotonMessageSchema, {
     protocolVersion: 0,
     requestId: nextReqId(),
     token: store.token,
     body: {
       case: 'telemetryStopRequest',
-      value: create(TelemetryStopRequestSchema, { hostId }),
+      value: create(TelemetryStopRequestSchema, { sessionId }),
     },
   })
   send(msg)
 }
+

@@ -2,6 +2,26 @@ import { reactive } from 'vue'
 import type { HostProfile } from '../proto/photon_pb'
 
 export type View = 'welcome' | 'shell'
+export type ShellState = 'idle' | 'connecting' | 'online' | 'error'
+
+export interface Telemetry {
+  cpu: number
+  mem: number
+  disk: number
+  procs: number
+}
+
+export interface Tab {
+  id: string
+  hostId: string
+  label: string
+  state: ShellState
+  error: string
+  streamId: number
+  sessionId: string
+  terminalId: string
+  telemetry: Telemetry | null
+}
 
 export interface AppState {
   view: View
@@ -9,17 +29,11 @@ export interface AppState {
   deviceName: string
   error: string
   hosts: HostProfile[]
-  selectedHostId: string
-  shellState: 'idle' | 'connecting' | 'online' | 'error'
-  shellError: string
-  streamId: number
-  sessionId: string
-  telemetry: {
-    cpu: number
-    mem: number
-    disk: number
-    procs: number
-  } | null
+  tabs: Tab[]
+  activeTabId: string
+  selectedHostIds: Set<string>
+  selectionAnchor: string
+  telemetry: Telemetry | null
   sidebarOpen: boolean
   sidebarView: 'connections'
   panelOpen: boolean
@@ -27,8 +41,6 @@ export interface AppState {
   connectionModalOpen: boolean
   editingHostId: string
   settingsMenuOpen: boolean
-  selectedHostIds: Set<string>
-  selectionAnchor: string
   deleteConfirmOpen: boolean
   deleteConfirmIds: string[]
   contextMenuOpen: boolean
@@ -42,11 +54,10 @@ export const store = reactive<AppState>({
   deviceName: 'PhotonShell PWA',
   error: '',
   hosts: [],
-  selectedHostId: '',
-  shellState: 'idle',
-  shellError: '',
-  streamId: 0,
-  sessionId: '',
+  tabs: [],
+  activeTabId: '',
+  selectedHostIds: new Set(),
+  selectionAnchor: '',
   telemetry: null,
   sidebarOpen: true,
   sidebarView: 'connections',
@@ -55,8 +66,6 @@ export const store = reactive<AppState>({
   connectionModalOpen: false,
   editingHostId: '',
   settingsMenuOpen: false,
-  selectedHostIds: new Set(),
-  selectionAnchor: '',
   deleteConfirmOpen: false,
   deleteConfirmIds: [],
   contextMenuOpen: false,

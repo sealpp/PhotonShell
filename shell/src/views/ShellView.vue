@@ -1,79 +1,20 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Terminal } from '@xterm/xterm'
-import { FitAddon } from '@xterm/addon-fit'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { store } from '../stores/app'
-import {
-  closeTerminal,
-  disconnectHost,
-  openTerminal,
-  resizeTerminal,
-  sendTerminalInput,
-  setTerminalOutputHandler,
-  startTelemetry,
-  stopTelemetry,
-} from '../services/ws'
-import { randomId } from '../utils/id'
+import { closeTab } from '../services/ws'
+import ShellTerminal from './ShellTerminal.vue'
 import { IconChartLine, IconX } from '@tabler/icons-vue'
-import '@xterm/xterm/css/xterm.css'
 
-const termEl = ref<HTMLDivElement | null>(null)
 const tabsEl = ref<HTMLDivElement | null>(null)
-let terminal: Terminal | null = null
-let fitAddon: FitAddon | null = null
-let resizeObserver: ResizeObserver | null = null
 let wheelHandler: ((e: WheelEvent) => void) | null = null
-const terminalId = randomId()
 
-const selectedHost = computed(() => store.hosts.find((h) => h.id === store.selectedHostId))
-const tabLabel = computed(() => selectedHost.value ? `${selectedHost.value.username}@${selectedHost.value.address}` : '未连接')
-
-const encoder = new TextEncoder()
-
-function fitAndResize() {
-  if (!terminal || !fitAddon) return
-  fitAddon.fit()
-  const { cols, rows } = terminal
-  resizeTerminal(terminalId, cols, rows)
+function tabDotClass(state: string): string {
+  if (state === 'online') return 'dot online'
+  if (state === 'connecting') return 'dot connecting'
+  return 'dot offline'
 }
 
 onMounted(() => {
-  if (!termEl.value) return
-
-  terminal = new Terminal({
-    cursorBlink: true,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-    fontSize: 13,
-    theme: {
-      background: '#0d0d0d',
-      foreground: '#d4d4d4',
-    },
-  })
-
-  fitAddon = new FitAddon()
-  terminal.loadAddon(fitAddon)
-  terminal.open(termEl.value)
-  fitAddon.fit()
-
-  terminal.onData((data: string) => {
-    if (store.streamId) {
-      sendTerminalInput(store.streamId, encoder.encode(data))
-    }
-  })
-
-  terminal.onResize(({ cols, rows }) => {
-    resizeTerminal(terminalId, cols, rows)
-  })
-
-  setTerminalOutputHandler((data: Uint8Array) => {
-    terminal?.write(data)
-  })
-
-  resizeObserver = new ResizeObserver(() => {
-    fitAndResize()
-  })
-  resizeObserver.observe(termEl.value)
-
   wheelHandler = (e: WheelEvent) => {
     if (!tabsEl.value) return
     if (Math.abs(e.deltaX) > 0 || Math.abs(e.deltaY) > 0) {
@@ -82,59 +23,31 @@ onMounted(() => {
     }
   }
   tabsEl.value?.addEventListener('wheel', wheelHandler, { passive: false })
-
-  const unwatch = watch(() => store.shellState, (state) => {
-    if (state === 'online') {
-      const { cols, rows } = terminal!
-      openTerminal(terminalId, cols, rows)
-      if (store.selectedHostId) {
-        startTelemetry(store.selectedHostId, 2000)
-      }
-      unwatch()
-    } else if (state === 'error') {
-      terminal?.writeln(`\r\n[session error: ${store.shellError}]`)
-      unwatch()
-    }
-  }, { immediate: true })
 })
 
 onBeforeUnmount(() => {
-  resizeObserver?.disconnect()
-  setTerminalOutputHandler(null)
   if (wheelHandler && tabsEl.value) {
     tabsEl.value.removeEventListener('wheel', wheelHandler)
     wheelHandler = null
   }
-  if (store.view === 'shell') {
-    if (store.selectedHostId) {
-      stopTelemetry(store.selectedHostId)
-    }
-    closeTerminal(terminalId)
-    disconnectHost()
-  }
-  terminal?.dispose()
-  terminal = null
 })
-
-function disconnect() {
-  if (store.selectedHostId) {
-    stopTelemetry(store.selectedHostId)
-  }
-  closeTerminal(terminalId)
-  disconnectHost()
-  terminal?.dispose()
-  terminal = null
-  store.view = 'welcome'
-}
 </script>
 
 <template>
   <div class="shell">
     <div class="terminal-toolbar">
       <div ref="tabsEl" class="tabs">
-        <div class="tab active">
-          <span class="tab-label">{{ tabLabel }}</span>
-          <button type="button" class="tab-close" title="断开连接" @click.stop="disconnect">
+        <div
+          v-for="(tab, index) in store.tabs"
+          :key="tab.id"
+          class="tab"
+          :class="{ active: tab.id === store.activeTabId }"
+          @click="store.activeTabId = tab.id"
+        >
+          <span :class="tabDotClass(tab.state)" />
+          <span class="tab-index">{{ index + 1 }}</span>
+          <span class="tab-label">{{ tab.label }}</span>
+          <button type="button" class="tab-close" title="断开连接" @click.stop="closeTab(tab.id)">
             <IconX :size="14" />
           </button>
         </div>
@@ -151,7 +64,14 @@ function disconnect() {
         </button>
       </div>
     </div>
-    <div ref="termEl" class="terminal" />
+    <div class="terminals">
+      <ShellTerminal
+        v-for="tab in store.tabs"
+        :key="tab.id"
+        :tab-id="tab.id"
+        v-show="tab.id === store.activeTabId"
+      />
+    </div>
   </div>
 </template>
 
@@ -211,7 +131,7 @@ function disconnect() {
   height: 100%;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   padding: 0 0.75rem;
   background: #1e1e1e;
   color: #cccccc;
@@ -226,6 +146,32 @@ function disconnect() {
 .tab.active {
   background: #1a1a1a;
   border-top-color: #0e639c;
+}
+
+.tab-index {
+  font-size: 11px;
+  color: #888;
+  min-width: 1.2em;
+  text-align: right;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot.online {
+  background: #4ec9b0;
+}
+
+.dot.connecting {
+  background: #ffcc00;
+}
+
+.dot.offline {
+  background: #f44336;
 }
 
 .tab-label {
@@ -283,7 +229,7 @@ function disconnect() {
   background: #1a1a1a;
 }
 
-.terminal {
+.terminals {
   flex: 1;
   overflow: hidden;
 }

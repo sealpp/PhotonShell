@@ -8,10 +8,8 @@ const hostsToDelete = computed(() =>
   store.hosts.filter((h) => store.deleteConfirmIds.includes(h.id))
 )
 
-const isActive = computed(() =>
-  store.view === 'shell' &&
-  store.selectedHostId !== '' &&
-  store.deleteConfirmIds.includes(store.selectedHostId)
+const hasOpenTabs = computed(() =>
+  store.tabs.some((t) => store.deleteConfirmIds.includes(t.hostId))
 )
 
 function close() {
@@ -37,8 +35,8 @@ function confirm() {
         </button>
       </div>
       <div class="modal-body">
-        <p class="warning" v-if="isActive">
-          当前有连接中的主机，删除后会自动断开。
+        <p class="warning" v-if="hasOpenTabs">
+          这些主机已有打开的标签，删除配置不影响已打开的标签。
         </p>
         <ul class="host-list">
           <li v-for="h in hostsToDelete" :key="h.id">{{ h.address }}</li>

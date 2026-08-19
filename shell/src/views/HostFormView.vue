@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import { create } from '@bufbuild/protobuf'
 import { HostProfileSchema } from '../proto/photon_pb'
 import { store } from '../stores/app'
-import { connectToHost, createHost } from '../services/ws'
+import { addTab, createHost } from '../services/ws'
 import { randomId } from '../utils/id'
 import { IconX } from '@tabler/icons-vue'
 
@@ -44,7 +44,7 @@ function submit() {
     username: username.value,
   })
   createHost(host)
-  connectToHost(hostId, password.value)
+  addTab(host, password.value)
 }
 
 function close() {
