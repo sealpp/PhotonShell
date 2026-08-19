@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { store } from '../stores/app'
@@ -14,7 +14,7 @@ import {
   stopTelemetry,
 } from '../services/ws'
 import { randomId } from '../utils/id'
-import { IconChartLine, IconPlugX } from '@tabler/icons-vue'
+import { IconChartLine, IconX } from '@tabler/icons-vue'
 import '@xterm/xterm/css/xterm.css'
 
 const termEl = ref<HTMLDivElement | null>(null)
@@ -22,6 +22,9 @@ let terminal: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let resizeObserver: ResizeObserver | null = null
 const terminalId = randomId()
+
+const selectedHost = computed(() => store.hosts.find((h) => h.id === store.selectedHostId))
+const tabLabel = computed(() => selectedHost.value ? `${selectedHost.value.username}@${selectedHost.value.address}` : '未连接')
 
 const encoder = new TextEncoder()
 
@@ -113,7 +116,15 @@ function disconnect() {
 <template>
   <div class="shell">
     <div class="terminal-toolbar">
-      <div class="toolbar-left">
+      <div class="tabs">
+        <div class="tab active">
+          <span class="tab-label">{{ tabLabel }}</span>
+          <button type="button" class="tab-close" title="断开连接" @click.stop="disconnect">
+            <IconX :size="14" />
+          </button>
+        </div>
+      </div>
+      <div class="actions">
         <button
           type="button"
           class="tool-icon"
@@ -122,12 +133,6 @@ function disconnect() {
           @click="store.panelOpen = !store.panelOpen"
         >
           <IconChartLine :size="16" />
-        </button>
-      </div>
-      <div class="toolbar-right">
-        <span class="latency">-- ms</span>
-        <button type="button" class="tool-icon" title="断开连接" @click="disconnect">
-          <IconPlugX :size="16" />
         </button>
       </div>
     </div>
@@ -154,11 +159,63 @@ function disconnect() {
   flex-shrink: 0;
 }
 
-.toolbar-left,
-.toolbar-right {
+.tabs {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex: 1;
+  gap: 0;
+  overflow: hidden;
+}
+
+.tab {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.75rem;
+  background: #1e1e1e;
+  color: #cccccc;
+  border-right: 1px solid #252526;
+  cursor: default;
+  user-select: none;
+  min-width: 0;
+}
+
+.tab.active {
+  background: #1a1a1a;
+  border-top: 2px solid #0e639c;
+}
+
+.tab-label {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-close {
+  background: transparent;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 0.15rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+}
+
+.tab-close:hover {
+  color: #fff;
+  background: #c75450;
+  opacity: 1;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
 }
 
 .tool-icon {
@@ -181,11 +238,6 @@ function disconnect() {
 .tool-icon.active {
   color: #4aaaff;
   background: #1a1a1a;
-}
-
-.latency {
-  color: #4ec9b0;
-  font-size: 12px;
 }
 
 .terminal {
