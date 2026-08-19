@@ -21,7 +21,7 @@ class Terminal:
 
 
 class Session:
-    """One SSH session with zero or more terminal channels."""
+    """One SSH session with one or more terminal channels."""
 
     def __init__(
         self,
@@ -29,27 +29,28 @@ class Session:
         host_id: str,
         host: Dict[str, Any],
         password: str,
+        next_stream_id: Callable[[], int],
         on_output: Callable[[str, int, bytes], Coroutine],
-        on_state: Callable[[str, str, Optional[str]], Coroutine],
+        on_state: Callable[[str, str, str, Optional[str]], Coroutine],
         on_telemetry: Callable[[TelemetrySnapshot], Coroutine],
     ):
         self.session_id = session_id
         self.host_id = host_id
         self.host = host
         self.password = password
+        self._next_stream_id = next_stream_id
         self.on_output = on_output
         self.on_state = on_state
         self.on_telemetry = on_telemetry
         self.connection: Optional[asyncssh.SSHClientConnection] = None
         self._terminals: Dict[str, Terminal] = {}
         self._stream_to_terminal: Dict[int, str] = {}
-        self._next_stream_id = 1
         self.state = "idle"
         self.error: Optional[str] = None
         self._telemetry: Optional[TelemetryCollector] = None
 
     async def _emit_state(self) -> None:
-        await self.on_state(self.host_id, self.state, self.error)
+        await self.on_state(self.session_id, self.host_id, self.state, self.error)
 
     async def connect(self) -> None:
         self.state = "connecting"
@@ -88,8 +89,7 @@ class Session:
             term_size=(columns, rows),
         )
 
-        stream_id = self._next_stream_id
-        self._next_stream_id += 1
+        stream_id = self._next_stream_id()
 
         terminal = Terminal(
             terminal_id=terminal_id,
@@ -120,7 +120,6 @@ class Session:
             pass
         finally:
             if stream_id in self._stream_to_terminal:
-                # terminal closed by remote side; ensure cleanup
                 await self._close_terminal(terminal.terminal_id)
 
     def _get_terminal(self, terminal_id: str) -> Optional[Terminal]:
@@ -202,59 +201,61 @@ class Session:
 
 
 class SessionManager:
-    """Keeps one Session per host_id."""
+    """Keeps multiple independent sessions keyed by session_id."""
 
     def __init__(self) -> None:
         self._sessions: Dict[str, Session] = {}
         self._next_session_id = 1
+        self._next_stream_id = 1
 
-    def get(self, host_id: str) -> Optional[Session]:
-        return self._sessions.get(host_id)
+    def next_stream_id(self) -> int:
+        sid = self._next_stream_id
+        self._next_stream_id += 1
+        return sid
+
+    def get(self, session_id: str) -> Optional[Session]:
+        return self._sessions.get(session_id)
 
     async def connect(
         self,
+        session_id: str,
         host_id: str,
         host: Dict[str, Any],
         password: str,
         on_output: Callable[[str, int, bytes], Coroutine],
-        on_state: Callable[[str, str, Optional[str]], Coroutine],
+        on_state: Callable[[str, str, str, Optional[str]], Coroutine],
         on_telemetry: Callable[[TelemetrySnapshot], Coroutine],
     ) -> Session:
-        if host_id in self._sessions:
-            raise RuntimeError("session already exists for this host")
-
-        session_id = f"s{self._next_session_id}"
-        self._next_session_id += 1
-
         session = Session(
             session_id=session_id,
             host_id=host_id,
             host=host,
             password=password,
+            next_stream_id=self.next_stream_id,
             on_output=on_output,
             on_state=on_state,
             on_telemetry=on_telemetry,
         )
-        self._sessions[host_id] = session
+        self._sessions[session_id] = session
         try:
             await session.connect()
         except Exception:
-            self._sessions.pop(host_id, None)
+            self._sessions.pop(session_id, None)
             raise
         return session
 
-    async def start_telemetry(self, host_id: str, interval_ms: int) -> None:
-        session = self._sessions.get(host_id)
+    async def start_telemetry(self, session_id: str, interval_ms: int) -> None:
+        session = self._sessions.get(session_id)
         if session:
             await session.start_telemetry(interval_ms)
 
-    async def stop_telemetry(self, host_id: str) -> None:
-        session = self._sessions.get(host_id)
+    async def stop_telemetry(self, session_id: str) -> None:
+        session = self._sessions.get(session_id)
         if session:
             await session.stop_telemetry()
 
-    async def disconnect(self, host_id: str, reason: str = "") -> None:
-        session = self._sessions.pop(host_id, None)
+    async def disconnect(self, session_id: str, reason: str = "") -> None:
+        session = self._sessions.pop(session_id, None)
         if session:
             await session.disconnect(reason)
 
@@ -271,5 +272,5 @@ class SessionManager:
             await session.close_terminal(terminal_id)
 
     async def disconnect_all(self) -> None:
-        for host_id in list(self._sessions.keys()):
-            await self.disconnect(host_id)
+        for session_id in list(self._sessions.keys()):
+            await self.disconnect(session_id)

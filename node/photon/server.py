@@ -262,9 +262,7 @@ class PhotonServer:
         target_ids = set(msg.host_delete_request.host_ids)
         hosts = self.state.get("hosts", [])
 
-        for host_id in target_ids:
-            if any(h.get("id") == host_id for h in hosts):
-                await self.sessions.disconnect(host_id)
+        # 删除主机配置不影响已打开的会话
 
         new_hosts = [h for h in hosts if h.get("id") not in target_ids]
         removed = len(hosts) - len(new_hosts)
@@ -281,9 +279,10 @@ class PhotonServer:
         if self._websocket:
             await self._send(self._websocket, msg)
 
-    async def _on_session_state(self, host_id: str, state: str, error: Optional[str]) -> None:
+    async def _on_session_state(self, session_id: str, host_id: str, state: str, error: Optional[str]) -> None:
         msg = PhotonMessage()
         msg.protocol_version = PROTOCOL_VERSION
+        msg.session_state_event.session_id = session_id
         msg.session_state_event.host_id = host_id
         msg.session_state_event.state = state
         msg.session_state_event.error = error or ""
@@ -318,6 +317,7 @@ class PhotonServer:
 
         try:
             await self.sessions.connect(
+                req.session_id,
                 req.host_id,
                 host,
                 req.password,
@@ -335,7 +335,7 @@ class PhotonServer:
             await self._send_failed(websocket, msg.request_id, "invalid_token", "token is invalid or expired")
             return
 
-        await self.sessions.disconnect(msg.session_disconnect_request.host_id, msg.session_disconnect_request.reason)
+        await self.sessions.disconnect(msg.session_disconnect_request.session_id, msg.session_disconnect_request.reason)
 
     async def _handle_terminal_open(
         self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage
@@ -345,9 +345,9 @@ class PhotonServer:
             return
 
         req = msg.terminal_open_request
-        session = self.sessions.get(req.host_id)
+        session = self.sessions.get(req.session_id)
         if not session:
-            await self._send_failed(websocket, msg.request_id, "session_not_found", f"no active session for {req.host_id!r}")
+            await self._send_failed(websocket, msg.request_id, "session_not_found", f"no active session for {req.session_id!r}")
             return
 
         pty = req.pty
@@ -410,7 +410,7 @@ class PhotonServer:
 
         req = msg.telemetry_start_request
         interval = req.interval_ms or 2000
-        await self.sessions.start_telemetry(req.host_id, interval)
+        await self.sessions.start_telemetry(req.session_id, interval)
 
     async def _handle_telemetry_stop(
         self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage
@@ -419,7 +419,7 @@ class PhotonServer:
             await self._send_failed(websocket, msg.request_id, "invalid_token", "token is invalid or expired")
             return
 
-        await self.sessions.stop_telemetry(msg.telemetry_stop_request.host_id)
+        await self.sessions.stop_telemetry(msg.telemetry_stop_request.session_id)
 
 
 async def serve(
