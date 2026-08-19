@@ -16,6 +16,7 @@ from photon.photon_pb2 import (
     SessionConnectRequest,
     SessionDisconnectRequest,
     SessionStateEvent,
+    TelemetrySnapshot,
     TerminalCloseRequest,
     TerminalInput,
     TerminalOpenedEvent,
@@ -132,9 +133,9 @@ class PhotonServer:
         elif body_name == "terminal_close_request":
             await self._handle_terminal_close(websocket, msg)
         elif body_name == "telemetry_start_request":
-            await self._send_failed(websocket, msg.request_id, "not_implemented", "telemetry is not implemented in this slice")
+            await self._handle_telemetry_start(websocket, msg)
         elif body_name == "telemetry_stop_request":
-            await self._send_failed(websocket, msg.request_id, "not_implemented", "telemetry is not implemented in this slice")
+            await self._handle_telemetry_stop(websocket, msg)
         else:
             await self._send_failed(
                 websocket,
@@ -267,6 +268,12 @@ class PhotonServer:
         msg.terminal_output.payload = payload
         await self._send_client(msg)
 
+    async def _on_telemetry(self, snapshot: TelemetrySnapshot) -> None:
+        msg = PhotonMessage()
+        msg.protocol_version = PROTOCOL_VERSION
+        msg.telemetry_snapshot.CopyFrom(snapshot)
+        await self._send_client(msg)
+
     async def _handle_session_connect(
         self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage
     ) -> None:
@@ -288,6 +295,7 @@ class PhotonServer:
                 req.password,
                 self._on_terminal_output,
                 self._on_session_state,
+                self._on_telemetry,
             )
         except Exception as exc:
             await self._send_failed(websocket, msg.request_id, "connection_failed", str(exc))
@@ -368,6 +376,26 @@ class PhotonServer:
         session = self.sessions.get(msg.terminal_close_request.host_id)
         if session:
             await session.close_terminal(msg.terminal_close_request.terminal_id)
+
+    async def _handle_telemetry_start(
+        self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage
+    ) -> None:
+        if not self._validate_token(msg.token):
+            await self._send_failed(websocket, msg.request_id, "invalid_token", "token is invalid or expired")
+            return
+
+        req = msg.telemetry_start_request
+        interval = req.interval_ms or 2000
+        await self.sessions.start_telemetry(req.host_id, interval)
+
+    async def _handle_telemetry_stop(
+        self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage
+    ) -> None:
+        if not self._validate_token(msg.token):
+            await self._send_failed(websocket, msg.request_id, "invalid_token", "token is invalid or expired")
+            return
+
+        await self.sessions.stop_telemetry(msg.telemetry_stop_request.host_id)
 
 
 async def serve(
