@@ -60,6 +60,7 @@ async def run() -> int:
         try:
             pin = await read_pin(process)
             print(f"got pin: {pin}")
+            await asyncio.sleep(0.5)
 
             async with websockets.connect(
                 "ws://127.0.0.1:17373",
