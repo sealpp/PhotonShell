@@ -7,6 +7,7 @@
 
 ## Design sync
 
-- UI/UX design decisions, visual mockups, and the component tracker live in `me_PhotonShell/`.
-- Public commits may reference private component IDs (e.g., `Refs: A02`) but must not include private design details.
+- UI/UX design decisions and the design tracker live in `me_PhotonShell/`.
+- The tracker records intent, interaction conventions, and "not-in-code" boundaries; it does not duplicate implementation details retrievable from source.
+- Public commits may reference private tracker IDs (e.g., `Refs: A02`) but must not include private design details.
 - See `me_PhotonShell/AGENTS.md` and `me_PhotonShell/docs/v0-components.md` for the full sync convention.
