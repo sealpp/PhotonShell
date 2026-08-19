@@ -15,6 +15,7 @@ shell/.vite/
 
 # Generated protobuf artifacts
 node/photon/photon_pb2.py
+node/photon/photon_pb2_grpc.py
 shell/src/proto/
 
 # Runtime state and data
