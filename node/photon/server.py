@@ -361,10 +361,8 @@ class PhotonServer:
             return
 
         req = msg.terminal_resize_request
-        session = self.sessions.get(req.host_id)
-        if session:
-            pty = req.pty
-            await session.resize_terminal(req.terminal_id, pty.columns, pty.rows)
+        pty = req.pty
+        await self.sessions.resize_terminal(req.terminal_id, pty.columns, pty.rows)
 
     async def _handle_terminal_close(
         self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage
@@ -373,9 +371,7 @@ class PhotonServer:
             await self._send_failed(websocket, msg.request_id, "invalid_token", "token is invalid or expired")
             return
 
-        session = self.sessions.get(msg.terminal_close_request.host_id)
-        if session:
-            await session.close_terminal(msg.terminal_close_request.terminal_id)
+        await self.sessions.close_terminal(msg.terminal_close_request.terminal_id)
 
     async def _handle_telemetry_start(
         self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage

@@ -262,6 +262,14 @@ class SessionManager:
         for session in self._sessions.values():
             await session.write_input(stream_id, payload)
 
+    async def resize_terminal(self, terminal_id: str, columns: int, rows: int) -> None:
+        for session in self._sessions.values():
+            await session.resize_terminal(terminal_id, columns, rows)
+
+    async def close_terminal(self, terminal_id: str) -> None:
+        for session in list(self._sessions.values()):
+            await session.close_terminal(terminal_id)
+
     async def disconnect_all(self) -> None:
         for host_id in list(self._sessions.keys()):
             await self.disconnect(host_id)
