@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { store } from '../stores/app'
 import { pair } from '../services/ws'
+import { IconX } from '@tabler/icons-vue'
 
 const pin = ref('')
 const localError = ref('')
@@ -23,7 +24,9 @@ function close() {
     <div class="modal">
       <div class="modal-header">
         <span class="title">配对 Node</span>
-        <button type="button" class="close" @click="close">×</button>
+        <button type="button" class="close" @click="close">
+          <IconX :size="16" />
+        </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -95,6 +98,9 @@ function close() {
   color: #999;
   cursor: pointer;
   font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .close:hover {

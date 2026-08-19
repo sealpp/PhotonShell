@@ -14,6 +14,7 @@ import {
   stopTelemetry,
 } from '../services/ws'
 import { randomId } from '../utils/id'
+import { IconChartLine, IconPlugX } from '@tabler/icons-vue'
 import '@xterm/xterm/css/xterm.css'
 
 const termEl = ref<HTMLDivElement | null>(null)
@@ -120,17 +121,13 @@ function disconnect() {
           title="系统监控"
           @click="store.panelOpen = !store.panelOpen"
         >
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2,10 L6,7 L10,9 L12,3" />
-          </svg>
+          <IconChartLine :size="16" />
         </button>
       </div>
       <div class="toolbar-right">
         <span class="latency">-- ms</span>
         <button type="button" class="tool-icon" title="断开连接" @click="disconnect">
-          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 4l6 6M10 4l-6 6" />
-          </svg>
+          <IconPlugX :size="16" />
         </button>
       </div>
     </div>
@@ -184,11 +181,6 @@ function disconnect() {
 .tool-icon.active {
   color: #4aaaff;
   background: #1a1a1a;
-}
-
-.tool-icon svg {
-  width: 14px;
-  height: 14px;
 }
 
 .latency {

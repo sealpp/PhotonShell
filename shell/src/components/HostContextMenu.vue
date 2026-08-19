@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { store } from '../stores/app'
+import { IconPlug, IconTrash } from '@tabler/icons-vue'
 
 const selectedCount = computed(() => store.selectedHostIds.size)
 
@@ -32,10 +33,12 @@ function openDelete() {
         :disabled="selectedCount !== 1"
         @click="openConnect"
       >
-        连接
+        <IconPlug :size="16" />
+        <span>连接</span>
       </button>
       <button type="button" class="menu-item" @click="openDelete">
-        删除 <span v-if="selectedCount > 1" class="count">({{ selectedCount }})</span>
+        <IconTrash :size="16" />
+        <span>删除 <span v-if="selectedCount > 1" class="count">({{ selectedCount }})</span></span>
       </button>
     </div>
   </div>
@@ -74,7 +77,7 @@ function openDelete() {
   font-size: 13px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .menu-item:hover:not(:disabled) {

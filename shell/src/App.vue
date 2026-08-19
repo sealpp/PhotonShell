@@ -8,6 +8,7 @@ import ShellView from './views/ShellView.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
 import HostContextMenu from './components/HostContextMenu.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
+import { IconSquareLetterP, IconList, IconTerminal2, IconSettings, IconPlus, IconPlug } from '@tabler/icons-vue'
 
 const selectedHost = computed(() => store.hosts.find((h) => h.id === store.selectedHostId))
 
@@ -146,33 +147,44 @@ onMounted(() => {
   <div class="app">
     <div class="main">
       <div class="activity">
-        <div class="logo" title="PhotonShell">P</div>
+        <div class="logo" title="PhotonShell">
+          <IconSquareLetterP :size="28" />
+        </div>
         <div class="top-icons">
           <div
             class="icon"
             :class="{ active: store.sidebarOpen && store.sidebarView === 'connections' }"
             title="当前连接"
             @click="toggleConnections"
-          >连</div>
+          >
+            <IconList :size="18" />
+          </div>
           <div
             class="icon"
             :class="{ active: store.view === 'shell' }"
             title="终端"
             @click="switchToShell"
-          >终</div>
+          >
+            <IconTerminal2 :size="18" />
+          </div>
         </div>
         <div class="bottom-icons">
           <div
             class="icon"
             title="设置"
             @click="store.settingsMenuOpen = true"
-          >设</div>
+          >
+            <IconSettings :size="18" />
+          </div>
         </div>
       </div>
       <aside class="sidebar" :class="{ collapsed: !store.sidebarOpen || store.sidebarView !== 'connections' }">
         <div class="sidebar-header">
           <span>当前连接</span>
-          <button type="button" class="new-btn" @click="openNewConnection">+ 新建连接</button>
+          <button type="button" class="new-btn" @click="openNewConnection">
+            <IconPlus :size="12" />
+            新建连接
+          </button>
         </div>
         <div class="conn-list" @contextmenu.prevent>
           <div
@@ -187,7 +199,9 @@ onMounted(() => {
             <div class="meta">
               {{ h.username }} · {{ h.port }} · <span class="status">{{ hostStatus(h.id) }}</span>
             </div>
-            <button type="button" class="conn-btn" @click.stop="openConnect(h)">连接</button>
+            <button type="button" class="conn-btn" @click.stop="openConnect(h)">
+              <IconPlug :size="14" />
+            </button>
           </div>
           <p v-if="!store.hosts.length" class="empty">暂无保存的主机</p>
         </div>
@@ -206,7 +220,9 @@ onMounted(() => {
       <div class="terminal-area">
         <ShellView v-if="store.view === 'shell'" />
         <div v-else class="welcome">
-          <div class="welcome-logo">P</div>
+          <div class="welcome-logo">
+            <IconSquareLetterP :size="48" />
+          </div>
           <h2>PhotonShell</h2>
           <p v-if="!store.token">请点击左下角「设置」>「配对」，或左侧活动栏的「连」后点 Node 区域的「配对」。</p>
           <p v-else-if="!store.hosts.length">暂无保存的主机，点击侧边栏「+ 新建连接」添加。</p>
@@ -334,8 +350,6 @@ button, input {
   background: #0e639c;
   color: #fff;
   border-radius: 4px;
-  font-weight: 700;
-  font-size: 16px;
   cursor: default;
   user-select: none;
   margin-bottom: 0.5rem;
@@ -422,6 +436,9 @@ button, input {
   cursor: pointer;
   font-size: 12px;
   padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .new-btn:hover {
@@ -481,9 +498,11 @@ button, input {
   border: none;
   color: #ccc;
   border-radius: 4px;
-  padding: 0.2rem 0.5rem;
-  font-size: 11px;
+  padding: 0.25rem;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .conn-btn:hover {
@@ -569,8 +588,6 @@ button, input {
   background: #0e639c;
   color: #fff;
   border-radius: 12px;
-  font-size: 32px;
-  font-weight: 700;
 }
 
 .welcome h2 {

@@ -5,6 +5,7 @@ import { HostProfileSchema } from '../proto/photon_pb'
 import { store } from '../stores/app'
 import { connectToHost, createHost } from '../services/ws'
 import { randomId } from '../utils/id'
+import { IconX } from '@tabler/icons-vue'
 
 const address = ref('127.0.0.1')
 const port = ref(22)
@@ -58,7 +59,9 @@ function close() {
     <div class="modal">
       <div class="modal-header">
         <span class="title">{{ store.editingHostId ? '连接' : '新建连接' }}</span>
-        <button type="button" class="close" @click="close">×</button>
+        <button type="button" class="close" @click="close">
+          <IconX :size="16" />
+        </button>
       </div>
       <div class="modal-body">
         <div class="form-row">
@@ -137,6 +140,9 @@ function close() {
   color: #999;
   cursor: pointer;
   font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .close:hover {

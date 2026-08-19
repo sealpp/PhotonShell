@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import type { Component } from 'vue'
 import { store } from '../stores/app'
+import { IconCommand, IconSettings, IconTerminal2, IconKeyboard, IconPalette, IconInfoCircle, IconRefresh } from '@tabler/icons-vue'
 
 type MenuItem = {
   label: string
   shortcut?: string
+  icon: Component
   action: () => void
 }
 
@@ -11,23 +14,23 @@ const groups: { title: string; items: MenuItem[] }[] = [
   {
     title: '视图',
     items: [
-      { label: '命令面板...', shortcut: 'Ctrl+Shift+P', action: () => { /* placeholder */ } },
+      { label: '命令面板...', shortcut: 'Ctrl+Shift+P', icon: IconCommand, action: () => { /* placeholder */ } },
     ],
   },
   {
     title: '首选项',
     items: [
-      { label: '通用设置', shortcut: 'Ctrl+,', action: () => { /* placeholder */ } },
-      { label: '终端设置', action: () => { /* placeholder */ } },
-      { label: '快捷键', shortcut: 'Ctrl+K Ctrl+S', action: () => { /* placeholder */ } },
-      { label: '主题', action: () => { /* placeholder */ } },
+      { label: '通用设置', shortcut: 'Ctrl+,', icon: IconSettings, action: () => { /* placeholder */ } },
+      { label: '终端设置', icon: IconTerminal2, action: () => { /* placeholder */ } },
+      { label: '快捷键', shortcut: 'Ctrl+K Ctrl+S', icon: IconKeyboard, action: () => { /* placeholder */ } },
+      { label: '主题', icon: IconPalette, action: () => { /* placeholder */ } },
     ],
   },
   {
     title: '帮助',
     items: [
-      { label: '关于', action: () => { /* placeholder */ } },
-      { label: '检查更新...', action: () => { /* placeholder */ } },
+      { label: '关于', icon: IconInfoCircle, action: () => { /* placeholder */ } },
+      { label: '检查更新...', icon: IconRefresh, action: () => { /* placeholder */ } },
     ],
   },
 ]
@@ -43,7 +46,7 @@ function select(item: MenuItem) {
 </script>
 
 <template>
-  <div class="overlay" @click.self="close">
+  <div class="overlay" @click.self="close" @contextmenu.prevent>
     <div class="menu">
       <div class="menu-header">
         <span>设置</span>
@@ -58,7 +61,10 @@ function select(item: MenuItem) {
             class="menu-item"
             @click="select(item)"
           >
-            <span class="label">{{ item.label }}</span>
+            <span class="left">
+              <component :is="item.icon" :size="16" />
+              <span class="label">{{ item.label }}</span>
+            </span>
             <span v-if="item.shortcut" class="shortcut">{{ item.shortcut }}</span>
           </button>
         </div>
@@ -141,6 +147,13 @@ function select(item: MenuItem) {
 .menu-item:hover {
   background: #0e639c;
   color: #fff;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
 }
 
 .label {

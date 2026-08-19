@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { store } from '../stores/app'
 import { deleteHosts } from '../services/ws'
+import { IconX } from '@tabler/icons-vue'
 
 const hostsToDelete = computed(() =>
   store.hosts.filter((h) => store.deleteConfirmIds.includes(h.id))
@@ -31,7 +32,9 @@ function confirm() {
         <span class="title">
           删除 {{ hostsToDelete.length }} 个主机
         </span>
-        <button type="button" class="close" @click="close">×</button>
+        <button type="button" class="close" @click="close">
+          <IconX :size="16" />
+        </button>
       </div>
       <div class="modal-body">
         <p class="warning" v-if="isActive">
@@ -97,6 +100,9 @@ function confirm() {
   color: #999;
   cursor: pointer;
   font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .close:hover {
