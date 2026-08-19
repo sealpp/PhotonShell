@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 8080 --host 127.0.0.1",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "gen:proto": "node -e \"require('fs').mkdirSync('./src/proto', { recursive: true })\" && protoc --plugin=protoc-gen-es=./node_modules/.bin/protoc-gen-es --es_out=./src/proto --es_opt=target=ts --proto_path=../me_PhotonShell/contracts photon.proto"
