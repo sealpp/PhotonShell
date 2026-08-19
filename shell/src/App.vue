@@ -8,7 +8,7 @@ import ShellView from './views/ShellView.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
 import HostContextMenu from './components/HostContextMenu.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
-import { IconSquareLetterP, IconList, IconTerminal2, IconSettings, IconPlus, IconPlug } from '@tabler/icons-vue'
+import { IconSquareLetterP, IconList, IconSettings, IconPlus, IconPlug } from '@tabler/icons-vue'
 
 const activeHost = computed(() => {
   const tab = store.tabs.find((t) => t.id === store.activeTabId)
@@ -118,13 +118,6 @@ function toggleConnections() {
   }
 }
 
-function switchToShell() {
-  if (store.activeTabId) {
-    store.view = 'shell'
-    store.sidebarOpen = false
-  }
-}
-
 onMounted(() => {
   if (!store.token) {
     store.pairingModalOpen = true
@@ -150,14 +143,7 @@ onMounted(() => {
           >
             <IconList :size="24" />
           </div>
-          <div
-            class="icon"
-            :class="{ active: store.view === 'shell' }"
-            title="终端"
-            @click="switchToShell"
-          >
-            <IconTerminal2 :size="24" />
-          </div>
+
         </div>
         <div class="bottom-icons">
           <div
