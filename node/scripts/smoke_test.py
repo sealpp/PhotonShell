@@ -146,6 +146,7 @@ async def run() -> int:
 async def _test_ssh_terminal_telemetry(ws: websockets.WebSocketClientProtocol, token: str, password: str) -> None:
     """If an SSH target is configured, connect, open a PTY, run a command, and read telemetry."""
     host_id = "h1"
+    session_id = "s-smoke-1"
 
     # Connect
     msg = PhotonMessage()
@@ -154,6 +155,7 @@ async def _test_ssh_terminal_telemetry(ws: websockets.WebSocketClientProtocol, t
     msg.token = token
     msg.session_connect_request.host_id = host_id
     msg.session_connect_request.password = password
+    msg.session_connect_request.session_id = session_id
     await ws.send(msg.SerializeToString())
 
     while True:
@@ -173,7 +175,7 @@ async def _test_ssh_terminal_telemetry(ws: websockets.WebSocketClientProtocol, t
     msg.protocol_version = 0
     msg.request_id = "term-1"
     msg.token = token
-    msg.terminal_open_request.host_id = host_id
+    msg.terminal_open_request.session_id = session_id
     msg.terminal_open_request.terminal_id = "t1"
     pty = msg.terminal_open_request.pty
     pty.term = "xterm-256color"
@@ -197,7 +199,7 @@ async def _test_ssh_terminal_telemetry(ws: websockets.WebSocketClientProtocol, t
     msg.protocol_version = 0
     msg.request_id = "tel-1"
     msg.token = token
-    msg.telemetry_start_request.host_id = host_id
+    msg.telemetry_start_request.session_id = session_id
     msg.telemetry_start_request.interval_ms = 1000
     await ws.send(msg.SerializeToString())
 
