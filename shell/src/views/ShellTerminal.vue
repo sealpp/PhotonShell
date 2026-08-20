@@ -30,16 +30,11 @@ const encoder = new TextEncoder()
 function fitAndResize() {
   if (!terminal || !fitAddon || !tab.value?.streamId) return
   fitAddon.fit()
-  resizeTerminal(tab.value.terminalId, terminal.cols, terminal.rows)
 }
 
 function openTabTerminal() {
-  if (!terminal || !fitAddon || !tab.value || tab.value.streamId) return
-  if (isActive.value) {
-    fitAddon.fit()
-  } else {
-    terminal.resize(80, 24)
-  }
+  if (!terminal || !fitAddon || !tab.value || tab.value.state !== 'online' || tab.value.streamId || !isActive.value) return
+  fitAddon.fit()
   const { cols, rows } = terminal
   openTerminal(tab.value.sessionId, tab.value.terminalId, cols || 80, rows || 24)
 }
@@ -107,7 +102,7 @@ onMounted(() => {
     (active) => {
       if (!tab.value) return
       if (active) {
-        fitAndResize()
+        openTabTerminal()
         store.telemetry = tab.value.telemetry
         if (tab.value.state === 'online' && tab.value.streamId) {
           startTelemetry(tab.value.sessionId, 2000)
