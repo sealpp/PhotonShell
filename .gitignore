@@ -25,6 +25,7 @@ node/data/
 
 # IDE
 .idea/
+.devin/
 .vscode/
 *.swp
 
