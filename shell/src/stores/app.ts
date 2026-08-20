@@ -26,6 +26,7 @@ export interface Tab {
 export interface AppState {
   view: View
   token: string
+  deviceId: string
   deviceName: string
   error: string
   hosts: HostProfile[]
@@ -51,6 +52,7 @@ export interface AppState {
 export const store = reactive<AppState>({
   view: 'welcome',
   token: '',
+  deviceId: '',
   deviceName: 'PhotonShell PWA',
   error: '',
   hosts: [],

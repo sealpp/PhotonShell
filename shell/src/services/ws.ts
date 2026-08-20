@@ -21,9 +21,49 @@ import {
 import { store, type ShellState, type Tab, type Telemetry } from '../stores/app'
 import { randomId } from '../utils/id'
 
+const TOKEN_KEY = 'photon:token'
+const DEVICE_ID_KEY = 'photon:deviceId'
+
+function generateDeviceId(): string {
+  if (typeof window !== 'undefined' && 'randomUUID' in window.crypto) {
+    return window.crypto.randomUUID()
+  }
+  return randomId()
+}
+
+function loadPersistedAuth(): void {
+  const token = localStorage.getItem(TOKEN_KEY)
+  const deviceId = localStorage.getItem(DEVICE_ID_KEY)
+  if (token) store.token = token
+  if (deviceId) store.deviceId = deviceId
+}
+
+function persistAuth(token: string, deviceId: string): void {
+  localStorage.setItem(TOKEN_KEY, token)
+  if (deviceId) localStorage.setItem(DEVICE_ID_KEY, deviceId)
+}
+
+export function clearAuth(): void {
+  store.token = ''
+  store.deviceId = ''
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(DEVICE_ID_KEY)
+}
+
+function ensureDeviceId(): void {
+  if (!store.deviceId) {
+    store.deviceId = generateDeviceId()
+    localStorage.setItem(DEVICE_ID_KEY, store.deviceId)
+  }
+}
+
 export function wsUrl(): string {
   return `ws://${window.location.hostname}:17373`
 }
+
+// Restore any persisted token/device on module load.
+loadPersistedAuth()
+ensureDeviceId()
 
 let ws: WebSocket | null = null
 let reqId = 0
@@ -71,17 +111,131 @@ export interface WsCallbacks {
   onError: (msg: string) => void
 }
 
-export function pair(pin: string, callbacks: WsCallbacks): void {
+function closeExistingSocket(): void {
+  if (ws) {
+    try {
+      ws.close()
+    } catch {
+      // ignore
+    }
+    ws = null
+  }
+}
+
+function handleMessage(resp: PhotonMessage, callbacks?: WsCallbacks): void {
+  const body = resp.body.case
+
+  if (body === 'pairSucceeded') {
+    store.token = resp.body.value.token
+    persistAuth(store.token, store.deviceId)
+    sendHello()
+  } else if (body === 'nodeHelloAck') {
+    store.pairingModalOpen = false
+    store.view = 'welcome'
+    listHosts()
+  } else if (body === 'hostListResponse') {
+    store.hosts = resp.body.value.hosts as HostProfile[]
+  } else if (body === 'hostDeleteResponse') {
+    const ids = pendingDeletes.get(resp.requestId)
+    pendingDeletes.delete(resp.requestId)
+    const deleted = new Set(ids ?? [])
+    store.hosts = store.hosts.filter((h) => !deleted.has(h.id))
+    store.selectedHostIds = new Set(
+      Array.from(store.selectedHostIds).filter((id) => !deleted.has(id)),
+    )
+  } else if (body === 'sessionStateEvent') {
+    const evt = resp.body.value
+    const tab = store.tabs.find((t) => t.sessionId === evt.sessionId)
+    if (tab) {
+      tab.state = evt.state as ShellState
+      tab.error = evt.error || ''
+    }
+  } else if (body === 'terminalOpenedEvent') {
+    const evt = resp.body.value
+    const tab = store.tabs.find((t) => t.terminalId === evt.terminalId)
+    if (tab) {
+      tab.streamId = evt.streamId
+      tab.sessionId = evt.sessionId
+    }
+  } else if (body === 'terminalOutput') {
+    const out = resp.body.value
+    const handler = outputHandlers.get(out.streamId)
+    if (handler) {
+      handler(out.payload)
+    }
+  } else if (body === 'telemetrySnapshot') {
+    const snap = resp.body.value
+    const telemetry: Telemetry = {
+      cpu: snap.cpuPercent?.value?.case === 'number' ? snap.cpuPercent.value.value : 0,
+      mem: snap.memoryPercent?.value?.case === 'number' ? snap.memoryPercent.value.value : 0,
+      disk: snap.diskPercent?.value?.case === 'number' ? snap.diskPercent.value.value : 0,
+      procs: snap.processCount,
+    }
+    for (const tab of store.tabs) {
+      if (tab.hostId === snap.hostId) {
+        tab.telemetry = telemetry
+      }
+    }
+    const activeTab = store.tabs.find((t) => t.id === store.activeTabId)
+    if (activeTab && activeTab.hostId === snap.hostId) {
+      store.telemetry = telemetry
+    }
+  } else if (body === 'requestFailed') {
+    pendingDeletes.delete(resp.requestId)
+    const err = resp.body.value.error
+    store.error = `${err?.code ?? 'unknown'}: ${err?.message ?? ''}`
+    if (err?.code === 'invalid_token') {
+      clearAuth()
+      store.pairingModalOpen = true
+    }
+    callbacks?.onError(store.error)
+  }
+}
+
+export function connect(token: string, callbacks?: WsCallbacks): void {
+  closeExistingSocket()
   ws = new WebSocket(wsUrl())
   ws.binaryType = 'arraybuffer'
 
   ws.onopen = () => {
+    store.token = token
+    sendHello()
+  }
+
+  ws.onmessage = (event: MessageEvent) => {
+    const data = new Uint8Array(event.data as ArrayBuffer)
+    const resp = fromBinary(PhotonMessageSchema, data)
+    handleMessage(resp, callbacks)
+  }
+
+  ws.onerror = () => {
+    store.error = 'WebSocket error'
+    callbacks?.onError(store.error)
+  }
+
+  ws.onclose = () => {
+    store.error = store.error || 'WebSocket closed'
+    callbacks?.onError(store.error)
+  }
+}
+
+export function pair(pin: string, callbacks: WsCallbacks): void {
+  closeExistingSocket()
+  ws = new WebSocket(wsUrl())
+  ws.binaryType = 'arraybuffer'
+
+  ws.onopen = () => {
+    ensureDeviceId()
     const msg = create(PhotonMessageSchema, {
       protocolVersion: 0,
       requestId: nextReqId(),
       body: {
         case: 'pairBegin',
-        value: create(PairBeginSchema, { pin, deviceName: store.deviceName }),
+        value: create(PairBeginSchema, {
+          pin,
+          deviceName: store.deviceName,
+          deviceId: store.deviceId,
+        }),
       },
     })
     send(msg)
@@ -90,68 +244,7 @@ export function pair(pin: string, callbacks: WsCallbacks): void {
   ws.onmessage = (event: MessageEvent) => {
     const data = new Uint8Array(event.data as ArrayBuffer)
     const resp = fromBinary(PhotonMessageSchema, data)
-    const body = resp.body.case
-
-    if (body === 'pairSucceeded') {
-      store.token = resp.body.value.token
-      sendHello()
-    } else if (body === 'nodeHelloAck') {
-      store.pairingModalOpen = false
-      store.view = 'welcome'
-      listHosts()
-    } else if (body === 'hostListResponse') {
-      store.hosts = resp.body.value.hosts as HostProfile[]
-    } else if (body === 'hostDeleteResponse') {
-      const ids = pendingDeletes.get(resp.requestId)
-      pendingDeletes.delete(resp.requestId)
-      const deleted = new Set(ids ?? [])
-      store.hosts = store.hosts.filter((h) => !deleted.has(h.id))
-      store.selectedHostIds = new Set(
-        Array.from(store.selectedHostIds).filter((id) => !deleted.has(id)),
-      )
-    } else if (body === 'sessionStateEvent') {
-      const evt = resp.body.value
-      const tab = store.tabs.find((t) => t.sessionId === evt.sessionId)
-      if (tab) {
-        tab.state = evt.state as ShellState
-        tab.error = evt.error || ''
-      }
-    } else if (body === 'terminalOpenedEvent') {
-      const evt = resp.body.value
-      const tab = store.tabs.find((t) => t.terminalId === evt.terminalId)
-      if (tab) {
-        tab.streamId = evt.streamId
-        tab.sessionId = evt.sessionId
-      }
-    } else if (body === 'terminalOutput') {
-      const out = resp.body.value
-      const handler = outputHandlers.get(out.streamId)
-      if (handler) {
-        handler(out.payload)
-      }
-    } else if (body === 'telemetrySnapshot') {
-      const snap = resp.body.value
-      const telemetry: Telemetry = {
-        cpu: snap.cpuPercent?.value?.case === 'number' ? snap.cpuPercent.value.value : 0,
-        mem: snap.memoryPercent?.value?.case === 'number' ? snap.memoryPercent.value.value : 0,
-        disk: snap.diskPercent?.value?.case === 'number' ? snap.diskPercent.value.value : 0,
-        procs: snap.processCount,
-      }
-      for (const tab of store.tabs) {
-        if (tab.hostId === snap.hostId) {
-          tab.telemetry = telemetry
-        }
-      }
-      const activeTab = store.tabs.find((t) => t.id === store.activeTabId)
-      if (activeTab && activeTab.hostId === snap.hostId) {
-        store.telemetry = telemetry
-      }
-    } else if (body === 'requestFailed') {
-      pendingDeletes.delete(resp.requestId)
-      const err = resp.body.value.error
-      store.error = `${err?.code ?? 'unknown'}: ${err?.message ?? ''}`
-      callbacks.onError(store.error)
-    }
+    handleMessage(resp, callbacks)
   }
 
   ws.onerror = () => {

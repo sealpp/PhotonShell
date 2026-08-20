@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { store } from './stores/app'
-import { wsUrl, listHosts } from './services/ws'
+import { wsUrl, connect } from './services/ws'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import ShellView from './views/ShellView.vue'
@@ -122,7 +122,7 @@ onMounted(() => {
   if (!store.token) {
     store.pairingModalOpen = true
   } else {
-    listHosts()
+    connect(store.token)
   }
 })
 </script>
