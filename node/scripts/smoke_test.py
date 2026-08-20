@@ -58,7 +58,7 @@ async def run() -> int:
 
             async with websockets.connect(
                 "ws://127.0.0.1:17373",
-                extra_headers={"Origin": "http://127.0.0.1:8080"},
+                origin="http://127.0.0.1:8080",
             ) as ws:
                 # Pair
                 msg = PhotonMessage()
@@ -66,6 +66,7 @@ async def run() -> int:
                 msg.request_id = "pair-1"
                 msg.pair_begin.pin = pin
                 msg.pair_begin.device_name = "smoke"
+                msg.pair_begin.device_id = "smoke-device"
                 await ws.send(msg.SerializeToString())
 
                 resp = PhotonMessage()
