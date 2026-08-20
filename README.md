@@ -48,7 +48,7 @@ Then open `http://127.0.0.1:8080`, enter the pairing code, and add a host.
 
 ## Protocol generation
 
-After changing `me_PhotonShell/contracts/photon.proto`:
+After changing `contracts/photon.proto`:
 
 ```bash
 cd node && uv run python scripts/generate_proto.py

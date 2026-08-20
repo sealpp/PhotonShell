@@ -9,7 +9,7 @@ from grpc_tools import protoc
 
 def main() -> int:
     root = Path(__file__).resolve().parents[2]
-    proto_path = root / "me_PhotonShell" / "contracts"
+    proto_path = root / "contracts"
     proto_file = "photon.proto"
     out_dir = root / "node" / "photon"
     out_dir.mkdir(parents=True, exist_ok=True)

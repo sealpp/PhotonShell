@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+package photon;
+
+// v0 统一信封
+// 所有 PWA <-> PhotonNode 消息都序列化为一个 PhotonMessage，
+// 通过 WebSocket binary frame 传输。
+// v1 将在此基础上新增消息类型，transport 不变。
+message PhotonMessage {
+  uint32 protocol_version = 1;  // v0 固定为 0
+  string request_id = 2;        // 请求/响应对；事件可为空
+  string token = 3;             // 配对成功后 bearer token
+
+  oneof body {
+    // 配对
+    PairBegin pair_begin = 10;
+    PairSucceeded pair_succeeded = 11;
+
+    // 握手
+    NodeHello node_hello = 12;
+    NodeHelloAck node_hello_ack = 13;
+
+    // 主机
+    HostCreateRequest host_create_request = 20;
+    HostListRequest host_list_request = 21;
+    HostListResponse host_list_response = 22;
+    HostDeleteRequest host_delete_request = 23;
+    HostDeleteResponse host_delete_response = 24;
+
+    // 会话
+    SessionConnectRequest session_connect_request = 30;
+    SessionDisconnectRequest session_disconnect_request = 31;
+    SessionStateEvent session_state_event = 32;
+
+    // 终端
+    TerminalOpenRequest terminal_open_request = 40;
+    TerminalOpenedEvent terminal_opened_event = 41;
+    TerminalInput terminal_input = 42;
+    TerminalOutput terminal_output = 43;
+    TerminalResizeRequest terminal_resize_request = 44;
+    TerminalCloseRequest terminal_close_request = 45;
+
+    // 监控
+    TelemetryStartRequest telemetry_start_request = 50;
+    TelemetryStopRequest telemetry_stop_request = 51;
+    TelemetrySnapshot telemetry_snapshot = 52;
+
+    // 错误
+    RequestFailed request_failed = 60;
+  }
+}
+
+message PairBegin {
+  string pin = 1;          // 6 位数字
+  string device_name = 2;
+  string device_id = 3;    // 浏览器稳定设备标识，用于同设备 token 覆盖
+}
+
+message PairSucceeded {
+  string token = 1;
+}
+
+message NodeHello {
+  string pwa_version = 1;
+}
+
+message NodeHelloAck {
+  string node_version = 1;
+  uint32 protocol_version = 2;
+}
+
+message HostProfile {
+  string id = 1;
+  string address = 2;
+  uint32 port = 3;
+  string username = 4;
+}
+
+message HostCreateRequest {
+  HostProfile host = 1;
+}
+
+message HostListRequest {}
+
+message HostListResponse {
+  repeated HostProfile hosts = 1;
+}
+
+message HostDeleteRequest {
+  repeated string host_ids = 1;
+}
+
+message HostDeleteResponse {
+  uint32 deleted_count = 1;
+}
+
+message SessionConnectRequest {
+  string host_id = 1;
+  string password = 2;     // v0 一次性使用，不落盘
+  string session_id = 3;   // 客户端生成，每个新标签独立
+}
+
+message SessionDisconnectRequest {
+  string session_id = 1;
+  string reason = 2;
+}
+
+message SessionStateEvent {
+  string host_id = 1;
+  string state = 2;        // idle / connecting / online / error
+  string error = 3;
+  string session_id = 4;   // 与标签一一对应
+}
+
+message PtyOptions {
+  string term = 1;
+  uint32 columns = 2;
+  uint32 rows = 3;
+}
+
+message TerminalOpenRequest {
+  string session_id = 1;
+  string terminal_id = 2;
+  PtyOptions pty = 3;
+}
+
+message TerminalOpenedEvent {
+  string terminal_id = 1;
+  string session_id = 2;
+  uint32 stream_id = 3;
+}
+
+message TerminalCloseRequest {
+  string terminal_id = 1;
+}
+
+message TerminalResizeRequest {
+  string terminal_id = 1;
+  PtyOptions pty = 2;
+}
+
+message TerminalInput {
+  uint32 stream_id = 1;
+  uint64 sequence = 2;
+  bytes payload = 3;
+}
+
+message TerminalOutput {
+  uint32 stream_id = 1;
+  uint64 sequence = 2;
+  bytes payload = 3;
+}
+
+message TelemetryStartRequest {
+  string session_id = 1;
+  uint32 interval_ms = 2;  // 默认 2000
+}
+
+message TelemetryStopRequest {
+  string session_id = 1;
+}
+
+message Metric {
+  oneof value {
+    double number = 1;
+    string text = 2;
+  }
+  string quality = 3;      // valid / missing
+}
+
+message TelemetrySnapshot {
+  string host_id = 1;
+  int64 sampled_at_ms = 2;
+  Metric cpu_percent = 3;
+  Metric memory_percent = 4;
+  Metric disk_percent = 5;
+  uint32 process_count = 6;
+}
+
+message RequestFailed {
+  string request_id = 1;
+  AppError error = 2;
+}
+
+message AppError {
+  string code = 1;
+  string message = 2;
+}
