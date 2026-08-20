@@ -1,5 +1,7 @@
 # PhotonShell
 
+<img src="shell/public/icon.svg" width="128" alt="PhotonShell Logo" />
+
 Local-first SSH terminal console. This is the v0 PoC workspace.
 
 ## Layout

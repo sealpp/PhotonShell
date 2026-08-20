@@ -8,7 +8,7 @@ import ShellView from './views/ShellView.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
 import HostContextMenu from './components/HostContextMenu.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
-import { IconSquareLetterP, IconList, IconSettings, IconPlus, IconPlug } from '@tabler/icons-vue'
+import { IconList, IconSettings, IconPlus, IconPlug } from '@tabler/icons-vue'
 
 const activeHost = computed(() => {
   const tab = store.tabs.find((t) => t.id === store.activeTabId)
@@ -132,7 +132,7 @@ onMounted(() => {
     <div class="main">
       <div class="activity">
         <div class="logo" title="PhotonShell">
-          <IconSquareLetterP :size="28" />
+          <img src="/icon.svg" class="logo-img" alt="PhotonShell" />
         </div>
         <div class="top-icons">
           <div
@@ -198,7 +198,7 @@ onMounted(() => {
         <ShellView v-if="store.view === 'shell'" />
         <div v-else class="welcome">
           <div class="welcome-logo">
-            <IconSquareLetterP :size="48" />
+            <img src="/icon.svg" class="logo-img" alt="PhotonShell" />
           </div>
           <h2>PhotonShell</h2>
           <p v-if="!store.token">请点击左下角「设置」>「配对」，或左侧活动栏的「连」后点 Node 区域的「配对」。</p>
@@ -323,10 +323,15 @@ button, input {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0e639c;
-  color: #fff;
+  background: transparent;
   cursor: default;
   user-select: none;
+}
+
+.logo-img {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .top-icons {
@@ -548,9 +553,9 @@ button, input {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0e639c;
-  color: #fff;
+  background: transparent;
   border-radius: 12px;
+  overflow: hidden;
 }
 
 .welcome h2 {
