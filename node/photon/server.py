@@ -3,7 +3,7 @@
 import asyncio
 import secrets
 import time
-from typing import Optional
+from typing import List, Optional
 
 import websockets
 
@@ -78,11 +78,31 @@ class PhotonServer:
     ) -> None:
         await self._send(websocket, self._error(request_id, code, message))
 
+    def _get_tokens(self) -> List[dict]:
+        """Return the token list, normalizing legacy string-only entries."""
+        raw = self.state.get("tokens", [])
+        normalized: List[dict] = []
+        for t in raw:
+            if isinstance(t, str):
+                normalized.append(
+                    {
+                        "token": t,
+                        "device_name": "",
+                        "device_id": "",
+                        "created_at": 0,
+                    }
+                )
+            elif isinstance(t, dict):
+                normalized.append(t)
+        return normalized
+
+    def _save_tokens(self, tokens: List[dict]) -> None:
+        self.state.set("tokens", tokens)
+
     def _validate_token(self, token: str) -> bool:
         if not self.state.is_unlocked():
             return False
-        tokens = self.state.get("tokens", [])
-        return token in tokens
+        return any(t.get("token") == token for t in self._get_tokens())
 
     async def handle(self, websocket: websockets.WebSocketServerProtocol, _path: str) -> None:
         if not self._check_origin(websocket):
@@ -168,9 +188,25 @@ class PhotonServer:
             return
 
         token = self._generate_token()
-        tokens = self.state.get("tokens", [])
-        tokens.append(token)
-        self.state.set("tokens", tokens)
+        tokens = self._get_tokens()
+
+        device_id = msg.pair_begin.device_id
+        device_name = msg.pair_begin.device_name
+
+        if device_id:
+            tokens = [t for t in tokens if t.get("device_id") != device_id]
+        elif device_name:
+            tokens = [t for t in tokens if t.get("device_name") != device_name]
+
+        tokens.append(
+            {
+                "token": token,
+                "device_name": device_name,
+                "device_id": device_id,
+                "created_at": time.time(),
+            }
+        )
+        self._save_tokens(tokens)
 
         resp = PhotonMessage()
         resp.protocol_version = PROTOCOL_VERSION
