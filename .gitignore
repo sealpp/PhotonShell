@@ -12,6 +12,8 @@ __pycache__/
 node_modules/
 shell/dist/
 shell/.vite/
+shell/playwright-report/
+shell/test-results/
 
 # Generated protobuf artifacts
 node/photon/photon_pb2.py

@@ -9,7 +9,9 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "preview:lan": "vite preview --port 18080 --host 0.0.0.0",
-    "gen:proto": "node -e \"require('fs').mkdirSync('./src/proto', { recursive: true })\" && protoc --plugin=protoc-gen-es=./node_modules/.bin/protoc-gen-es --es_out=./src/proto --es_opt=target=ts --proto_path=../contracts photon.proto"
+    "gen:proto": "node -e \"require('fs').mkdirSync('./src/proto', { recursive: true })\" && protoc --plugin=protoc-gen-es=./node_modules/.bin/protoc-gen-es --es_out=./src/proto --es_opt=target=ts --proto_path=../contracts photon.proto",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.0",
@@ -20,6 +22,7 @@
   },
   "devDependencies": {
     "@bufbuild/protoc-gen-es": "^2.2.0",
+    "@playwright/test": "^1.62.0",
     "@vitejs/plugin-vue": "^5.0.0",
     "typescript": "^5.5.0",
     "vite": "^5.4.0",
