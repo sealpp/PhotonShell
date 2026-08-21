@@ -127,9 +127,6 @@ onMounted(() => {
   <div class="app">
     <div class="main">
       <div class="activity">
-        <div class="logo" title="PhotonShell">
-          <img src="/icon.svg" class="logo-img" alt="PhotonShell" />
-        </div>
         <div class="top-icons">
           <div
             class="icon"
@@ -302,23 +299,6 @@ button, input {
   border-right: 1px solid #252526;
   flex-shrink: 0;
   gap: 0;
-}
-
-.logo {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  cursor: default;
-  user-select: none;
-}
-
-.logo-img {
-  width: 100%;
-  height: 100%;
-  display: block;
 }
 
 .top-icons {
@@ -501,6 +481,12 @@ button, input {
   background: transparent;
   border-radius: 12px;
   overflow: hidden;
+}
+
+.welcome-logo img {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .welcome h2 {
