@@ -5,8 +5,8 @@ import { wsUrl, connect, loadWorkspace, saveWorkspace } from './services/ws'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import MainDock from './views/MainDock.vue'
-import SidebarDock from './views/SidebarDock.vue'
-import PanelDock from './views/PanelDock.vue'
+import PrimarySidebar from './views/PrimarySidebar.vue'
+import SecondarySidebar from './views/SecondarySidebar.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
 import HostContextMenu from './components/HostContextMenu.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
@@ -100,8 +100,8 @@ watch(
           </div>
         </div>
       </div>
-      <aside class="sidebar" :class="{ collapsed: !store.sidebarOpen || store.sidebarView !== 'connections' }">
-        <SidebarDock />
+      <aside class="sidebar primary-sidebar" :class="{ collapsed: !store.sidebarOpen || store.sidebarView !== 'connections' }">
+        <PrimarySidebar />
       </aside>
       <div class="terminal-area">
         <MainDock v-if="store.view === 'shell'" />
@@ -115,8 +115,8 @@ watch(
           <p v-else>选择左侧主机（支持 Ctrl/Shift 多选），或右键批量操作。</p>
         </div>
       </div>
-      <aside class="panel" :class="{ collapsed: !store.panelOpen }">
-        <PanelDock />
+      <aside class="panel secondary-sidebar" :class="{ collapsed: !store.panelOpen }">
+        <SecondarySidebar />
       </aside>
     </div>
     <div class="statusbar">

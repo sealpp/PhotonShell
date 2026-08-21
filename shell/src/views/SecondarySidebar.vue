@@ -12,10 +12,17 @@ const components = { metrics: MetricsPanel }
 function onReady(event: DockviewReadyEvent) {
   api.value = event.api
   if (!event.api.getPanel('metrics')) {
+    const group = event.api.addGroup({
+      id: 'metrics-group',
+      direction: 'right',
+      hideHeader: true,
+      locked: 'no-drop-target',
+    } as any)
     event.api.addPanel({
       id: 'metrics',
       title: '系统监控',
       component: 'metrics',
+      position: { referenceGroup: group, direction: 'within' },
     })
   }
   unsubs.push(() => event.api.dispose())
@@ -30,7 +37,7 @@ onBeforeUnmount(() => {
 
 <template>
   <DockviewVue
-    class="panel-dock"
+    class="secondary-sidebar"
     :theme="themeAbyss"
     :components="(components as any)"
     @ready="onReady"
@@ -38,16 +45,12 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-.panel-dock {
+.secondary-sidebar {
   width: 100%;
   height: 100%;
 }
 
-.panel-dock .dv-dockview {
+.secondary-sidebar .dv-dockview {
   --dv-group-view-background-color: #252526;
-  --dv-tabs-and-actions-container-background-color: #2d2d2d;
-  --dv-activegroup-visiblepanel-tab-background-color: #252526;
-  --dv-inactivegroup-visiblepanel-tab-background-color: #2d2d2d;
-  --dv-activegroup-visiblepanel-tab-color: #fff;
 }
 </style>

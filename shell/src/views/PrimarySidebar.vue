@@ -12,10 +12,17 @@ const components = { connections: ConnectionsPanel }
 function onReady(event: DockviewReadyEvent) {
   api.value = event.api
   if (!event.api.getPanel('connections')) {
+    const group = event.api.addGroup({
+      id: 'connections-group',
+      direction: 'right',
+      hideHeader: true,
+      locked: 'no-drop-target',
+    } as any)
     event.api.addPanel({
       id: 'connections',
       title: '当前连接',
       component: 'connections',
+      position: { referenceGroup: group, direction: 'within' },
     })
   }
   unsubs.push(() => event.api.dispose())
@@ -30,7 +37,7 @@ onBeforeUnmount(() => {
 
 <template>
   <DockviewVue
-    class="sidebar-dock"
+    class="primary-sidebar"
     :theme="themeAbyss"
     :components="(components as any)"
     @ready="onReady"
@@ -38,16 +45,12 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-.sidebar-dock {
+.primary-sidebar {
   width: 100%;
   height: 100%;
 }
 
-.sidebar-dock .dv-dockview {
+.primary-sidebar .dv-dockview {
   --dv-group-view-background-color: #252526;
-  --dv-tabs-and-actions-container-background-color: #2d2d2d;
-  --dv-activegroup-visiblepanel-tab-background-color: #252526;
-  --dv-inactivegroup-visiblepanel-tab-background-color: #2d2d2d;
-  --dv-activegroup-visiblepanel-tab-color: #fff;
 }
 </style>
