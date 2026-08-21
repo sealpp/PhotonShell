@@ -27,6 +27,15 @@ const tab = computed(() => store.tabs.find((t) => t.id === props.tabId))
 const isActive = computed(() => store.activeTabId === props.tabId)
 const encoder = new TextEncoder()
 
+const activeState = computed(() => {
+  const t = tab.value
+  if (!t) return 'no-tab'
+  if (!isActive.value) return 'inactive'
+  if (t.state !== 'online') return 'not-online'
+  if (!t.streamId) return 'online-no-terminal'
+  return 'online'
+})
+
 function fitAndResize() {
   if (!terminal || !fitAddon || !tab.value?.streamId) return
   fitAddon.fit()
@@ -78,9 +87,7 @@ onMounted(() => {
   unwatchState.value = watch(
     () => tab.value?.state,
     (state) => {
-      if (state === 'online') {
-        openTabTerminal()
-      } else if (state === 'error') {
+      if (state === 'error') {
         terminal?.writeln(`\r\n[session error: ${tab.value?.error}]`)
       }
     },
@@ -98,24 +105,23 @@ onMounted(() => {
   )
 
   unwatchActive.value = watch(
-    isActive,
-    (active) => {
+    activeState,
+    (state, prev) => {
       if (!tab.value) return
-      if (active) {
-        openTabTerminal()
+      if (state !== 'inactive') {
         store.telemetry = tab.value.telemetry
-        if (tab.value.state === 'online' && tab.value.streamId) {
-          startTelemetry(tab.value.sessionId, 2000)
-        }
-      } else if (tab.value.sessionId) {
+      }
+      if (state === 'online-no-terminal') {
+        openTabTerminal()
+      } else if (state === 'online') {
+        startTelemetry(tab.value.sessionId, 2000)
+      } else if (prev === 'online' && tab.value.sessionId) {
         stopTelemetry(tab.value.sessionId)
       }
     },
+    { immediate: true },
   )
 
-  if (tab.value.state === 'online') {
-    openTabTerminal()
-  }
 })
 
 onBeforeUnmount(() => {
