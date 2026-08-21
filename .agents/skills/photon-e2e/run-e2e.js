@@ -1,11 +1,20 @@
 const { spawn } = require('child_process');
 const readline = require('readline');
 const path = require('path');
-const { chromium } = require('playwright');
 const fs = require('fs');
 const os = require('os');
 
 const REPO = path.resolve(__dirname, '../../..');
+// The script is outside the shell package, so add shell/node_modules to the
+// module search path so `require('playwright')` resolves from there.
+const SHELL_NODE_MODULES = path.join(REPO, 'shell/node_modules');
+if (fs.existsSync(SHELL_NODE_MODULES)) {
+  // @ts-ignore
+  module.paths.unshift(SHELL_NODE_MODULES);
+}
+
+const { chromium } = require('playwright');
+
 const PYTHON = path.join(REPO, 'node/.venv/bin/python');
 const MOCK_SSH_SCRIPT = path.join(__dirname, 'mock-ssh-server.py');
 const TMP_DIR = path.join(os.tmpdir(), 'photon-e2e');
