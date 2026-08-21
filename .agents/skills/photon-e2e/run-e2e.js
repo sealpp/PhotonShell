@@ -88,7 +88,7 @@ async function main() {
       await page.getByRole('button', { name: '登录' }).click();
       // Wait for the new tab dot to be online
       await page.waitForFunction(
-        () => document.querySelector('.dot.online') !== null,
+        () => document.querySelector('.terminal-tab .dot.online') !== null,
         null,
         { timeout: 10000 }
       );
@@ -99,7 +99,7 @@ async function main() {
     await addHost('A');
 
     // Double-click the first tab to duplicate the host (v0 still requires re-entering password)
-    const firstTab = page.locator('.tab').first();
+    const firstTab = page.locator('.terminal-tab').first();
     await firstTab.dblclick();
     await page.waitForSelector('.modal', { timeout: 5000 });
 
@@ -143,7 +143,7 @@ async function main() {
     // Add second host (same mock SSH) and switch back to verify active-tab lifecycle still works
     await addHost('B');
 
-    const tabs = await page.locator('.tab').all();
+    const tabs = await page.locator('.terminal-tab').all();
     if (tabs.length < 2) throw new Error('expected two tabs');
     await tabs[0].click();
 

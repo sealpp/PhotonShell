@@ -4,7 +4,7 @@ import { store } from './stores/app'
 import { wsUrl, connect } from './services/ws'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
-import ShellView from './views/ShellView.vue'
+import MainDock from './views/MainDock.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
 import HostContextMenu from './components/HostContextMenu.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
@@ -177,7 +177,7 @@ onMounted(() => {
         </div>
       </aside>
       <div class="terminal-area">
-        <ShellView v-if="store.view === 'shell'" />
+        <MainDock v-if="store.view === 'shell'" />
         <div v-else class="welcome">
           <div class="welcome-logo">
             <img src="/icon.svg" class="logo-img" alt="PhotonShell" />
