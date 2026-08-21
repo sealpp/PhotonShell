@@ -149,6 +149,12 @@ function handleMessage(resp: PhotonMessage, callbacks?: WsCallbacks): void {
     if (tab) {
       tab.state = evt.state as ShellState
       tab.error = evt.error || ''
+      if (tab.state === 'idle' || tab.state === 'error') {
+        tab.telemetry = null
+        if (tab.id === store.activeTabId) {
+          store.telemetry = null
+        }
+      }
     }
   } else if (body === 'terminalOpenedEvent') {
     const evt = resp.body.value
@@ -171,14 +177,12 @@ function handleMessage(resp: PhotonMessage, callbacks?: WsCallbacks): void {
       disk: snap.diskPercent?.value?.case === 'number' ? snap.diskPercent.value.value : 0,
       procs: snap.processCount,
     }
-    for (const tab of store.tabs) {
-      if (tab.hostId === snap.hostId) {
-        tab.telemetry = telemetry
+    const targetTab = store.tabs.find((t) => t.sessionId === snap.sessionId)
+    if (targetTab) {
+      targetTab.telemetry = telemetry
+      if (targetTab.id === store.activeTabId) {
+        store.telemetry = telemetry
       }
-    }
-    const activeTab = store.tabs.find((t) => t.id === store.activeTabId)
-    if (activeTab && activeTab.hostId === snap.hostId) {
-      store.telemetry = telemetry
     }
   } else if (body === 'requestFailed') {
     pendingDeletes.delete(resp.requestId)

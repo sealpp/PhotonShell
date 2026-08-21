@@ -22,10 +22,12 @@ class TelemetryCollector:
     def __init__(
         self,
         host_id: str,
+        session_id: str,
         connection: asyncssh.SSHClientConnection,
         on_snapshot: Callable[[TelemetrySnapshot], Coroutine],
     ):
         self.host_id = host_id
+        self.session_id = session_id
         self.connection = connection
         self.on_snapshot = on_snapshot
         self.interval_ms = 2000
@@ -62,6 +64,7 @@ class TelemetryCollector:
     async def _collect(self) -> None:
         snapshot = TelemetrySnapshot()
         snapshot.host_id = self.host_id
+        snapshot.session_id = self.session_id
         snapshot.sampled_at_ms = int(asyncio.get_event_loop().time() * 1000)
 
         cpu = await self._cpu_percent()

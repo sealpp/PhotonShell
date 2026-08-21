@@ -175,6 +175,7 @@ message TelemetrySnapshot {
   Metric memory_percent = 4;
   Metric disk_percent = 5;
   uint32 process_count = 6;
+  string session_id = 7;
 }
 
 message RequestFailed {

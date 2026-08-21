@@ -154,6 +154,7 @@ class Session:
         if self._telemetry is None:
             self._telemetry = TelemetryCollector(
                 self.host_id,
+                self.session_id,
                 self.connection,
                 self.on_telemetry,
             )
