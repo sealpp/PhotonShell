@@ -16,6 +16,7 @@
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.0",
     "@tabler/icons-vue": "3.45.0",
+    "@vscode/codicons": "^0.0.45",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "vue": "^3.5.0"

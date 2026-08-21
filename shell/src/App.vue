@@ -9,25 +9,25 @@ import SettingsMenu from './components/SettingsMenu.vue'
 import HostContextMenu from './components/HostContextMenu.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
 import { IconList, IconSettings, IconPlus, IconPlug } from '@tabler/icons-vue'
+import NodeStatusMenu from './components/NodeStatusMenu.vue'
 
-const activeHost = computed(() => {
-  const tab = store.tabs.find((t) => t.id === store.activeTabId)
-  return tab ? store.hosts.find((h) => h.id === tab.hostId) : undefined
-})
-
-const connectionStatus = computed(() => {
-  const tab = store.tabs.find((t) => t.id === store.activeTabId)
-  if (tab) {
-    if (tab.state === 'online') return '已连接'
-    if (tab.state === 'connecting') return '连接中'
-    if (tab.state === 'error') return '错误'
+function parseNodeHost() {
+  try {
+    const url = new URL(wsUrl())
+    const host = url.hostname
+    const port = url.port
+    if (port === '80' || port === '443' || !port) return host
+    return `${host}:${port}`
+  } catch {
+    return wsUrl().replace(/^wss?:\/\//, '')
   }
-  return store.token ? '已配对' : '未配对'
+}
+
+const nodeHost = computed(() => parseNodeHost())
+const nodeStatus = computed(() => {
+  if (!store.token) return 'unpaired'
+  return store.nodeConnected ? 'connected' : 'disconnected'
 })
-
-const nodeStatusText = computed(() => (store.token ? '已配对' : '未配对'))
-
-const nodeUrl = computed(() => wsUrl())
 
 const metrics = computed(() => {
   const t = store.telemetry
@@ -105,10 +105,6 @@ function openConnect(host: typeof store.hosts[0]) {
   store.connectionModalOpen = true
 }
 
-function openPairing() {
-  store.pairingModalOpen = true
-}
-
 function toggleConnections() {
   if (store.sidebarOpen && store.sidebarView === 'connections') {
     store.sidebarOpen = false
@@ -182,17 +178,6 @@ onMounted(() => {
           </div>
           <p v-if="!store.hosts.length" class="empty">暂无保存的主机</p>
         </div>
-        <div class="node-section">
-          <div class="node-header">Node 连接</div>
-          <div class="node-row"><span>地址</span><span>{{ nodeUrl }}</span></div>
-          <div class="node-row">
-            <span>状态</span>
-            <span class="status">{{ nodeStatusText }}</span>
-          </div>
-          <button type="button" class="node-btn" @click="openPairing">
-            {{ store.token ? '重新配对' : '配对' }}
-          </button>
-        </div>
       </aside>
       <div class="terminal-area">
         <ShellView v-if="store.view === 'shell'" />
@@ -201,7 +186,7 @@ onMounted(() => {
             <img src="/icon.svg" class="logo-img" alt="PhotonShell" />
           </div>
           <h2>PhotonShell</h2>
-          <p v-if="!store.token">请点击左下角「设置」>「配对」，或左侧活动栏的「连」后点 Node 区域的「配对」。</p>
+          <p v-if="!store.token">请点击左下角 Node 状态按钮，选择「配对」。</p>
           <p v-else-if="!store.hosts.length">暂无保存的主机，点击侧边栏「+ 新建连接」添加。</p>
           <p v-else>选择左侧主机（支持 Ctrl/Shift 多选），或右键批量操作。</p>
         </div>
@@ -230,13 +215,14 @@ onMounted(() => {
       </aside>
     </div>
     <div class="statusbar">
-      <div class="left">
-        <span>{{ connectionStatus }}</span>
-        <span v-if="activeHost">{{ activeHost.username }}</span>
-        <span v-if="activeHost">{{ activeHost.address }}:{{ activeHost.port }}</span>
-      </div>
-      <div class="right">
-        <span>Node: {{ nodeUrl }}</span>
+      <div class="node-status"
+        :class="[nodeStatus]"
+        :title="store.token ? `Node: ${nodeHost} (${nodeStatus === 'connected' ? '已连接' : '未连接'})` : 'Node: 未配对，点击配对'"
+        @click="store.nodeMenuOpen = true"
+      >
+        <i class="codicon codicon-remote" />
+        <span v-if="store.token" class="node-label">WS: {{ nodeHost }}</span>
+        <span v-else class="node-label">未配对</span>
       </div>
     </div>
     <PairingView v-if="store.pairingModalOpen" />
@@ -244,6 +230,7 @@ onMounted(() => {
     <SettingsMenu v-if="store.settingsMenuOpen" />
     <HostContextMenu v-if="store.contextMenuOpen" />
     <DeleteConfirm v-if="store.deleteConfirmOpen" />
+    <NodeStatusMenu v-if="store.nodeMenuOpen" />
   </div>
 </template>
 
@@ -486,48 +473,6 @@ button, input {
   margin: 0;
 }
 
-.node-section {
-  border-top: 1px solid #1f1f1f;
-  padding: 0.75rem;
-  background: #1e1e1e;
-}
-
-.node-header {
-  font-size: 12px;
-  font-weight: 600;
-  color: #fff;
-  margin-bottom: 0.5rem;
-}
-
-.node-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: #999;
-  margin-bottom: 0.25rem;
-}
-
-.node-row .status {
-  color: #4ec9b0;
-}
-
-.node-btn {
-  width: 100%;
-  margin-top: 0.5rem;
-  padding: 0.4rem;
-  background: #3c3c3c;
-  border: none;
-  color: #ccc;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.node-btn:hover {
-  background: #4a4a4a;
-  color: #fff;
-}
-
 .terminal-area {
   flex: 1;
   display: flex;
@@ -678,19 +623,46 @@ button, input {
 
 .statusbar {
   height: 24px;
-  background: #007acc;
+  background: #1e1e1e;
+  border-top: 1px solid #1f1f1f;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 0.75rem;
   color: #fff;
   font-size: 12px;
   flex-shrink: 0;
 }
 
-.statusbar .left,
-.statusbar .right {
+.node-status {
+  height: 100%;
   display: flex;
-  gap: 1rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.75rem;
+  background: #3c3c3c;
+  color: #ccc;
+  cursor: pointer;
+  user-select: none;
+}
+
+.node-status:hover {
+  filter: brightness(1.1);
+}
+
+.node-status.connected {
+  background: #0e639c;
+  color: #fff;
+}
+
+.node-status.disconnected {
+  background: #a31515;
+  color: #fff;
+}
+
+.node-status .codicon {
+  font-size: 14px;
+}
+
+.node-label {
+  font-size: 12px;
 }
 </style>

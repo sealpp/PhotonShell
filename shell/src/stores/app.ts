@@ -48,6 +48,8 @@ export interface AppState {
   contextMenuOpen: boolean
   contextMenuX: number
   contextMenuY: number
+  nodeConnected: boolean
+  nodeMenuOpen: boolean
 }
 
 export const store = reactive<AppState>({
@@ -75,4 +77,6 @@ export const store = reactive<AppState>({
   contextMenuOpen: false,
   contextMenuX: 0,
   contextMenuY: 0,
+  nodeConnected: false,
+  nodeMenuOpen: false,
 })

@@ -46,8 +46,14 @@ function persistAuth(token: string, deviceId: string): void {
 export function clearAuth(): void {
   store.token = ''
   store.deviceId = ''
+  store.nodeConnected = false
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(DEVICE_ID_KEY)
+}
+
+export function disconnectNode(): void {
+  closeExistingSocket()
+  clearAuth()
 }
 
 function ensureDeviceId(): void {
@@ -203,6 +209,7 @@ export function connect(token: string, callbacks?: WsCallbacks): void {
 
   ws.onopen = () => {
     store.token = token
+    store.nodeConnected = true
     sendHello()
   }
 
@@ -213,11 +220,13 @@ export function connect(token: string, callbacks?: WsCallbacks): void {
   }
 
   ws.onerror = () => {
+    store.nodeConnected = false
     store.error = 'WebSocket error'
     callbacks?.onError(store.error)
   }
 
   ws.onclose = () => {
+    store.nodeConnected = false
     store.error = store.error || 'WebSocket closed'
     callbacks?.onError(store.error)
   }
@@ -229,6 +238,7 @@ export function pair(pin: string, callbacks: WsCallbacks): void {
   ws.binaryType = 'arraybuffer'
 
   ws.onopen = () => {
+    store.nodeConnected = true
     ensureDeviceId()
     const msg = create(PhotonMessageSchema, {
       protocolVersion: 0,
@@ -252,11 +262,13 @@ export function pair(pin: string, callbacks: WsCallbacks): void {
   }
 
   ws.onerror = () => {
+    store.nodeConnected = false
     store.error = 'WebSocket error'
     callbacks.onError(store.error)
   }
 
   ws.onclose = () => {
+    store.nodeConnected = false
     store.error = store.error || 'WebSocket closed'
     callbacks.onError(store.error)
   }
