@@ -57,7 +57,7 @@ onBeforeUnmount(() => {
           <span class="tab-index">{{ index + 1 }}</span>
           <span class="tab-label">{{ tab.label }}</span>
           <button type="button" class="tab-close" title="断开连接" @click.stop="closeTab(tab.id)" @dblclick.stop>
-            <IconX :size="14" />
+            <IconX :size="16" />
           </button>
         </div>
       </div>
@@ -93,13 +93,13 @@ onBeforeUnmount(() => {
 }
 
 .terminal-toolbar {
-  height: 30px;
+  height: 35px;
   display: flex;
   align-items: stretch;
   justify-content: space-between;
   padding: 0;
-  background: #0f0f0f;
-  border-bottom: 1px solid #252526;
+  background: #252526;
+  border-bottom: none;
   flex-shrink: 0;
 }
 
@@ -138,28 +138,34 @@ onBeforeUnmount(() => {
 
 .tab {
   height: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0 0.75rem;
-  background: #1e1e1e;
-  color: #cccccc;
-  border-right: 1px solid #252526;
-  border-top: 2px solid transparent;
-  cursor: default;
+  gap: 4px;
+  padding: 0 10px;
+  background: #2d2d2d;
+  color: rgba(255, 255, 255, 0.5);
+  border: none;
+  cursor: pointer;
   user-select: none;
   min-width: 0;
   flex-shrink: 0;
 }
 
-.tab.active {
-  background: #1a1a1a;
-  border-top-color: #0e639c;
+.tab:hover:not(.active) {
+  background: #37373d;
+  color: #ffffff;
+}
+
+.tab.active,
+.tab.active:hover {
+  background: #0d0d0d;
+  color: #ffffff;
 }
 
 .tab-index {
   font-size: 11px;
-  color: #888;
+  color: inherit;
   min-width: 1.2em;
   text-align: right;
 }
@@ -188,19 +194,27 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 35px;
 }
 
 .tab-close {
   background: transparent;
   border: none;
-  color: #999;
+  color: inherit;
   cursor: pointer;
   padding: 0.15rem;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.8;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tab:hover .tab-close,
+.tab.active .tab-close {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .tab-close:hover {
