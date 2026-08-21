@@ -8,6 +8,108 @@ import { IconChartLine, IconX } from '@tabler/icons-vue'
 const tabsEl = ref<HTMLDivElement | null>(null)
 let wheelHandler: ((e: WheelEvent) => void) | null = null
 
+const draggedTabId = ref('')
+const dropIndicatorVisible = ref(false)
+const dropIndicatorLeft = ref(0)
+let dragImageEl: HTMLElement | null = null
+
+function activateTab(tab: Tab) {
+  store.activeTabId = tab.id
+}
+
+function getTabEls(): HTMLElement[] {
+  return Array.from(tabsEl.value?.querySelectorAll('.tab') ?? [])
+}
+
+function getRawDropIndex(clientX: number): number {
+  const tabs = getTabEls()
+  for (let i = 0; i < tabs.length; i++) {
+    const rect = tabs[i].getBoundingClientRect()
+    if (clientX < rect.left + rect.width / 2) {
+      return i
+    }
+  }
+  return tabs.length
+}
+
+function updateDropIndicator(rawIndex: number) {
+  if (!tabsEl.value) return
+  const tabs = getTabEls()
+  const containerRect = tabsEl.value.getBoundingClientRect()
+  const scrollLeft = tabsEl.value.scrollLeft
+  let left: number
+  if (rawIndex >= tabs.length) {
+    const last = tabs[tabs.length - 1]
+    if (!last) return
+    left = last.getBoundingClientRect().right - containerRect.left + scrollLeft
+  } else {
+    left = tabs[rawIndex].getBoundingClientRect().left - containerRect.left + scrollLeft
+  }
+  dropIndicatorLeft.value = left
+  dropIndicatorVisible.value = true
+}
+
+function reorderTabs(rawDropIndex: number) {
+  if (!draggedTabId.value) return
+  const fromIndex = store.tabs.findIndex((t) => t.id === draggedTabId.value)
+  if (fromIndex === -1) return
+  let toIndex = rawDropIndex
+  if (fromIndex < toIndex) toIndex--
+  const [tab] = store.tabs.splice(fromIndex, 1)
+  store.tabs.splice(toIndex, 0, tab)
+}
+
+function onDragStart(e: DragEvent, tab: Tab) {
+  if (!e.dataTransfer) return
+  if ((e.target as HTMLElement).closest('.tab-close')) {
+    e.preventDefault()
+    return
+  }
+  const el = e.currentTarget as HTMLElement
+  draggedTabId.value = tab.id
+  activateTab(tab)
+  el.classList.add('dragging')
+
+  e.dataTransfer.setData('text/plain', tab.id)
+  e.dataTransfer.effectAllowed = 'move'
+
+  const ghost = el.cloneNode(true) as HTMLElement
+  ghost.style.opacity = '1'
+  const wrapper = document.createElement('div')
+  wrapper.style.cssText =
+    'position: fixed; top: -1000px; left: -1000px; padding: 20px 0 0 20px; opacity: 0.5; pointer-events: none; z-index: -1;'
+  wrapper.appendChild(ghost)
+  document.body.appendChild(wrapper)
+  dragImageEl = wrapper
+  e.dataTransfer.setDragImage(wrapper, 0, 0)
+}
+
+function onDragOver(e: DragEvent) {
+  e.preventDefault()
+  if (!draggedTabId.value || !tabsEl.value) return
+  e.dataTransfer!.dropEffect = 'move'
+  const rawIndex = getRawDropIndex(e.clientX)
+  updateDropIndicator(rawIndex)
+}
+
+function onDrop(e: DragEvent) {
+  e.preventDefault()
+  if (!draggedTabId.value || !tabsEl.value) return
+  const rawIndex = getRawDropIndex(e.clientX)
+  reorderTabs(rawIndex)
+}
+
+function onDragEnd(e: DragEvent) {
+  const el = e.currentTarget as HTMLElement
+  el.classList.remove('dragging')
+  draggedTabId.value = ''
+  dropIndicatorVisible.value = false
+  if (dragImageEl) {
+    document.body.removeChild(dragImageEl)
+    dragImageEl = null
+  }
+}
+
 function tabDotClass(state: string): string {
   if (state === 'online') return 'dot online'
   if (state === 'connecting') return 'dot connecting'
@@ -44,22 +146,44 @@ onBeforeUnmount(() => {
 <template>
   <div class="shell">
     <div class="terminal-toolbar">
-      <div ref="tabsEl" class="tabs">
+      <div
+        ref="tabsEl"
+        class="tabs"
+        @dragover.prevent="onDragOver($event)"
+        @drop.prevent="onDrop($event)"
+      >
         <div
           v-for="(tab, index) in store.tabs"
           :key="tab.id"
           class="tab"
-          :class="{ active: tab.id === store.activeTabId }"
-          @click="store.activeTabId = tab.id"
+          :class="{ active: tab.id === store.activeTabId, dragging: tab.id === draggedTabId }"
+          :data-tab-id="tab.id"
+          draggable="true"
+          @mousedown="activateTab(tab)"
+          @dragstart="onDragStart($event, tab)"
+          @dragend="onDragEnd"
           @dblclick="duplicateTab(tab)"
         >
           <span :class="tabDotClass(tab.state)" />
           <span class="tab-index">{{ index + 1 }}</span>
           <span class="tab-label">{{ tab.label }}</span>
-          <button type="button" class="tab-close" title="断开连接" @click.stop="closeTab(tab.id)" @dblclick.stop>
+          <button
+            type="button"
+            class="tab-close"
+            title="断开连接"
+            draggable="false"
+            @mousedown.stop
+            @click.stop="closeTab(tab.id)"
+            @dblclick.stop
+          >
             <IconX :size="16" />
           </button>
         </div>
+        <div
+          v-show="dropIndicatorVisible"
+          class="drop-indicator"
+          :style="{ left: dropIndicatorLeft + 'px' }"
+        />
       </div>
       <div class="actions">
         <button
@@ -104,6 +228,7 @@ onBeforeUnmount(() => {
 }
 
 .tabs {
+  position: relative;
   display: flex;
   align-items: stretch;
   flex: 1;
@@ -113,6 +238,16 @@ onBeforeUnmount(() => {
   flex-wrap: nowrap;
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
+}
+
+.drop-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #ffffff;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .tabs:hover {
@@ -161,6 +296,10 @@ onBeforeUnmount(() => {
 .tab.active:hover {
   background: #0d0d0d;
   color: #ffffff;
+}
+
+.tab.dragging {
+  opacity: 0.5;
 }
 
 .tab-index {
