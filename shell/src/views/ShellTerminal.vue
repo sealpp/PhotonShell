@@ -37,7 +37,7 @@ const activeState = computed(() => {
 })
 
 function fitAndResize() {
-  if (!terminal || !fitAddon || !tab.value?.streamId) return
+  if (!terminal || !fitAddon) return
   fitAddon.fit()
 }
 
@@ -110,6 +110,7 @@ onMounted(() => {
       if (!tab.value) return
       if (state !== 'inactive') {
         store.telemetry = tab.value.telemetry
+        fitAndResize()
       }
       if (state === 'online-no-terminal') {
         openTabTerminal()
