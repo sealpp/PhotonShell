@@ -19,17 +19,6 @@ const tabComponents = { terminalTab: TerminalTab }
 function onReady(event: DockviewReadyEvent) {
   api.value = event.api
 
-  // Sync existing tabs to panels.
-  for (const tab of store.tabs) {
-    addPanel(tab)
-  }
-
-  // Set active panel from store.
-  if (store.activeTabId) {
-    const panel = api.value.getPanel(store.activeTabId)
-    panel?.api.setActive()
-  }
-
   // When Dockview active panel changes, update store.activeTabId.
   const activeSub = event.api.onDidActivePanelChange(({ panel }) => {
     if (ignoreDockviewActive) return
@@ -47,8 +36,26 @@ function onReady(event: DockviewReadyEvent) {
   })
   unsubs.push(() => layoutSub.dispose())
 
-  // Restore layout if available.
+  // Restore layout if available; reuse existing panels so restored tabs are
+  // placed into the saved split positions.
   restoreLayout()
+
+  // Add any tabs that are not in the restored layout.
+  for (const tab of store.tabs) {
+    addPanel(tab)
+  }
+
+  // Set active panel from store without triggering the reactive sync.
+  if (store.activeTabId && api.value) {
+    const panel = api.value.getPanel(store.activeTabId)
+    if (panel) {
+      ignoreDockviewActive = true
+      panel.api.setActive()
+      nextTick(() => {
+        ignoreDockviewActive = false
+      })
+    }
+  }
 }
 
 function addPanel(tab: Tab) {
@@ -87,7 +94,7 @@ function restoreLayout() {
   try {
     const layout = JSON.parse(raw)
     if (layout && Object.keys(layout.panels || {}).length > 0) {
-      api.value.fromJSON(layout)
+      api.value.fromJSON(layout, { reuseExistingPanels: true })
     }
   } catch {
     localStorage.removeItem('photon-main-layout')

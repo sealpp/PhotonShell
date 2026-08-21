@@ -501,3 +501,65 @@ export function stopTelemetry(sessionId: string): void {
   send(msg)
 }
 
+interface WorkspaceState {
+  tabs: ReturnType<typeof serializeTabs>
+  activeTabId: string
+  view: string
+  panelOpen: boolean
+  sidebarOpen: boolean
+}
+
+function serializeTabs() {
+  return store.tabs.map((t) => ({
+    id: t.id,
+    hostId: t.hostId,
+    label: t.label,
+    state: 'idle' as const,
+    error: '',
+    streamId: 0,
+    sessionId: '',
+    terminalId: '',
+    telemetry: null,
+  }))
+}
+
+export function saveWorkspace(): void {
+  try {
+    const data: WorkspaceState = {
+      tabs: serializeTabs(),
+      activeTabId: store.activeTabId,
+      view: store.view,
+      panelOpen: store.panelOpen,
+      sidebarOpen: store.sidebarOpen,
+    }
+    localStorage.setItem('photon-workspace', JSON.stringify(data))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function loadWorkspace(): void {
+  try {
+    const raw = localStorage.getItem('photon-workspace')
+    if (!raw) return
+    const data = JSON.parse(raw) as WorkspaceState
+    if (!Array.isArray(data.tabs)) return
+    store.tabs = data.tabs.map((t) => ({
+      ...t,
+      state: 'idle',
+      streamId: 0,
+      sessionId: '',
+      terminalId: '',
+      telemetry: null,
+    })) as typeof store.tabs
+    if (data.activeTabId !== undefined) store.activeTabId = data.activeTabId
+    if (store.token && data.view === 'shell') {
+      store.view = 'shell'
+    }
+    if (data.panelOpen !== undefined) store.panelOpen = data.panelOpen
+    if (data.sidebarOpen !== undefined) store.sidebarOpen = data.sidebarOpen
+  } catch {
+    localStorage.removeItem('photon-workspace')
+  }
+}
+

@@ -66,7 +66,8 @@ async function main() {
 
   // 3. Launch browser
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage();
+  const context = await browser.newContext();
+  const page = await context.newPage();
 
   try {
     await page.goto(PWA_URL);
@@ -160,6 +161,7 @@ async function main() {
     console.error('Test failed:', e.message);
     process.exitCode = 1;
   } finally {
+    await context?.close();
     await browser.close();
     sshProc.kill();
     nodeProc.kill();
