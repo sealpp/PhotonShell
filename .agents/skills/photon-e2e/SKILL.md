@@ -1,0 +1,102 @@
+---
+name: photon-e2e
+description: 运行和维护 PhotonShell 端到端测试（PWA + PhotonNode + mock SSH）。当你要写 E2E、调试 telemetry/监控、复现标签生命周期问题、或发现新的测试环境暗坑时使用。
+---
+
+# PhotonShell E2E 测试指南
+
+## 什么时候用
+
+- 用户要求写/跑 E2E。
+- 调试监控/telemetry 不更新、消失、或需要切换标签才出现。
+- 新增/修改 UI 改变了选择器或标签生命周期。
+- 在本地完整复现 PWA ↔ Node ↔ SSH 链路的问题。
+
+## 测试栈
+
+```
+Playwright (Chromium)
+  ↓ HTTP/WebSocket
+PWA (Vite/Vue，动态端口)
+  ↓ ws://127.0.0.1:17373
+PhotonNode (Python)
+  ↓ SSH
+mock SSH server (asyncssh)
+```
+
+## 必须知道的暗坑
+
+### 端口
+
+1. PWA dev server 默认 `8080`，但经常被 IDE/环境占用，Vite 会 fallback 到 `8081` 或更高。因此 `PHOTON_ALLOWED_ORIGIN` 必须对齐**实际** PWA 端口；不要写死 `http://127.0.0.1:8080`。
+2. Node WebSocket 端口 `17373` 在 `shell/src/services/ws.ts` 中硬编码：`ws://${window.location.hostname}:17373`。测试必须让 Node 监听 `17373`，改端口 PWA 会连不上。
+
+### 配对码
+
+Node 启动时 stdout 输出：
+
+```
+Listening on ws://127.0.0.1:17373, pairing code: 123456
+```
+
+E2E 必须解析这个 6 位码，不要写死。
+
+### mock SSH
+
+要完整跑 telemetry，需要一个能响应以下命令的 mock SSH server：
+
+- `cat /proc/stat`
+- `free -b`
+- `df -P -k /`
+- `ps -eo pid`
+
+可用本目录下的 `mock-ssh-server.py`（基于 `asyncssh`、内存生成 host key）作为 fixture。
+
+### Playwright 选择器
+
+`配对`、`登录`、`新建连接` 这些文字同时出现在侧边栏和弹窗里，`getByText`/`getByRole` 会命中多个元素。必须用 CSS 限定：
+
+- 配对按钮：`page.locator('.modal .btn-primary')`
+- 新建连接：`page.locator('.new-btn')`
+- 登录按钮：`page.getByRole('button', { name: '登录' })`（只在弹窗里出现，相对安全）
+- 密码输入：`page.locator('input[type="password"]')`
+
+### telemetry 结果判断
+
+- 面板一直显示 `--`：说明没有收到 `telemetrySnapshot`，通常是 `ShellTerminal.vue` 没调用 `startTelemetry()`（active watcher 未触发）。
+- 面板显示 `0.0%` 或 `0`：这是 mock 数据正常，不代表失败。关键是**不是** `--`。
+
+### Vite HMR
+
+多个 Vite 进程共存时（例如环境占 `8080`，`npm run dev` 落到 `8081`），HMR 可能给旧代码。改完 `ShellTerminal.vue` 后，**刷新页面或重启 dev server**，再跑 E2E 才可信。
+
+### 文件卫生
+
+- 用 `/tmp/photon-e2e/` 或类似目录放 `state.db` 和失败截图，不要提交。
+- `package-lock.json`、`node_modules`、`.venv`、`shell/dist`、`shell/src/proto` 都已 gitignore。
+- 测试脚本更新后，同步更新本 skill，不要留过期示例路径。
+
+## 可用示例
+
+- `run-e2e.js`：启动 mock SSH、启动 PhotonNode、用 Playwright 打开 PWA、配对、加主机、验证 telemetry。
+- `mock-ssh-server.py`：为 telemetry 命令返回固定数据的 `asyncssh` server。
+
+用法（先在一个终端启动 PWA）：
+
+```bash
+cd shell
+npm run dev
+```
+
+再在另一个终端：
+
+```bash
+cd .agents/skills/photon-e2e
+PWA_URL=http://127.0.0.1:8081 node run-e2e.js
+```
+
+## 维护原则
+
+- **自动记录**：每次发现新的环境、选择器、链路暗坑，更新本 `SKILL.md`。
+- **重整冗余**：不要重复代码里能直接读到的实现细节；本 skill 只保留测试环境和经验。
+- **去除过期**：端口策略、UI 选择器、命令输出格式、脚本路径发生变化时，立即删除或修正对应条目。
