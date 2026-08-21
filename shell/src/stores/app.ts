@@ -41,6 +41,7 @@ export interface AppState {
   pairingModalOpen: boolean
   connectionModalOpen: boolean
   editingHostId: string
+  insertAfterTabId: string
   settingsMenuOpen: boolean
   deleteConfirmOpen: boolean
   deleteConfirmIds: string[]
@@ -67,6 +68,7 @@ export const store = reactive<AppState>({
   pairingModalOpen: false,
   connectionModalOpen: false,
   editingHostId: '',
+  insertAfterTabId: '',
   settingsMenuOpen: false,
   deleteConfirmOpen: false,
   deleteConfirmIds: [],

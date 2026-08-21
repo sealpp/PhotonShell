@@ -98,6 +98,32 @@ async function main() {
     // Add first host
     await addHost('A');
 
+    // Double-click the first tab to duplicate the host (v0 still requires re-entering password)
+    const firstTab = page.locator('.tab').first();
+    await firstTab.dblclick();
+    await page.waitForSelector('.modal', { timeout: 5000 });
+
+    const title = await page.locator('.modal .title').textContent();
+    if (title !== '连接') {
+      throw new Error(`expected modal title "连接", got "${title}"`);
+    }
+
+    const dupeAddress = await page.getByPlaceholder('address').inputValue();
+    const dupePort = await page.getByPlaceholder('port').inputValue();
+    const dupeUsername = await page.getByPlaceholder('username').inputValue();
+    const dupePassword = await page.locator('input[type="password"]').inputValue();
+
+    if (dupeAddress !== '127.0.0.1' || dupePort !== String(sshPort) || dupeUsername !== 'root') {
+      throw new Error(`duplicate modal not pre-filled: address=${dupeAddress}, port=${dupePort}, username=${dupeUsername}`);
+    }
+    if (dupePassword !== '') {
+      throw new Error('duplicate modal should not pre-fill password');
+    }
+
+    await page.locator('.modal .btn-default').click();
+    await page.waitForSelector('.modal', { state: 'detached', timeout: 5000 });
+    console.log('double-click duplicate opens pre-filled connection modal');
+
     // Wait for telemetry to start automatically (after fix it should not need a tab switch)
     await page.waitForFunction(
       () => {

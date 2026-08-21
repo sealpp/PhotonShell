@@ -302,7 +302,7 @@ export function deleteHosts(hostIds: string[]): void {
   send(msg)
 }
 
-export function addTab(host: HostProfile, password: string): void {
+export function addTab(host: HostProfile, password: string, insertAfterTabId?: string): void {
   if (!store.token) return
   const tabId = randomId()
   const sessionId = randomId()
@@ -318,7 +318,18 @@ export function addTab(host: HostProfile, password: string): void {
     terminalId,
     telemetry: null,
   }
-  store.tabs.push(tab)
+
+  if (insertAfterTabId) {
+    const idx = store.tabs.findIndex((t) => t.id === insertAfterTabId)
+    if (idx !== -1) {
+      store.tabs.splice(idx + 1, 0, tab)
+    } else {
+      store.tabs.push(tab)
+    }
+  } else {
+    store.tabs.push(tab)
+  }
+
   store.activeTabId = tabId
   store.view = 'shell'
   store.connectionModalOpen = false

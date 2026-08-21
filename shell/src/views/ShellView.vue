@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { store } from '../stores/app'
+import { store, type Tab } from '../stores/app'
 import { closeTab } from '../services/ws'
 import ShellTerminal from './ShellTerminal.vue'
 import { IconChartLine, IconX } from '@tabler/icons-vue'
@@ -12,6 +12,14 @@ function tabDotClass(state: string): string {
   if (state === 'online') return 'dot online'
   if (state === 'connecting') return 'dot connecting'
   return 'dot offline'
+}
+
+function duplicateTab(tab: Tab) {
+  const host = store.hosts.find((h) => h.id === tab.hostId)
+  if (!host) return
+  store.editingHostId = host.id
+  store.insertAfterTabId = tab.id
+  store.connectionModalOpen = true
 }
 
 onMounted(() => {
@@ -43,11 +51,12 @@ onBeforeUnmount(() => {
           class="tab"
           :class="{ active: tab.id === store.activeTabId }"
           @click="store.activeTabId = tab.id"
+          @dblclick="duplicateTab(tab)"
         >
           <span :class="tabDotClass(tab.state)" />
           <span class="tab-index">{{ index + 1 }}</span>
           <span class="tab-label">{{ tab.label }}</span>
-          <button type="button" class="tab-close" title="断开连接" @click.stop="closeTab(tab.id)">
+          <button type="button" class="tab-close" title="断开连接" @click.stop="closeTab(tab.id)" @dblclick.stop>
             <IconX :size="14" />
           </button>
         </div>

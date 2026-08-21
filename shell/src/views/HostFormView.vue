@@ -44,12 +44,15 @@ function submit() {
     username: username.value,
   })
   createHost(host)
-  addTab(host, password.value)
+  const insertAfterTabId = store.insertAfterTabId
+  store.insertAfterTabId = ''
+  addTab(host, password.value, insertAfterTabId)
 }
 
 function close() {
   store.connectionModalOpen = false
   store.editingHostId = ''
+  store.insertAfterTabId = ''
   localError.value = ''
 }
 </script>
