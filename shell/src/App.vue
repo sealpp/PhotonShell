@@ -1,40 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { store } from './stores/app'
-import { wsUrl, connect } from './services/ws'
+import { connect } from './services/ws'
 import { commandRegistry } from './services/commands'
 import './services/terminalCommands'
 import './services/hostCommands'
+import './services/nodeCommands'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import MainDock from './views/MainDock.vue'
 import PrimarySidebar from './views/PrimarySidebar.vue'
 import SecondarySidebar from './views/SecondarySidebar.vue'
-import SettingsMenu from './components/SettingsMenu.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import TerminalSessionInfo from './components/TerminalSessionInfo.vue'
 import ManualPasteDialog from './components/ManualPasteDialog.vue'
-import { IconList, IconSettings } from '@tabler/icons-vue'
+import { IconList } from '@tabler/icons-vue'
 import NodeStatusMenu from './components/NodeStatusMenu.vue'
-
-function parseNodeHost() {
-  try {
-    const url = new URL(wsUrl())
-    const host = url.hostname
-    const port = url.port
-    if (port === '80' || port === '443' || !port) return host
-    return `${host}:${port}`
-  } catch {
-    return wsUrl().replace(/^wss?:\/\//, '')
-  }
-}
-
-const nodeHost = computed(() => parseNodeHost())
-const nodeStatus = computed(() => {
-  if (!store.token) return 'unpaired'
-  return store.nodeConnected ? 'connected' : 'disconnected'
-})
 
 const contextMenuItems = computed(() => {
   if (!store.contextMenu?.open) return []
@@ -80,15 +62,6 @@ onMounted(() => {
           </div>
 
         </div>
-        <div class="bottom-icons">
-          <div
-            class="icon"
-            title="设置"
-            @click="store.settingsMenuOpen = true"
-          >
-            <IconSettings :size="24" />
-          </div>
-        </div>
       </div>
       <aside class="sidebar primary-sidebar" :class="{ collapsed: !store.sidebarOpen || store.sidebarView !== 'connections' }">
         <PrimarySidebar />
@@ -110,19 +83,10 @@ onMounted(() => {
       </aside>
     </div>
     <div class="statusbar">
-      <div class="node-status"
-        :class="[nodeStatus]"
-        :title="store.token ? `Node: ${nodeHost} (${nodeStatus === 'connected' ? '已连接' : '未连接'})` : 'Node: 未配对，点击配对'"
-        @click="store.nodeMenuOpen = true"
-      >
-        <i class="codicon codicon-remote" />
-        <span v-if="store.token" class="node-label">WS: {{ nodeHost }}</span>
-        <span v-else class="node-label">未配对</span>
-      </div>
+      <NodeStatusMenu />
     </div>
     <PairingView v-if="store.pairingModalOpen" />
     <HostFormView v-if="store.connectionModalOpen" />
-    <SettingsMenu v-if="store.settingsMenuOpen" />
     <ContextMenu
       v-if="store.contextMenu?.open"
       :x="store.contextMenu.x"
@@ -133,7 +97,6 @@ onMounted(() => {
     <TerminalSessionInfo v-if="store.terminalSessionInfo?.open" />
     <ManualPasteDialog v-if="store.manualPaste?.open" />
     <DeleteConfirm v-if="store.deleteConfirmOpen" />
-    <NodeStatusMenu v-if="store.nodeMenuOpen" />
   </div>
 </template>
 
@@ -214,15 +177,6 @@ button, input {
   gap: 0;
   width: 100%;
   align-items: center;
-}
-
-.bottom-icons {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  width: 100%;
-  align-items: center;
-  margin-top: auto;
 }
 
 .activity .icon {
@@ -342,37 +296,4 @@ button, input {
   flex-shrink: 0;
 }
 
-.node-status {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0 0.75rem;
-  background: #3c3c3c;
-  color: #ccc;
-  cursor: pointer;
-  user-select: none;
-}
-
-.node-status:hover {
-  filter: brightness(1.1);
-}
-
-.node-status.connected {
-  background: #0e639c;
-  color: #fff;
-}
-
-.node-status.disconnected {
-  background: #a31515;
-  color: #fff;
-}
-
-.node-status .codicon {
-  font-size: 14px;
-}
-
-.node-label {
-  font-size: 12px;
-}
 </style>

@@ -1,0 +1,29 @@
+:root {
+  color-scheme: dark;
+  --workbench-bg: #1e1e1e;
+  --workbench-activity-bg: #333333;
+  --workbench-surface: #252526;
+  --workbench-surface-raised: #2d2d2d;
+  --workbench-input-bg: #1e1e1e;
+  --workbench-border: #3c3c3c;
+  --workbench-border-muted: #1f1f1f;
+  --workbench-text: #cccccc;
+  --workbench-text-strong: #ffffff;
+  --workbench-text-muted: #888888;
+  --workbench-text-disabled: #666666;
+  --workbench-accent: #0e639c;
+  --workbench-accent-hover: #1177bb;
+  --workbench-danger: #a31515;
+  --workbench-danger-action: #c75450;
+  --workbench-overlay: rgba(0, 0, 0, 0.6);
+  --workbench-radius: 6px;
+  --workbench-space-1: 0.25rem;
+  --workbench-space-2: 0.5rem;
+  --workbench-space-3: 0.75rem;
+  --workbench-space-4: 1rem;
+  --workbench-layer-dropdown: 1200;
+  --workbench-layer-menu: 1300;
+  --workbench-layer-dialog: 1400;
+  --workbench-layer-alert: 1500;
+  --workbench-layer-tooltip: 1600;
+}

@@ -1,150 +1,184 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuRoot,
+  DropdownMenuTrigger,
+} from 'reka-ui'
 import { store } from '../stores/app'
-import { wsUrl, disconnectNode } from '../services/ws'
-import { IconPlug, IconLinkOff, IconCopy } from '@tabler/icons-vue'
+import { commandRegistry } from '../services/commands'
+import { getNodeMenuIds } from '../services/nodeCommands'
+import { usePortalTarget } from '../ui/portal'
+import { wsUrl } from '../services/ws'
 
-const pairLabel = computed(() => (store.token ? '重新配对' : '配对'))
+const triggerEl = ref<HTMLElement | null>(null)
+const portalTarget = usePortalTarget(triggerEl)
 
-function close() {
-  store.nodeMenuOpen = false
-}
-
-function openPairing() {
-  store.pairingModalOpen = true
-  close()
-}
-
-function doDisconnect() {
-  disconnectNode()
-  close()
-}
-
-async function copyAddress() {
+const nodeHost = computed(() => {
   try {
-    await navigator.clipboard.writeText(wsUrl())
+    const url = new URL(wsUrl())
+    const port = url.port
+    if (port === '80' || port === '443' || !port) return url.hostname
+    return `${url.hostname}:${port}`
   } catch {
-    // ignore
+    return wsUrl().replace(/^wss?:\/\//, '')
   }
-  close()
+})
+
+const nodeStatus = computed(() => {
+  if (!store.token) return 'unpaired'
+  return store.nodeConnected ? 'connected' : 'disconnected'
+})
+
+const items = computed(() => commandRegistry.resolve(getNodeMenuIds(), {
+  hasToken: Boolean(store.token),
+}))
+
+function execute(item: typeof items.value[number]) {
+  if (item.disabled || !item.action) return
+  void item.action()
 }
 </script>
 
 <template>
-  <div class="overlay" @click.self="close" @contextmenu.prevent>
-    <div class="menu">
-      <div class="menu-header">
-        <span>Node 操作</span>
-      </div>
-      <div class="menu-body">
-        <button type="button" class="menu-item" @click="openPairing">
-          <span class="left">
-            <IconPlug :size="16" />
-            <span class="label">{{ pairLabel }}</span>
-          </span>
-        </button>
-        <button
-          v-if="store.token"
-          type="button"
+  <DropdownMenuRoot>
+    <DropdownMenuTrigger as-child>
+      <button
+        ref="triggerEl"
+        type="button"
+        class="node-status"
+        :class="nodeStatus"
+        :title="store.token ? `Node: ${nodeHost} (${nodeStatus === 'connected' ? '已连接' : '未连接'})` : 'Node: 未配对，点击配对'"
+      >
+        <i class="codicon codicon-remote" />
+        <span v-if="store.token" class="node-label">WS: {{ nodeHost }}</span>
+        <span v-else class="node-label">未配对</span>
+      </button>
+    </DropdownMenuTrigger>
+
+    <DropdownMenuPortal :to="portalTarget">
+      <DropdownMenuContent
+        class="node-menu"
+        side="top"
+        align="start"
+        :side-offset="4"
+        :collision-padding="8"
+        :avoid-collisions="true"
+      >
+        <DropdownMenuLabel class="menu-header">Node 操作</DropdownMenuLabel>
+        <DropdownMenuItem
+          v-for="item in items"
+          :key="item.id"
           class="menu-item"
-          @click="doDisconnect"
+          :disabled="item.disabled"
+          @select="execute(item)"
         >
-          <span class="left">
-            <IconLinkOff :size="16" />
-            <span class="label">断开当前 Node 连接</span>
-          </span>
-        </button>
-        <button type="button" class="menu-item" @click="copyAddress">
-          <span class="left">
-            <IconCopy :size="16" />
-            <span class="label">复制 Node 地址</span>
-          </span>
-        </button>
-      </div>
-      <div class="menu-footer">
-        <span class="node-address">{{ wsUrl() }}</span>
-      </div>
-    </div>
-  </div>
+          <component :is="item.icon" v-if="item.icon" :size="16" />
+          <span class="label">{{ item.label }}</span>
+        </DropdownMenuItem>
+        <DropdownMenuLabel class="menu-footer">{{ wsUrl() }}</DropdownMenuLabel>
+      </DropdownMenuContent>
+    </DropdownMenuPortal>
+  </DropdownMenuRoot>
 </template>
 
 <style scoped>
-.overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 100;
-  background: transparent;
+.node-status {
+  height: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: var(--workbench-space-1);
+  padding: 0 var(--workbench-space-3);
+  border: 0;
+  background: #3c3c3c;
+  color: var(--workbench-text);
+  cursor: pointer;
+  user-select: none;
+  font: inherit;
 }
 
-.menu {
-  width: 320px;
+.node-status:hover {
+  filter: brightness(1.1);
+}
+
+.node-status.connected {
+  background: var(--workbench-accent);
+  color: var(--workbench-text-strong);
+}
+
+.node-status.disconnected {
+  background: var(--workbench-danger);
+  color: var(--workbench-text-strong);
+}
+
+.node-status .codicon {
+  font-size: 14px;
+}
+
+.node-label {
+  font-size: 12px;
+}
+
+.node-menu {
+  min-width: 320px;
   max-width: 90vw;
-  background: #252526;
-  border: 1px solid #1f1f1f;
-  border-radius: 6px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
+  padding: var(--workbench-space-2) 0;
+  background: var(--workbench-surface);
+  border: 1px solid var(--workbench-border-muted);
+  border-radius: var(--workbench-radius);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  color: var(--workbench-text);
+  z-index: var(--workbench-layer-dropdown);
+}
+
+.menu-header,
+.menu-footer {
+  display: block;
+  padding: var(--workbench-space-2) var(--workbench-space-3);
+  color: var(--workbench-text-muted);
+  font-size: 11px;
 }
 
 .menu-header {
-  height: 32px;
-  display: flex;
-  align-items: center;
-  padding: 0 0.75rem;
-  background: #2d2d2d;
-  border-bottom: 1px solid #1f1f1f;
+  color: var(--workbench-text-strong);
   font-size: 12px;
   font-weight: 600;
-  color: #fff;
 }
 
-.menu-body {
-  padding: 0.5rem 0;
+.menu-footer {
+  border-top: 1px solid var(--workbench-border-muted);
+  word-break: break-all;
 }
 
 .menu-item {
-  width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0.75rem;
+  gap: var(--workbench-space-2);
+  width: 100%;
+  padding: var(--workbench-space-2) var(--workbench-space-3);
+  border: 0;
   background: transparent;
-  border: none;
-  color: #cccccc;
-  font-size: 13px;
+  color: var(--workbench-text);
   cursor: pointer;
+  font-size: 13px;
   text-align: left;
 }
 
-.menu-item:hover {
-  background: #0e639c;
-  color: #fff;
+.menu-item[data-highlighted] {
+  background: var(--workbench-accent);
+  color: var(--workbench-text-strong);
 }
 
-.left {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex: 1;
+.menu-item[data-disabled] {
+  color: var(--workbench-text-disabled);
+  cursor: default;
 }
 
 .label {
   flex: 1;
-}
-
-.menu-footer {
-  padding: 0.5rem 0.75rem;
-  border-top: 1px solid #1f1f1f;
-  color: #888;
-  font-size: 11px;
-  word-break: break-all;
 }
 </style>

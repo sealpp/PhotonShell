@@ -44,12 +44,8 @@ export interface AppState {
   connectionModalOpen: boolean
   editingHostId: string
   insertAfterTabId: string
-  settingsMenuOpen: boolean
   deleteConfirmOpen: boolean
   deleteConfirmIds: string[]
-  contextMenuOpen: boolean
-  contextMenuX: number
-  contextMenuY: number
   contextMenu: {
     open: boolean
     x: number
@@ -67,7 +63,6 @@ export interface AppState {
     context?: CommandContext
   } | null
   nodeConnected: boolean
-  nodeMenuOpen: boolean
 }
 
 export const store = reactive<AppState>({
@@ -89,15 +84,10 @@ export const store = reactive<AppState>({
   connectionModalOpen: false,
   editingHostId: '',
   insertAfterTabId: '',
-  settingsMenuOpen: false,
   deleteConfirmOpen: false,
   deleteConfirmIds: [],
-  contextMenuOpen: false,
-  contextMenuX: 0,
-  contextMenuY: 0,
   contextMenu: null,
   terminalSessionInfo: null,
   manualPaste: null,
   nodeConnected: false,
-  nodeMenuOpen: false,
 })
