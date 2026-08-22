@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { store } from '../stores/app'
+import { getHostMenuIds } from '../services/hostCommands'
 import { IconPlus, IconPlug } from '@tabler/icons-vue'
 
 function isSelected(hostId: string): boolean {
@@ -53,9 +54,16 @@ function onItemRightClick(host: typeof store.hosts[0], event: MouseEvent) {
     store.selectedHostIds = new Set([host.id])
     store.selectionAnchor = host.id
   }
-  store.contextMenuX = event.clientX
-  store.contextMenuY = event.clientY
-  store.contextMenuOpen = true
+  store.contextMenu = {
+    open: true,
+    x: event.clientX,
+    y: event.clientY,
+    commandIds: getHostMenuIds(),
+    context: {
+      selectedIds: Array.from(store.selectedHostIds),
+      selectedCount: store.selectedHostIds.size,
+    },
+  }
 }
 
 function openNewConnection() {

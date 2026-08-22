@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import type { HostProfile } from '../proto/photon_pb'
+import type { CommandContext } from '../services/context'
 
 export type View = 'welcome' | 'shell'
 export type ShellState = 'idle' | 'connecting' | 'online' | 'error'
@@ -21,6 +22,7 @@ export interface Tab {
   sessionId: string
   terminalId: string
   telemetry: Telemetry | null
+  encoding: string
 }
 
 export interface AppState {
@@ -48,6 +50,22 @@ export interface AppState {
   contextMenuOpen: boolean
   contextMenuX: number
   contextMenuY: number
+  contextMenu: {
+    open: boolean
+    x: number
+    y: number
+    commandIds: string[]
+    context: CommandContext
+  } | null
+  terminalSessionInfo: {
+    open: boolean
+    tabId: string
+  } | null
+  manualPaste: {
+    open: boolean
+    tabId: string
+    context?: CommandContext
+  } | null
   nodeConnected: boolean
   nodeMenuOpen: boolean
 }
@@ -77,6 +95,9 @@ export const store = reactive<AppState>({
   contextMenuOpen: false,
   contextMenuX: 0,
   contextMenuY: 0,
+  contextMenu: null,
+  terminalSessionInfo: null,
+  manualPaste: null,
   nodeConnected: false,
   nodeMenuOpen: false,
 })

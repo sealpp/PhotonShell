@@ -2,14 +2,19 @@
 import { computed, onMounted } from 'vue'
 import { store } from './stores/app'
 import { wsUrl, connect } from './services/ws'
+import { commandRegistry } from './services/commands'
+import './services/terminalCommands'
+import './services/hostCommands'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import MainDock from './views/MainDock.vue'
 import PrimarySidebar from './views/PrimarySidebar.vue'
 import SecondarySidebar from './views/SecondarySidebar.vue'
 import SettingsMenu from './components/SettingsMenu.vue'
-import HostContextMenu from './components/HostContextMenu.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
+import ContextMenu from './components/ContextMenu.vue'
+import TerminalSessionInfo from './components/TerminalSessionInfo.vue'
+import ManualPasteDialog from './components/ManualPasteDialog.vue'
 import { IconList, IconSettings } from '@tabler/icons-vue'
 import NodeStatusMenu from './components/NodeStatusMenu.vue'
 
@@ -30,6 +35,15 @@ const nodeStatus = computed(() => {
   if (!store.token) return 'unpaired'
   return store.nodeConnected ? 'connected' : 'disconnected'
 })
+
+const contextMenuItems = computed(() => {
+  if (!store.contextMenu?.open) return []
+  return commandRegistry.resolve(store.contextMenu.commandIds, store.contextMenu.context ?? {})
+})
+
+function closeContextMenu() {
+  store.contextMenu = null
+}
 
 function toggleConnections() {
   if (store.sidebarOpen && store.sidebarView === 'connections') {
@@ -109,7 +123,15 @@ onMounted(() => {
     <PairingView v-if="store.pairingModalOpen" />
     <HostFormView v-if="store.connectionModalOpen" />
     <SettingsMenu v-if="store.settingsMenuOpen" />
-    <HostContextMenu v-if="store.contextMenuOpen" />
+    <ContextMenu
+      v-if="store.contextMenu?.open"
+      :x="store.contextMenu.x"
+      :y="store.contextMenu.y"
+      :items="contextMenuItems"
+      @close="closeContextMenu"
+    />
+    <TerminalSessionInfo v-if="store.terminalSessionInfo?.open" />
+    <ManualPasteDialog v-if="store.manualPaste?.open" />
     <DeleteConfirm v-if="store.deleteConfirmOpen" />
     <NodeStatusMenu v-if="store.nodeMenuOpen" />
   </div>

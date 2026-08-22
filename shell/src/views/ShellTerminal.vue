@@ -11,6 +11,7 @@ import {
   startTelemetry,
   stopTelemetry,
 } from '../services/ws'
+import { getTerminalMenuIds } from '../services/terminalCommands'
 import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps<{ tabId: string }>()
@@ -19,9 +20,11 @@ const termEl = ref<HTMLDivElement | null>(null)
 let terminal: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let resizeObserver: ResizeObserver | null = null
+let decoder = new TextDecoder('utf-8', { fatal: false })
 const unwatchState = ref<() => void>()
 const unwatchStream = ref<() => void>()
 const unwatchActive = ref<() => void>()
+const unwatchEncoding = ref<() => void>()
 
 const tab = computed(() => store.tabs.find((t) => t.id === props.tabId))
 const isActive = computed(() => store.activeTabId === props.tabId)
@@ -48,11 +51,49 @@ function openTabTerminal() {
   openTerminal(tab.value.sessionId, tab.value.terminalId, cols || 80, rows || 24)
 }
 
+function resetDecoder(encoding: string) {
+  if (!terminal) return
+  const flushed = decoder.decode()
+  if (flushed) terminal.write(flushed)
+  decoder = new TextDecoder(encoding, { fatal: false })
+}
+
+function writeOutput(data: Uint8Array) {
+  if (!terminal) return
+  try {
+    const text = decoder.decode(data, { stream: true })
+    terminal.write(text)
+  } catch {
+    terminal.write(data)
+  }
+}
+
+function openContextMenu(event: MouseEvent) {
+  event.preventDefault()
+  if (!terminal || !tab.value) return
+  const canReadClipboard = !!(navigator.clipboard && navigator.clipboard.readText)
+  store.contextMenu = {
+    open: true,
+    x: event.clientX,
+    y: event.clientY,
+    commandIds: getTerminalMenuIds(),
+    context: {
+      tabId: props.tabId,
+      terminal,
+      hasSelection: terminal.hasSelection(),
+      isOnline: tab.value.state === 'online',
+      canPaste: canReadClipboard,
+      tabEncoding: tab.value.encoding,
+    },
+  }
+}
+
 onMounted(() => {
   if (!termEl.value || !tab.value) return
 
   terminal = new Terminal({
     cursorBlink: true,
+    rightClickSelectsWord: false,
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
     fontSize: 13,
     theme: {
@@ -77,6 +118,8 @@ onMounted(() => {
     }
   })
 
+  termEl.value.addEventListener('contextmenu', openContextMenu)
+
   resizeObserver = new ResizeObserver(() => {
     if (isActive.value) {
       fitAndResize()
@@ -98,7 +141,7 @@ onMounted(() => {
     (streamId) => {
       if (streamId && tab.value) {
         setTerminalOutputHandler(streamId, (data: Uint8Array) => {
-          terminal?.write(data)
+          writeOutput(data)
         })
       }
     },
@@ -123,6 +166,15 @@ onMounted(() => {
     { immediate: true },
   )
 
+  unwatchEncoding.value = watch(
+    () => tab.value?.encoding,
+    (enc, prev) => {
+      if (enc && enc !== prev) {
+        resetDecoder(enc)
+      }
+    },
+  )
+
 })
 
 onBeforeUnmount(() => {
@@ -130,6 +182,10 @@ onBeforeUnmount(() => {
   unwatchState.value?.()
   unwatchStream.value?.()
   unwatchActive.value?.()
+  unwatchEncoding.value?.()
+  if (termEl.value) {
+    termEl.value.removeEventListener('contextmenu', openContextMenu)
+  }
   if (tab.value?.streamId) {
     setTerminalOutputHandler(tab.value.streamId, null)
   }
