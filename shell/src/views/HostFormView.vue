@@ -61,6 +61,7 @@ function close() {
   <UiDialog
     :open="true"
     :title="store.editingHostId ? '连接' : '新建连接'"
+    description="输入 SSH 主机连接信息；密码不会保存。"
     width="520px"
     @close="close"
   >
@@ -82,7 +83,6 @@ function close() {
       <label for="host-password">密码</label>
       <input id="host-password" v-model="password" type="password" placeholder="password" required />
     </div>
-    <p class="hint">v0 安全模型：密码不落盘，每次连接都需输入。</p>
     <p v-if="localError || store.error" class="error">{{ localError || store.error }}</p>
 
     <template #actions>
@@ -119,12 +119,6 @@ input {
   background: var(--workbench-input-bg);
   color: var(--workbench-text);
   font-size: 13px;
-}
-
-.hint {
-  margin: calc(-1 * var(--workbench-space-1)) 0 var(--workbench-space-3);
-  color: var(--workbench-text-muted);
-  font-size: 11px;
 }
 
 .error {

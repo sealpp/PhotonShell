@@ -56,7 +56,9 @@ E2E 必须解析这个 6 位码，不要写死。
 
 `配对`、`登录`、`新建连接` 这些文字同时出现在侧边栏和弹窗里，`getByText`/`getByRole` 会命中多个元素。必须用 CSS 限定：
 
-- 配对按钮：`page.locator('.modal .btn-primary')`
+- Dialog 内容：`page.locator('.workbench-dialog-content')`
+- 主操作按钮：`page.locator('.workbench-dialog-content .workbench-dialog-button--primary')`
+- 取消按钮：`page.locator('.workbench-dialog-button--default')`
 - 新建连接：`page.locator('.new-btn')`
 - 登录按钮：`page.getByRole('button', { name: '登录' })`（只在弹窗里出现，相对安全）
 - 密码输入：`page.locator('input[type="password"]')`
@@ -73,6 +75,14 @@ v0 不保存标签和 Dockview 布局状态。刷新 PWA 后所有 SSH 会话都
 ### Vite HMR
 
 多个 Vite 进程共存时（例如环境占 `8080`，`npm run dev` 落到 `8081`），HMR 可能给旧代码。改完 `ShellTerminal.vue` 后，**刷新页面或重启 dev server**，再跑 E2E 才可信。
+
+### xterm 渲染器
+
+`@xterm/xterm` 6 默认使用 DOM renderer 时，终端屏幕是 `.xterm-screen`，不一定存在 canvas；终端右键测试应定位 `.xterm-screen`，应用侧允许屏幕后代元素触发菜单，以兼容 DOM 和 canvas renderer。
+
+### Docker 运行完整链路
+
+Playwright Docker 镜像可能没有仓库的 Python 虚拟环境依赖。`run-e2e.js` 支持 `PHOTON_PYTHON` 覆盖解释器；容器内运行时需安装 `node/pyproject.toml` 依赖，并设置 `PYTHONPATH` 指向 `/workspace/node`。
 
 ### 文件卫生
 

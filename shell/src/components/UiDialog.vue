@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { DialogClose, DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
+import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { usePortalTarget } from '../ui/portal'
 import { IconX } from '@tabler/icons-vue'
 
 const props = withDefaults(defineProps<{
   open: boolean
   title: string
+  description: string
   width?: string
   showClose?: boolean
 }>(), {
@@ -34,6 +35,9 @@ function onOpenChange(open: boolean) {
             </button>
           </DialogClose>
         </div>
+        <DialogDescription class="workbench-dialog-description">
+          {{ props.description }}
+        </DialogDescription>
         <div class="workbench-dialog-body">
           <slot />
         </div>

@@ -83,9 +83,9 @@ function terminalContext(): CommandContext {
   }
 }
 
-function isTerminalCanvasTarget(event: MouseEvent): boolean {
+function isTerminalScreenTarget(event: MouseEvent): boolean {
   const target = event.target
-  return target instanceof HTMLCanvasElement && target.closest('.xterm-screen') !== null
+  return target instanceof Element && target.closest('.xterm-screen') !== null
 }
 
 onMounted(() => {
@@ -197,7 +197,7 @@ onBeforeUnmount(() => {
     v-if="tab"
     :menu-id="TERMINAL_MENU_ID"
     :context="terminalContext"
-    :can-open="isTerminalCanvasTarget"
+    :can-open="isTerminalScreenTarget"
   >
     <div ref="termEl" class="shell-terminal" />
   </CommandContextMenu>

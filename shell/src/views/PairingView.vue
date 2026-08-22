@@ -20,7 +20,13 @@ function close() {
 </script>
 
 <template>
-  <UiDialog :open="true" title="配对 Node" width="360px" @close="close">
+  <UiDialog
+    :open="true"
+    title="配对 Node"
+    description="输入 Node 启动时输出的 6 位配对码。"
+    width="360px"
+    @close="close"
+  >
     <div class="form-group">
       <label for="pairing-pin">配对码</label>
       <input
@@ -34,7 +40,6 @@ function close() {
         @keyup.enter="submit"
       />
     </div>
-    <p class="hint">Node 启动时已输出 6 位配对码，输入后 PWA 与本地 Node 完成配对。</p>
     <p v-if="localError" class="error">{{ localError }}</p>
 
     <template #actions>
@@ -67,12 +72,6 @@ input {
   font-size: 1.5rem;
   letter-spacing: 0.4rem;
   text-align: center;
-}
-
-.hint {
-  margin: 0;
-  color: var(--workbench-text-muted);
-  font-size: 11px;
 }
 
 .error {

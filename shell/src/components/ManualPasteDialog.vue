@@ -33,8 +33,13 @@ function close() {
 </script>
 
 <template>
-  <UiDialog :open="true" title="手动粘贴" width="520px" @close="close">
-    <p class="hint">剪贴板不可用。请按 Ctrl+V 粘贴到下方输入框，或手动输入。</p>
+  <UiDialog
+    :open="true"
+    title="手动粘贴"
+    description="剪贴板不可用时，请在下方输入要粘贴到终端的文本。"
+    width="520px"
+    @close="close"
+  >
     <textarea v-model="text" class="paste-input" rows="6" @paste="onPaste" />
 
     <template #actions>
@@ -45,12 +50,6 @@ function close() {
 </template>
 
 <style scoped>
-.hint {
-  margin: 0 0 var(--workbench-space-2);
-  color: var(--workbench-text-muted);
-  font-size: 12px;
-}
-
 .paste-input {
   width: 100%;
   box-sizing: border-box;

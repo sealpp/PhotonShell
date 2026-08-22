@@ -15,7 +15,7 @@ if (fs.existsSync(SHELL_NODE_MODULES)) {
 
 const { chromium } = require('playwright');
 
-const PYTHON = path.join(REPO, 'node/.venv/bin/python');
+const PYTHON = process.env.PHOTON_PYTHON || path.join(REPO, 'node/.venv/bin/python');
 const MOCK_SSH_SCRIPT = path.join(__dirname, 'mock-ssh-server.py');
 const TMP_DIR = path.join(os.tmpdir(), 'photon-e2e');
 const STATE_FILE = path.join(TMP_DIR, 'state.db');
@@ -74,7 +74,7 @@ async function main() {
 
     // Pair
     await page.getByPlaceholder('000000').fill(pin);
-    await page.locator('.modal .btn-primary').click();
+    await page.locator('.workbench-dialog-content .workbench-dialog-button--primary').click();
 
     // Wait for welcome view with host list
     await page.waitForSelector('text=新建连接', { timeout: 5000 });
@@ -99,12 +99,23 @@ async function main() {
     // Add first host
     await addHost('A');
 
+    await page.locator('.conn-item').first().click({ button: 'right' });
+    await page.waitForSelector('[role="menu"]', { timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[role="menu"]', { state: 'detached', timeout: 5000 });
+    await page.waitForSelector('.xterm-screen', { timeout: 5000 });
+    await page.locator('.xterm-screen').last().click({ button: 'right' });
+    await page.waitForSelector('[role="menu"]', { timeout: 5000 });
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[role="menu"]', { state: 'detached', timeout: 5000 });
+    console.log('host and terminal context menus open and dismiss');
+
     // Double-click the first tab to duplicate the host (v0 still requires re-entering password)
     const firstTab = page.locator('.terminal-tab').first();
     await firstTab.dblclick();
-    await page.waitForSelector('.modal', { timeout: 5000 });
+    await page.waitForSelector('.workbench-dialog-content', { timeout: 5000 });
 
-    const title = await page.locator('.modal .title').textContent();
+    const title = await page.locator('.workbench-dialog-title').textContent();
     if (title !== '连接') {
       throw new Error(`expected modal title "连接", got "${title}"`);
     }
@@ -121,8 +132,8 @@ async function main() {
       throw new Error('duplicate modal should not pre-fill password');
     }
 
-    await page.locator('.modal .btn-default').click();
-    await page.waitForSelector('.modal', { state: 'detached', timeout: 5000 });
+    await page.locator('.workbench-dialog-button--default').click();
+    await page.waitForSelector('.workbench-dialog-content', { state: 'detached', timeout: 5000 });
     console.log('double-click duplicate opens pre-filled connection modal');
 
     // Wait for telemetry to start automatically (after fix it should not need a tab switch)

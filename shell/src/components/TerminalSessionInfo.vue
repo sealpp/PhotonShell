@@ -19,7 +19,13 @@ function close() {
 </script>
 
 <template>
-  <UiDialog :open="true" title="终端会话信息" width="480px" @close="close">
+  <UiDialog
+    :open="true"
+    title="终端会话信息"
+    description="当前终端会话的连接和运行状态。"
+    width="480px"
+    @close="close"
+  >
     <template v-if="tab">
       <div class="info-row">
         <span class="info-label">地址</span>

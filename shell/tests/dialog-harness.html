@@ -12,6 +12,7 @@
     <div id="app"></div>
     <script type="module">
       import { createApp, h } from 'vue'
+      import '/src/styles/workbench.css'
       import UiDialog from '/src/components/UiDialog.vue'
 
       createApp({
@@ -22,6 +23,7 @@
             h(UiDialog, {
               open: this.open,
               title: '测试对话框',
+              description: '测试内容',
               onClose: () => { this.open = false },
             }, {
               default: () => h('input', { id: 'dialog-input', type: 'text' }),
