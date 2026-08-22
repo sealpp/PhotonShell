@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alert Dialog Harness</title>
+    <style>
+      html, body, #app { width: 100%; height: 100%; margin: 0; background: #111; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import { createApp, h } from 'vue'
+      import UiAlertDialog from '/src/components/UiAlertDialog.vue'
+
+      createApp({
+        data: () => ({ open: true, confirmed: false }),
+        render() {
+          return h('div', [
+            h('button', { id: 'open', type: 'button', onClick: () => { this.open = true } }, '打开'),
+            h('output', { id: 'confirmed' }, String(this.confirmed)),
+            h(UiAlertDialog, {
+              open: this.open,
+              title: '测试警告',
+              actionLabel: '删除',
+              onClose: () => { this.open = false },
+              onConfirm: () => { this.confirmed = true; this.open = false },
+            }, {
+              default: () => h('p', '这是不可恢复的操作。'),
+            }),
+          ])
+        },
+      }).mount('#app')
+    </script>
+  </body>
+</html>
