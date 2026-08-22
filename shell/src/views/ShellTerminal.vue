@@ -11,7 +11,7 @@ import {
   startTelemetry,
   stopTelemetry,
 } from '../services/ws'
-import { getTerminalMenuIds } from '../services/terminalCommands'
+import { TERMINAL_MENU_ID } from '../services/terminalCommands'
 import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps<{ tabId: string }>()
@@ -76,8 +76,9 @@ function openContextMenu(event: MouseEvent) {
     open: true,
     x: event.clientX,
     y: event.clientY,
-    commandIds: getTerminalMenuIds(),
+    menuId: TERMINAL_MENU_ID,
     context: {
+      area: 'terminal',
       tabId: props.tabId,
       terminal,
       hasSelection: terminal.hasSelection(),

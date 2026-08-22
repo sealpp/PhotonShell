@@ -1,27 +1,16 @@
-import { reactive, toRaw } from 'vue'
+import type { Terminal } from '@xterm/xterm'
 
-export type CommandContext = Record<string, unknown>
+export type CommandArea = 'global' | 'host' | 'node' | 'terminal'
 
-export const context = reactive<CommandContext>({})
-
-export function setContext(key: string, value: unknown): void {
-  context[key] = value
-}
-
-export function setContextAll(values: CommandContext): void {
-  Object.assign(context, values)
-}
-
-export function getContext<T>(key: string): T | undefined {
-  return context[key] as T | undefined
-}
-
-export function clearContext(): void {
-  for (const key in context) {
-    delete context[key]
-  }
-}
-
-export function snapshotContext(): CommandContext {
-  return { ...toRaw(context) }
+export interface CommandContext {
+  area: CommandArea
+  tabId?: string
+  terminal?: Terminal
+  hasSelection?: boolean
+  isOnline?: boolean
+  canPaste?: boolean
+  tabEncoding?: string
+  selectedIds?: string[]
+  selectedCount?: number
+  hasToken?: boolean
 }

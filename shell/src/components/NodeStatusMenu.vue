@@ -9,8 +9,8 @@ import {
   DropdownMenuTrigger,
 } from 'reka-ui'
 import { store } from '../stores/app'
-import { commandRegistry } from '../services/commands'
-import { getNodeMenuIds } from '../services/nodeCommands'
+import { menuRegistry } from '../services/commands'
+import { NODE_MENU_ID } from '../services/nodeCommands'
 import { usePortalTarget } from '../ui/portal'
 import { wsUrl } from '../services/ws'
 
@@ -33,7 +33,8 @@ const nodeStatus = computed(() => {
   return store.nodeConnected ? 'connected' : 'disconnected'
 })
 
-const items = computed(() => commandRegistry.resolve(getNodeMenuIds(), {
+const items = computed(() => menuRegistry.resolve(NODE_MENU_ID, {
+  area: 'node',
   hasToken: Boolean(store.token),
 }))
 

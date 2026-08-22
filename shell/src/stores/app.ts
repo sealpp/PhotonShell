@@ -50,7 +50,7 @@ export interface AppState {
     open: boolean
     x: number
     y: number
-    commandIds: string[]
+    menuId: string
     context: CommandContext
   } | null
   terminalSessionInfo: {

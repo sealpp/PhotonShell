@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import type { ResolvedCommand } from '../services/commands'
+import type { ResolvedMenuItem } from '../services/commands'
 
 interface Props {
-  items: ResolvedCommand[]
+  items: ResolvedMenuItem[]
   x: number
   y: number
   autoFocus?: boolean
@@ -23,7 +23,7 @@ const emit = defineEmits<{ close: []; dismiss: []; keep: [keep: boolean] }>()
 const menuEl = ref<HTMLDivElement | null>(null)
 const itemEls = ref<Map<number, HTMLElement>>(new Map())
 const activeIndex = ref(-1)
-const submenu = ref<{ item: ResolvedCommand; index: number; x: number; y: number; autoFocus: boolean } | null>(null)
+const submenu = ref<{ item: ResolvedMenuItem; index: number; x: number; y: number; autoFocus: boolean } | null>(null)
 const openTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const closeTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const submenuRef = ref<ContextMenuExposed | null>(null)
@@ -147,7 +147,7 @@ function getItemRect(index: number): DOMRect | undefined {
   return itemEls.value.get(index)?.getBoundingClientRect()
 }
 
-function openSubmenu(item: ResolvedCommand, index: number, autoFocus: boolean) {
+function openSubmenu(item: ResolvedMenuItem, index: number, autoFocus: boolean) {
   closeSubmenu(false)
   const rect = getItemRect(index)
   if (!rect) return
@@ -188,13 +188,13 @@ function dismissTree() {
   else emit('dismiss')
 }
 
-function execute(item: ResolvedCommand) {
+function execute(item: ResolvedMenuItem) {
   if (item.disabled || !item.action) return
   item.action()
   dismissTree()
 }
 
-function onItemClick(item: ResolvedCommand, index: number) {
+function onItemClick(item: ResolvedMenuItem, index: number) {
   if (item.disabled) return
   clearOpenTimer()
   if (item.children?.length) {
@@ -205,7 +205,7 @@ function onItemClick(item: ResolvedCommand, index: number) {
   }
 }
 
-function onItemEnter(item: ResolvedCommand, index: number) {
+function onItemEnter(item: ResolvedMenuItem, index: number) {
   activeIndex.value = index
   clearOpenTimer()
 

@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { store } from './stores/app'
 import { connect } from './services/ws'
-import { commandRegistry } from './services/commands'
+import { menuRegistry } from './services/commands'
 import './services/terminalCommands'
 import './services/hostCommands'
 import './services/nodeCommands'
@@ -20,7 +20,7 @@ import NodeStatusMenu from './components/NodeStatusMenu.vue'
 
 const contextMenuItems = computed(() => {
   if (!store.contextMenu?.open) return []
-  return commandRegistry.resolve(store.contextMenu.commandIds, store.contextMenu.context ?? {})
+  return menuRegistry.resolve(store.contextMenu.menuId, store.contextMenu.context)
 })
 
 function closeContextMenu() {

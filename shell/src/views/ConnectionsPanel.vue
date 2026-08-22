@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { store } from '../stores/app'
-import { getHostMenuIds } from '../services/hostCommands'
+import { HOST_MENU_ID } from '../services/hostCommands'
 import { IconPlus, IconPlug } from '@tabler/icons-vue'
 
 function isSelected(hostId: string): boolean {
@@ -58,8 +58,9 @@ function onItemRightClick(host: typeof store.hosts[0], event: MouseEvent) {
     open: true,
     x: event.clientX,
     y: event.clientY,
-    commandIds: getHostMenuIds(),
+    menuId: HOST_MENU_ID,
     context: {
+      area: 'host',
       selectedIds: Array.from(store.selectedHostIds),
       selectedCount: store.selectedHostIds.size,
     },
