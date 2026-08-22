@@ -17,7 +17,8 @@ test('opens the Node menu and invokes the pairing command', async ({ page }) => 
 
 test('resolves Node commands from the current token context', async ({ page }) => {
   await page.evaluate(() => {
-    (window as Window & { setToken: (token: string) => void }).setToken('token')
+    const testWindow = window as unknown as Window & { setToken: (token: string) => void }
+    testWindow.setToken('token')
   })
   await page.locator('.node-status').click()
 
