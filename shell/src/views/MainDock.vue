@@ -30,17 +30,7 @@ function onReady(event: DockviewReadyEvent) {
   })
   unsubs.push(() => activeSub.dispose())
 
-  // Track layout changes for persistence.
-  const layoutSub = event.api.onDidLayoutChange(() => {
-    saveLayout()
-  })
-  unsubs.push(() => layoutSub.dispose())
-
-  // Restore layout if available; reuse existing panels so restored tabs are
-  // placed into the saved split positions.
-  restoreLayout()
-
-  // Add any tabs that are not in the restored layout.
+  // Sync any existing tabs to panels.
   for (const tab of store.tabs) {
     addPanel(tab)
   }
@@ -78,26 +68,6 @@ function removePanel(tabId: string) {
   const panel = api.value.getPanel(tabId)
   if (panel) {
     api.value.removePanel(panel)
-  }
-}
-
-function saveLayout() {
-  if (!api.value) return
-  const layout = api.value.toJSON()
-  localStorage.setItem('photon-main-layout', JSON.stringify(layout))
-}
-
-function restoreLayout() {
-  if (!api.value) return
-  const raw = localStorage.getItem('photon-main-layout')
-  if (!raw) return
-  try {
-    const layout = JSON.parse(raw)
-    if (layout && Object.keys(layout.panels || {}).length > 0) {
-      api.value.fromJSON(layout, { reuseExistingPanels: true })
-    }
-  } catch {
-    localStorage.removeItem('photon-main-layout')
   }
 }
 

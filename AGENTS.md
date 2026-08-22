@@ -4,6 +4,7 @@
 - Keep its documentation, designs, diagrams, and related project files inside that directory.
 - Use concise English Conventional Commits in the form `type(scope): summary`.
 - Commit and push them separately from their respective repository roots.
+- v0 does not persist tabs or layout; a page refresh is equivalent to a restart. Only the auth token and device id are kept in localStorage for auto-reconnect.
 
 ## Design sync
 

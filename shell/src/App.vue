@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted } from 'vue'
 import { store } from './stores/app'
-import { wsUrl, connect, loadWorkspace, saveWorkspace } from './services/ws'
+import { wsUrl, connect } from './services/ws'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import MainDock from './views/MainDock.vue'
@@ -41,7 +41,6 @@ function toggleConnections() {
 }
 
 onMounted(() => {
-  loadWorkspace()
   if (!store.token) {
     store.pairingModalOpen = true
   } else {
@@ -49,30 +48,7 @@ onMounted(() => {
   }
 })
 
-watch(
-  () => store.tabs.map((t) => `${t.id}:${t.hostId}:${t.label}`),
-  () => saveWorkspace(),
-)
 
-watch(
-  () => store.activeTabId,
-  () => saveWorkspace(),
-)
-
-watch(
-  () => store.view,
-  () => saveWorkspace(),
-)
-
-watch(
-  () => store.panelOpen,
-  () => saveWorkspace(),
-)
-
-watch(
-  () => store.sidebarOpen,
-  () => saveWorkspace(),
-)
 </script>
 
 <template>

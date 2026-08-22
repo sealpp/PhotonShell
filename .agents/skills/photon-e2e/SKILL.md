@@ -66,6 +66,10 @@ E2E 必须解析这个 6 位码，不要写死。
 - 面板一直显示 `--`：说明没有收到 `telemetrySnapshot`，通常是 `ShellTerminal.vue` 没调用 `startTelemetry()`（active watcher 未触发）。
 - 面板显示 `0.0%` 或 `0`：这是 mock 数据正常，不代表失败。关键是**不是** `--`。
 
+### 标签与布局不持久化
+
+v0 不保存标签和 Dockview 布局状态。刷新 PWA 后所有 SSH 会话都会断开，且不会恢复任何标签/分栏。E2E 脚本每次运行时都应从「配对 → 新建连接」开始，不要依赖刷新后保留之前的状态。
+
 ### Vite HMR
 
 多个 Vite 进程共存时（例如环境占 `8080`，`npm run dev` 落到 `8081`），HMR 可能给旧代码。改完 `ShellTerminal.vue` 后，**刷新页面或重启 dev server**，再跑 E2E 才可信。

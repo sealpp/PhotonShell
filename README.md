@@ -73,4 +73,5 @@ The test uses a temporary state file and a temporary Node process.
 - Node defaults to `127.0.0.1`. Use `PHOTON_HOST=0.0.0.0` only in trusted LAN tests; a warning is printed.
 - The PWA dev server defaults to `127.0.0.1:8080` to match Node's default allowed origin.
 - SSH passwords are only used for the live session and are never persisted in SQLite state.
+- Tabs and Dockview layout are not persisted; refreshing the PWA is equivalent to a restart. Only the auth token and device id are kept in localStorage for auto-reconnect.
 - For slow networks, use a mainland China mirror for `npm` and `uv` (already configured in `~/.npmrc` and `~/.config/uv/uv.toml`).
