@@ -10,8 +10,15 @@ interface Props {
   isRoot?: boolean
 }
 
+const SUBMENU_DELAY = 180
+
+interface ContextMenuExposed {
+  contains: (target: Node) => boolean
+  handleKey: (key: string, shift: boolean) => void
+}
+
 const props = withDefaults(defineProps<Props>(), { isRoot: true })
-const emit = defineEmits<{ close: []; keep: [keep: boolean] }>()
+const emit = defineEmits<{ close: []; dismiss: []; keep: [keep: boolean] }>()
 
 const menuEl = ref<HTMLDivElement | null>(null)
 const itemEls = ref<Map<number, HTMLElement>>(new Map())
@@ -19,7 +26,7 @@ const activeIndex = ref(-1)
 const submenu = ref<{ item: ResolvedCommand; index: number; x: number; y: number; autoFocus: boolean } | null>(null)
 const openTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const closeTimer = ref<ReturnType<typeof setTimeout> | null>(null)
-const submenuRef = ref<any>(null)
+const submenuRef = ref<ContextMenuExposed | null>(null)
 
 const menuPosition = computed(() => {
   const rect = menuEl.value?.getBoundingClientRect()
@@ -42,8 +49,7 @@ const menuPosition = computed(() => {
 onMounted(() => {
   nextTick(() => {
     if (props.autoFocus) {
-      activeIndex.value = 0
-      focusItem(0)
+      focusBoundary(1)
     } else {
       menuEl.value?.focus()
     }
@@ -68,17 +74,23 @@ function onDocumentClick(event: MouseEvent) {
 }
 
 function clearTimers() {
-  if (openTimer.value) clearTimeout(openTimer.value)
-  if (closeTimer.value) clearTimeout(closeTimer.value)
-  openTimer.value = null
-  closeTimer.value = null
+  clearOpenTimer()
+  clearCloseTimer()
+}
+
+function clearOpenTimer() {
+  if (openTimer.value) {
+    clearTimeout(openTimer.value)
+    openTimer.value = null
+  }
 }
 
 function startCloseTimer() {
-  if (closeTimer.value) return
+  if (closeTimer.value || !submenu.value) return
   closeTimer.value = setTimeout(() => {
-    closeSubmenu()
-  }, 180)
+    closeTimer.value = null
+    closeSubmenu(true)
+  }, SUBMENU_DELAY)
 }
 
 function clearCloseTimer() {
@@ -102,28 +114,33 @@ function focusItem(index: number) {
   })
 }
 
-function focusMenu() {
-  menuEl.value?.focus()
+function findEnabledIndex(start: number, step: number): number {
+  for (let offset = 0; offset < props.items.length; offset++) {
+    const index = (start + offset * step + props.items.length) % props.items.length
+    if (!props.items[index].disabled) return index
+  }
+  return -1
 }
 
-function focusFirst() {
-  activeIndex.value = 0
-  focusItem(0)
-}
-
-function focusLast() {
-  activeIndex.value = props.items.length - 1
-  focusItem(activeIndex.value)
+function focusBoundary(step: number) {
+  if (!props.items.length) return
+  const start = step > 0 ? 0 : props.items.length - 1
+  const index = findEnabledIndex(start, step)
+  if (index === -1) return
+  activeIndex.value = index
+  focusItem(index)
 }
 
 function move(step: number) {
   if (!props.items.length) return
   if (activeIndex.value === -1) {
-    activeIndex.value = step > 0 ? 0 : props.items.length - 1
-  } else {
-    activeIndex.value = (activeIndex.value + step + props.items.length) % props.items.length
+    focusBoundary(step)
+    return
   }
-  focusItem(activeIndex.value)
+  const index = findEnabledIndex(activeIndex.value + step, step)
+  if (index === -1) return
+  activeIndex.value = index
+  focusItem(index)
 }
 
 function getItemRect(index: number): DOMRect | undefined {
@@ -131,7 +148,7 @@ function getItemRect(index: number): DOMRect | undefined {
 }
 
 function openSubmenu(item: ResolvedCommand, index: number, autoFocus: boolean) {
-  closeSubmenu()
+  closeSubmenu(false)
   const rect = getItemRect(index)
   if (!rect) return
   activeIndex.value = index
@@ -144,9 +161,19 @@ function openSubmenu(item: ResolvedCommand, index: number, autoFocus: boolean) {
   }
 }
 
-function closeSubmenu() {
+function closeSubmenu(restoreFocus: boolean) {
+  const hadSubmenu = !!submenu.value
   clearCloseTimer()
   submenu.value = null
+  if (restoreFocus && hadSubmenu) {
+    nextTick(() => {
+      if (activeIndex.value >= 0 && !props.items[activeIndex.value]?.disabled) {
+        focusItem(activeIndex.value)
+      } else {
+        menuEl.value?.focus()
+      }
+    })
+  }
 }
 
 function contains(target: Node): boolean {
@@ -156,16 +183,20 @@ function contains(target: Node): boolean {
   return false
 }
 
+function dismissTree() {
+  if (props.isRoot) emit('close')
+  else emit('dismiss')
+}
+
 function execute(item: ResolvedCommand) {
   if (item.disabled || !item.action) return
   item.action()
-  emit('close')
+  dismissTree()
 }
 
 function onItemClick(item: ResolvedCommand, index: number) {
   if (item.disabled) return
-  if (openTimer.value) clearTimeout(openTimer.value)
-  openTimer.value = null
+  clearOpenTimer()
   if (item.children?.length) {
     clearCloseTimer()
     openSubmenu(item, index, false)
@@ -176,8 +207,7 @@ function onItemClick(item: ResolvedCommand, index: number) {
 
 function onItemEnter(item: ResolvedCommand, index: number) {
   activeIndex.value = index
-  if (openTimer.value) clearTimeout(openTimer.value)
-  openTimer.value = null
+  clearOpenTimer()
 
   if (submenu.value) {
     if (submenu.value.index === index) {
@@ -186,55 +216,53 @@ function onItemEnter(item: ResolvedCommand, index: number) {
       startCloseTimer()
       if (item.children?.length) {
         openTimer.value = setTimeout(() => {
-          if (submenu.value) closeSubmenu()
+          openTimer.value = null
           openSubmenu(item, index, false)
-        }, 180)
+        }, SUBMENU_DELAY)
       }
     }
   } else if (item.children?.length) {
     openTimer.value = setTimeout(() => {
+      openTimer.value = null
       openSubmenu(item, index, false)
-    }, 180)
+    }, SUBMENU_DELAY)
   }
 }
 
 function onItemLeave(index: number) {
-  if (openTimer.value) {
-    clearTimeout(openTimer.value)
-    openTimer.value = null
-  }
-  if (submenu.value && submenu.value.index === index) {
+  clearOpenTimer()
+  if (submenu.value?.index === index) {
     startCloseTimer()
   }
 }
 
 function onMenuEnter() {
-  if (submenu.value) clearCloseTimer()
+  clearCloseTimer()
+  emit('keep', true)
 }
 
 function onMenuLeave() {
-  if (submenu.value) startCloseTimer()
+  clearOpenTimer()
+  startCloseTimer()
+  emit('keep', false)
 }
 
 function onSubmenuKeep(keep: boolean) {
+  if (keep) {
+    clearOpenTimer()
+    clearCloseTimer()
+  } else {
+    startCloseTimer()
+  }
   emit('keep', keep)
-  if (keep) clearCloseTimer()
-  else startCloseTimer()
 }
 
 function onChildClose() {
-  closeSubmenu()
-  nextTick(() => {
-    if (activeIndex.value >= 0) {
-      focusItem(activeIndex.value)
-    } else {
-      menuEl.value?.focus()
-    }
-  })
+  closeSubmenu(true)
 }
 
-function handleKey(key: string, shift: boolean) {
-  if (key === 'Escape') {
+function handleOwnKey(key: string, shift: boolean) {
+  if (key === 'Escape' || key === 'ArrowLeft') {
     emit('close')
     return
   }
@@ -257,12 +285,6 @@ function handleKey(key: string, shift: boolean) {
     return
   }
 
-  if (key === 'ArrowLeft') {
-    if (submenu.value) closeSubmenu()
-    else emit('close')
-    return
-  }
-
   if (key === 'Enter') {
     const item = props.items[activeIndex.value]
     if (!item) return
@@ -276,7 +298,14 @@ function handleKey(key: string, shift: boolean) {
 
   if (key === 'Tab') {
     move(shift ? -1 : 1)
-    return
+  }
+}
+
+function handleKey(key: string, shift: boolean) {
+  if (submenu.value && submenuRef.value) {
+    submenuRef.value.handleKey(key, shift)
+  } else {
+    handleOwnKey(key, shift)
   }
 }
 
@@ -284,21 +313,11 @@ function onKeyDown(event: KeyboardEvent) {
   const handledKeys = ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Enter', 'Tab', 'Escape']
   if (!handledKeys.includes(event.key)) return
   event.preventDefault()
-
-  if (submenu.value && submenuRef.value?.handleKey) {
-    submenuRef.value.handleKey(event.key, event.shiftKey)
-  } else {
-    handleKey(event.key, event.shiftKey)
-  }
+  event.stopPropagation()
+  handleKey(event.key, event.shiftKey)
 }
 
-defineExpose({
-  handleKey,
-  contains,
-  focusMenu,
-  focusFirst,
-  focusLast,
-})
+defineExpose({ handleKey, contains })
 </script>
 
 <template>
@@ -329,19 +348,20 @@ defineExpose({
         <span v-if="item.shortcut" class="context-menu-shortcut">{{ item.shortcut }}</span>
         <span v-if="item.children?.length" class="context-menu-chevron">›</span>
       </button>
-
-      <ContextMenu
-        v-if="submenu"
-        ref="submenuRef"
-        :items="submenu.item.children!"
-        :x="submenu.x"
-        :y="submenu.y"
-        :auto-focus="submenu.autoFocus"
-        :is-root="false"
-        @close="onChildClose"
-        @keep="onSubmenuKeep"
-      />
     </div>
+
+    <ContextMenu
+      v-if="submenu"
+      ref="submenuRef"
+      :items="submenu.item.children!"
+      :x="submenu.x"
+      :y="submenu.y"
+      :auto-focus="submenu.autoFocus"
+      :is-root="false"
+      @close="onChildClose"
+      @dismiss="dismissTree"
+      @keep="onSubmenuKeep"
+    />
   </div>
 </template>
 
