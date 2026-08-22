@@ -6,48 +6,64 @@
     <title>ContextMenu Harness</title>
     <style>
       html, body, #app { width: 100%; height: 100%; margin: 0; background: #111; }
+      #trigger { position: fixed; top: 120px; right: 1px; width: 1px; height: 1px; }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <script type="module">
       import { createApp, h } from 'vue'
-      import ContextMenu from '/src/components/ContextMenu.vue'
+      import CommandContextMenu from '/src/components/CommandContextMenu.vue'
+      import { commandRegistry, menuRegistry } from '/src/services/commands'
 
-      const command = (id, label, options = {}) => ({
-        id,
-        label,
-        disabled: false,
-        checked: false,
-        ...options,
-      })
+      window.lastCommand = ''
 
-      const items = [
-        command('root.submenu', '一级子菜单', {
-          children: [
-            command('second.disabled', '禁用项', { disabled: true }),
-            command('second.leaf', '二级普通项', { action: () => {} }),
-            command('second.submenu', '二级子菜单', {
-              children: [
-                command('third.disabled', '三级禁用项', { disabled: true }),
-                command('third.first', '三级第一项', { action: () => {} }),
-                command('third.second', '三级第二项', { action: () => {} }),
+      const register = (id, label, options = {}) => {
+        commandRegistry.register({
+          id,
+          label,
+          execute: () => { window.lastCommand = id },
+          ...options,
+        })
+      }
+
+      register('test.second.disabled', '禁用项', { enabled: () => false })
+      register('test.second.leaf', '二级普通项')
+      register('test.third.disabled', '三级禁用项', { enabled: () => false })
+      register('test.third.first', '三级第一项')
+      register('test.third.second', '三级第二项')
+      register('test.root.leaf', '一级普通项')
+
+      menuRegistry.register('test.context', [
+        {
+          kind: 'submenu',
+          id: 'test.root.submenu',
+          label: '一级子菜单',
+          items: [
+            { kind: 'command', commandId: 'test.second.disabled' },
+            { kind: 'command', commandId: 'test.second.leaf' },
+            {
+              kind: 'submenu',
+              id: 'test.second.submenu',
+              label: '二级子菜单',
+              items: [
+                { kind: 'command', commandId: 'test.third.disabled' },
+                { kind: 'command', commandId: 'test.third.first' },
+                { kind: 'command', commandId: 'test.third.second' },
               ],
-            }),
+            },
           ],
-        }),
-        command('root.leaf', '一级普通项', { action: () => {} }),
-      ]
+        },
+        { kind: 'command', commandId: 'test.root.leaf' },
+      ])
 
       createApp({
-        data: () => ({ open: true }),
         render() {
-          if (!this.open) return null
-          return h(ContextMenu, {
-            items,
-            x: 40,
-            y: 40,
-            onClose: () => { this.open = false },
+          return h(CommandContextMenu, {
+            menuId: 'test.context',
+            context: { area: 'global' },
+          }, {
+            default: () => h('div', { id: 'trigger' }),
           })
         },
       }).mount('#app')

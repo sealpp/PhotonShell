@@ -27,3 +27,82 @@
   --workbench-layer-alert: 1500;
   --workbench-layer-tooltip: 1600;
 }
+
+.command-menu-content {
+  min-width: 160px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: var(--workbench-space-1) 0;
+  background: var(--workbench-surface);
+  border: 1px solid var(--workbench-border);
+  border-radius: var(--workbench-radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  color: var(--workbench-text);
+  z-index: var(--workbench-layer-menu);
+}
+
+.command-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--workbench-space-1);
+  width: 100%;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: var(--workbench-space-2) var(--workbench-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--workbench-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.2;
+  text-align: left;
+  user-select: none;
+  outline: none;
+}
+
+.command-menu-item[data-highlighted] {
+  background: var(--workbench-accent);
+  color: var(--workbench-text-strong);
+}
+
+.command-menu-item[data-disabled] {
+  color: var(--workbench-text-disabled);
+  cursor: default;
+}
+
+.command-menu-check {
+  width: 14px;
+  flex: 0 0 14px;
+  text-align: center;
+}
+
+.command-menu-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.command-menu-shortcut {
+  margin-left: auto;
+  padding-left: var(--workbench-space-4);
+  color: var(--workbench-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.command-menu-item[data-highlighted] .command-menu-shortcut {
+  color: var(--workbench-text);
+}
+
+.command-menu-chevron {
+  margin-left: var(--workbench-space-1);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.command-menu-separator {
+  height: 1px;
+  margin: var(--workbench-space-1) 0;
+  background: var(--workbench-border-muted);
+}

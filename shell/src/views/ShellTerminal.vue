@@ -11,7 +11,9 @@ import {
   startTelemetry,
   stopTelemetry,
 } from '../services/ws'
+import CommandContextMenu from '../components/CommandContextMenu.vue'
 import { TERMINAL_MENU_ID } from '../services/terminalCommands'
+import type { CommandContext } from '../services/context'
 import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps<{ tabId: string }>()
@@ -68,25 +70,22 @@ function writeOutput(data: Uint8Array) {
   }
 }
 
-function openContextMenu(event: MouseEvent) {
-  event.preventDefault()
-  if (!terminal || !tab.value) return
-  const canReadClipboard = !!(navigator.clipboard && navigator.clipboard.readText)
-  store.contextMenu = {
-    open: true,
-    x: event.clientX,
-    y: event.clientY,
-    menuId: TERMINAL_MENU_ID,
-    context: {
-      area: 'terminal',
-      tabId: props.tabId,
-      terminal,
-      hasSelection: terminal.hasSelection(),
-      isOnline: tab.value.state === 'online',
-      canPaste: canReadClipboard,
-      tabEncoding: tab.value.encoding,
-    },
+function terminalContext(): CommandContext {
+  const currentTab = tab.value
+  return {
+    area: 'terminal',
+    tabId: props.tabId,
+    terminal: terminal ?? undefined,
+    hasSelection: terminal?.hasSelection() ?? false,
+    isOnline: currentTab?.state === 'online',
+    canPaste: !!(navigator.clipboard && navigator.clipboard.readText),
+    tabEncoding: currentTab?.encoding,
   }
+}
+
+function isTerminalCanvasTarget(event: MouseEvent): boolean {
+  const target = event.target
+  return target instanceof HTMLCanvasElement && target.closest('.xterm-screen') !== null
 }
 
 onMounted(() => {
@@ -118,8 +117,6 @@ onMounted(() => {
       resizeTerminal(tab.value.terminalId, cols, rows)
     }
   })
-
-  termEl.value.addEventListener('contextmenu', openContextMenu)
 
   resizeObserver = new ResizeObserver(() => {
     if (isActive.value) {
@@ -184,9 +181,6 @@ onBeforeUnmount(() => {
   unwatchStream.value?.()
   unwatchActive.value?.()
   unwatchEncoding.value?.()
-  if (termEl.value) {
-    termEl.value.removeEventListener('contextmenu', openContextMenu)
-  }
   if (tab.value?.streamId) {
     setTerminalOutputHandler(tab.value.streamId, null)
   }
@@ -199,7 +193,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="tab" ref="termEl" class="shell-terminal" />
+  <CommandContextMenu
+    v-if="tab"
+    :menu-id="TERMINAL_MENU_ID"
+    :context="terminalContext"
+    :can-open="isTerminalCanvasTarget"
+  >
+    <div ref="termEl" class="shell-terminal" />
+  </CommandContextMenu>
 </template>
 
 <style scoped>

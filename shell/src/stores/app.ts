@@ -46,13 +46,6 @@ export interface AppState {
   insertAfterTabId: string
   deleteConfirmOpen: boolean
   deleteConfirmIds: string[]
-  contextMenu: {
-    open: boolean
-    x: number
-    y: number
-    menuId: string
-    context: CommandContext
-  } | null
   terminalSessionInfo: {
     open: boolean
     tabId: string
@@ -86,7 +79,6 @@ export const store = reactive<AppState>({
   insertAfterTabId: '',
   deleteConfirmOpen: false,
   deleteConfirmIds: [],
-  contextMenu: null,
   terminalSessionInfo: null,
   manualPaste: null,
   nodeConnected: false,

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { store } from '../stores/app'
+import CommandContextMenu from '../components/CommandContextMenu.vue'
+import type { CommandContext } from '../services/context'
 import { HOST_MENU_ID } from '../services/hostCommands'
 import { IconPlus, IconPlug } from '@tabler/icons-vue'
 
@@ -48,22 +50,15 @@ function onItemClick(host: typeof store.hosts[0], event: MouseEvent) {
   }
 }
 
-function onItemRightClick(host: typeof store.hosts[0], event: MouseEvent) {
-  event.preventDefault()
+function hostContext(host: typeof store.hosts[0]): CommandContext {
   if (!store.selectedHostIds.has(host.id)) {
     store.selectedHostIds = new Set([host.id])
     store.selectionAnchor = host.id
   }
-  store.contextMenu = {
-    open: true,
-    x: event.clientX,
-    y: event.clientY,
-    menuId: HOST_MENU_ID,
-    context: {
-      area: 'host',
-      selectedIds: Array.from(store.selectedHostIds),
-      selectedCount: store.selectedHostIds.size,
-    },
+  return {
+    area: 'host',
+    selectedIds: Array.from(store.selectedHostIds),
+    selectedCount: store.selectedHostIds.size,
   }
 }
 
@@ -87,23 +82,27 @@ function openConnect(host: typeof store.hosts[0]) {
         新建连接
       </button>
     </div>
-    <div class="conn-list" @contextmenu.prevent>
-      <div
+    <div class="conn-list">
+      <CommandContextMenu
         v-for="h in store.hosts"
         :key="h.id"
-        class="conn-item"
-        :class="{ selected: isSelected(h.id) }"
-        @click="onItemClick(h, $event)"
-        @contextmenu="onItemRightClick(h, $event)"
+        :menu-id="HOST_MENU_ID"
+        :context="() => hostContext(h)"
       >
-        <div class="conn-info">
-          <div class="name">{{ h.address }}</div>
-          <div class="meta">{{ h.username }} · {{ h.port }}</div>
+        <div
+          class="conn-item"
+          :class="{ selected: isSelected(h.id) }"
+          @click="onItemClick(h, $event)"
+        >
+          <div class="conn-info">
+            <div class="name">{{ h.address }}</div>
+            <div class="meta">{{ h.username }} · {{ h.port }}</div>
+          </div>
+          <button type="button" class="conn-btn" title="连接" @click.stop="openConnect(h)">
+            <IconPlug :size="14" />
+          </button>
         </div>
-        <button type="button" class="conn-btn" title="连接" @click.stop="openConnect(h)">
-          <IconPlug :size="14" />
-        </button>
-      </div>
+      </CommandContextMenu>
       <p v-if="!store.hosts.length" class="empty">暂无保存的主机</p>
     </div>
   </div>

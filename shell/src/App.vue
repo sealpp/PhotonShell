@@ -1,31 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { store } from './stores/app'
 import { connect } from './services/ws'
-import { menuRegistry } from './services/commands'
-import './services/terminalCommands'
-import './services/hostCommands'
-import './services/nodeCommands'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import MainDock from './views/MainDock.vue'
 import PrimarySidebar from './views/PrimarySidebar.vue'
 import SecondarySidebar from './views/SecondarySidebar.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
-import ContextMenu from './components/ContextMenu.vue'
 import TerminalSessionInfo from './components/TerminalSessionInfo.vue'
 import ManualPasteDialog from './components/ManualPasteDialog.vue'
 import { IconList } from '@tabler/icons-vue'
 import NodeStatusMenu from './components/NodeStatusMenu.vue'
-
-const contextMenuItems = computed(() => {
-  if (!store.contextMenu?.open) return []
-  return menuRegistry.resolve(store.contextMenu.menuId, store.contextMenu.context)
-})
-
-function closeContextMenu() {
-  store.contextMenu = null
-}
 
 function toggleConnections() {
   if (store.sidebarOpen && store.sidebarView === 'connections') {
@@ -87,13 +73,6 @@ onMounted(() => {
     </div>
     <PairingView v-if="store.pairingModalOpen" />
     <HostFormView v-if="store.connectionModalOpen" />
-    <ContextMenu
-      v-if="store.contextMenu?.open"
-      :x="store.contextMenu.x"
-      :y="store.contextMenu.y"
-      :items="contextMenuItems"
-      @close="closeContextMenu"
-    />
     <TerminalSessionInfo v-if="store.terminalSessionInfo?.open" />
     <ManualPasteDialog v-if="store.manualPaste?.open" />
     <DeleteConfirm v-if="store.deleteConfirmOpen" />
