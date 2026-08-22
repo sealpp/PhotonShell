@@ -106,3 +106,107 @@
   margin: var(--workbench-space-1) 0;
   background: var(--workbench-border-muted);
 }
+
+.workbench-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--workbench-overlay);
+  z-index: var(--workbench-layer-dialog);
+}
+
+.workbench-dialog-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: calc(var(--workbench-layer-dialog) + 1);
+  max-width: 90vw;
+  max-height: 90vh;
+  box-sizing: border-box;
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  background: var(--workbench-surface-raised);
+  border: 1px solid var(--workbench-border);
+  border-radius: var(--workbench-radius);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  color: var(--workbench-text);
+  outline: none;
+}
+
+.workbench-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 0 var(--workbench-space-3);
+  border-bottom: 1px solid var(--workbench-border);
+}
+
+.workbench-dialog-title {
+  margin: 0;
+  color: var(--workbench-text-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.workbench-dialog-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--workbench-text-muted);
+  cursor: pointer;
+}
+
+.workbench-dialog-close:hover {
+  color: var(--workbench-text-strong);
+}
+
+.workbench-dialog-body {
+  padding: var(--workbench-space-4);
+}
+
+.workbench-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--workbench-space-2);
+  padding: var(--workbench-space-3);
+  border-top: 1px solid var(--workbench-border);
+}
+
+.workbench-dialog-button {
+  padding: 0.4rem 1rem;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.workbench-dialog-button--default {
+  background: #3c3c3c;
+  color: var(--workbench-text);
+}
+
+.workbench-dialog-button--default:hover {
+  background: #4a4a4a;
+}
+
+.workbench-dialog-button--primary {
+  background: var(--workbench-accent);
+  color: var(--workbench-text-strong);
+}
+
+.workbench-dialog-button--primary:hover {
+  background: var(--workbench-accent-hover);
+}
+
+.workbench-dialog-button--danger {
+  background: var(--workbench-danger-action);
+  color: var(--workbench-text-strong);
+}
+
+.workbench-dialog-button--danger:hover {
+  background: #d97370;
+}

@@ -32,7 +32,7 @@ test('routes keyboard navigation to the deepest submenu', async ({ page }) => {
 
 test('flips a submenu to the left at the viewport edge', async ({ page }) => {
   await page.getByRole('menuitem', { name: '一级子菜单' }).hover()
-  await expect(page.locator('.command-menu-content[data-side="left"]')).toHaveCount(1)
+  await expect(page.locator('.command-menu-content[data-side="left"][aria-labelledby]')).toHaveCount(1)
 })
 
 test('dismisses the complete menu tree after executing a nested command', async ({ page }) => {

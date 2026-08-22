@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dialog Harness</title>
+    <style>
+      html, body, #app { width: 100%; height: 100%; margin: 0; background: #111; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import { createApp, h } from 'vue'
+      import UiDialog from '/src/components/UiDialog.vue'
+
+      createApp({
+        data: () => ({ open: true }),
+        render() {
+          return h('div', [
+            h('button', { id: 'open', type: 'button', onClick: () => { this.open = true } }, '打开'),
+            h(UiDialog, {
+              open: this.open,
+              title: '测试对话框',
+              onClose: () => { this.open = false },
+            }, {
+              default: () => h('input', { id: 'dialog-input', type: 'text' }),
+              actions: () => h('button', { id: 'confirm', type: 'button', onClick: () => { this.open = false } }, '确定'),
+            }),
+          ])
+        },
+      }).mount('#app')
+    </script>
+  </body>
+</html>
