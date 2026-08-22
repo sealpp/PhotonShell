@@ -87,6 +87,7 @@ class Session:
         process = await self.connection.create_process(
             term_type=term,
             term_size=(columns, rows),
+            encoding=None,
         )
 
         stream_id = self._next_stream_id()
@@ -109,11 +110,7 @@ class Session:
                 data = await terminal.process.stdout.read(1024)
                 if not data:
                     break
-                if isinstance(data, str):
-                    payload = data.encode("utf-8", errors="replace")
-                else:
-                    payload = data
-                await self.on_output(self.host_id, stream_id, payload)
+                await self.on_output(self.host_id, stream_id, data)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -134,11 +131,7 @@ class Session:
     async def write_input(self, stream_id: int, payload: bytes) -> None:
         terminal = self._get_terminal_by_stream(stream_id)
         if terminal:
-            try:
-                text = payload.decode("utf-8", errors="replace")
-            except Exception:
-                text = payload.decode("latin-1", errors="replace")
-            terminal.process.stdin.write(text)
+            terminal.process.stdin.write(payload)
             await terminal.process.stdin.drain()
 
     async def resize_terminal(self, terminal_id: str, columns: int, rows: int) -> None:
