@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { store } from './stores/app'
 import { connect } from './services/ws'
 import { startTelemetryService } from './services/telemetry'
@@ -15,6 +15,31 @@ import ManualPasteDialog from './components/ManualPasteDialog.vue'
 import { IconList } from '@tabler/icons-vue'
 import NodeStatusMenu from './components/NodeStatusMenu.vue'
 
+type ResizeSide = 'left' | 'right'
+
+const ACTIVITY_BAR_WIDTH = 48
+const MIN_SIDEBAR_WIDTH = 160
+const MIN_PANEL_WIDTH = 200
+const MIN_TERMINAL_WIDTH = 320
+
+const mainEl = ref<HTMLElement | null>(null)
+const activityEl = ref<HTMLElement | null>(null)
+const sidebarEl = ref<HTMLElement | null>(null)
+const panelEl = ref<HTMLElement | null>(null)
+const resizingSide = ref<ResizeSide | null>(null)
+let activePointerId: number | null = null
+let lastPointerX = 0
+let resizerEl: HTMLElement | null = null
+let resizeFrame: number | null = null
+let pendingResizeDelta = 0
+
+const sidebarVisible = computed(() => store.sidebarOpen && store.sidebarView === 'connections')
+const panelVisible = computed(() => store.panelOpen)
+const layoutStyle = computed(() => ({
+  '--sidebar-width': `${store.sidebarWidth}px`,
+  '--panel-width': `${store.panelWidth}px`,
+}))
+
 function toggleConnections() {
   if (store.sidebarOpen && store.sidebarView === 'connections') {
     store.sidebarOpen = false
@@ -22,6 +47,157 @@ function toggleConnections() {
     store.sidebarOpen = true
     store.sidebarView = 'connections'
   }
+}
+
+function getTerminalWidth(): number {
+  const mainWidth = mainEl.value?.clientWidth ?? 0
+  const activityWidth = activityEl.value?.offsetWidth ?? ACTIVITY_BAR_WIDTH
+  const sidebarWidth = sidebarVisible.value
+    ? sidebarEl.value?.offsetWidth ?? store.sidebarWidth
+    : 0
+  const panelWidth = panelVisible.value
+    ? panelEl.value?.offsetWidth ?? store.panelWidth
+    : 0
+
+  return Math.max(0, mainWidth - activityWidth - sidebarWidth - panelWidth)
+}
+
+function resizeLeft(deltaX: number) {
+  if (deltaX < 0) {
+    store.sidebarWidth = Math.max(MIN_SIDEBAR_WIDTH, store.sidebarWidth + deltaX)
+    return
+  }
+
+  let remaining = deltaX
+  const centerCapacity = Math.max(0, getTerminalWidth() - MIN_TERMINAL_WIDTH)
+  const centerShrink = Math.min(remaining, centerCapacity)
+  remaining -= centerShrink
+
+  const panelCapacity = panelVisible.value
+    ? Math.max(0, store.panelWidth - MIN_PANEL_WIDTH)
+    : 0
+  const panelShrink = Math.min(remaining, panelCapacity)
+  remaining -= panelShrink
+
+  const applied = deltaX - remaining
+  if (applied <= 0) return
+
+  store.sidebarWidth += applied
+  store.panelWidth -= panelShrink
+}
+
+function resizeRight(deltaX: number) {
+  const panelDelta = -deltaX
+
+  if (panelDelta < 0) {
+    store.panelWidth = Math.max(MIN_PANEL_WIDTH, store.panelWidth + panelDelta)
+    return
+  }
+
+  let remaining = panelDelta
+  const centerCapacity = Math.max(0, getTerminalWidth() - MIN_TERMINAL_WIDTH)
+  const centerShrink = Math.min(remaining, centerCapacity)
+  remaining -= centerShrink
+
+  const sidebarCapacity = sidebarVisible.value
+    ? Math.max(0, store.sidebarWidth - MIN_SIDEBAR_WIDTH)
+    : 0
+  const sidebarShrink = Math.min(remaining, sidebarCapacity)
+  remaining -= sidebarShrink
+
+  const applied = panelDelta - remaining
+  if (applied <= 0) return
+
+  store.panelWidth += applied
+  store.sidebarWidth -= sidebarShrink
+}
+
+function resize(side: ResizeSide, deltaX: number) {
+  if (side === 'left') {
+    resizeLeft(deltaX)
+  } else {
+    resizeRight(deltaX)
+  }
+}
+
+function applyPendingResize() {
+  resizeFrame = null
+  if (!resizingSide.value || pendingResizeDelta === 0) return
+
+  const deltaX = pendingResizeDelta
+  pendingResizeDelta = 0
+  resize(resizingSide.value, deltaX)
+}
+
+function queueResize(deltaX: number) {
+  pendingResizeDelta += deltaX
+  if (resizeFrame === null) {
+    resizeFrame = requestAnimationFrame(applyPendingResize)
+  }
+}
+
+function flushPendingResize() {
+  if (resizeFrame !== null) {
+    cancelAnimationFrame(resizeFrame)
+    resizeFrame = null
+  }
+
+  if (!resizingSide.value || pendingResizeDelta === 0) return
+
+  const deltaX = pendingResizeDelta
+  pendingResizeDelta = 0
+  resize(resizingSide.value, deltaX)
+}
+
+function scheduleFinalTerminalFit() {
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event('photon:layout-resize-end'))
+  })
+}
+
+function startResize(side: ResizeSide, event: PointerEvent) {
+  if (event.button !== 0 || resizingSide.value) return
+
+  const target = event.currentTarget
+  if (!(target instanceof HTMLElement)) return
+
+  event.preventDefault()
+  pendingResizeDelta = 0
+  resizingSide.value = side
+  activePointerId = event.pointerId
+  lastPointerX = event.clientX
+  resizerEl = target
+  target.setPointerCapture(event.pointerId)
+}
+
+function moveResize(event: PointerEvent) {
+  if (activePointerId !== event.pointerId || !resizingSide.value) return
+
+  event.preventDefault()
+  const deltaX = event.clientX - lastPointerX
+  lastPointerX = event.clientX
+  if (deltaX !== 0) {
+    queueResize(deltaX)
+  }
+}
+
+function endResize(event?: PointerEvent) {
+  if (activePointerId === null) return
+  if (event && event.pointerId !== activePointerId) return
+
+  flushPendingResize()
+  const pointerId = activePointerId
+  const target = resizerEl
+  resizingSide.value = null
+  activePointerId = null
+  lastPointerX = 0
+  resizerEl = null
+
+  if (target?.hasPointerCapture(pointerId)) {
+    target.releasePointerCapture(pointerId)
+  }
+
+  scheduleFinalTerminalFit()
 }
 
 onMounted(() => {
@@ -33,13 +209,20 @@ onMounted(() => {
   startTelemetryService()
 })
 
-
+onBeforeUnmount(() => {
+  endResize()
+})
 </script>
 
 <template>
   <div class="app">
-    <div class="main">
-      <div class="activity">
+    <div
+      ref="mainEl"
+      class="main"
+      :class="{ resizing: resizingSide !== null }"
+      :style="layoutStyle"
+    >
+      <div ref="activityEl" class="activity">
         <div class="top-icons">
           <div
             class="icon"
@@ -52,9 +235,20 @@ onMounted(() => {
 
         </div>
       </div>
-      <aside class="sidebar primary-sidebar" :class="{ collapsed: !store.sidebarOpen || store.sidebarView !== 'connections' }">
+      <aside ref="sidebarEl" class="sidebar primary-sidebar" :class="{ collapsed: !sidebarVisible }">
         <PrimarySidebar />
       </aside>
+      <div
+        v-if="sidebarVisible"
+        class="panel-resizer"
+        :class="{ dragging: resizingSide === 'left' }"
+        aria-hidden="true"
+        @pointerdown="startResize('left', $event)"
+        @pointermove="moveResize"
+        @pointerup="endResize"
+        @pointercancel="endResize"
+        @lostpointercapture="endResize"
+      ></div>
       <div class="terminal-area">
         <div v-if="store.view === 'shell'" class="shell-workspace">
           <div class="main-dock-container">
@@ -72,7 +266,18 @@ onMounted(() => {
           <p v-else>选择左侧主机（支持 Ctrl/Shift 多选），或右键批量操作。</p>
         </div>
       </div>
-      <aside class="panel secondary-sidebar" :class="{ collapsed: !store.panelOpen }">
+      <div
+        v-if="panelVisible"
+        class="panel-resizer"
+        :class="{ dragging: resizingSide === 'right' }"
+        aria-hidden="true"
+        @pointerdown="startResize('right', $event)"
+        @pointermove="moveResize"
+        @pointerup="endResize"
+        @pointercancel="endResize"
+        @lostpointercapture="endResize"
+      ></div>
+      <aside ref="panelEl" class="panel secondary-sidebar" :class="{ collapsed: !panelVisible }">
         <SecondarySidebar />
       </aside>
     </div>
@@ -141,12 +346,15 @@ button, input {
 }
 
 .main {
+  position: relative;
   display: flex;
   flex: 1;
+  min-width: 0;
   overflow: hidden;
 }
 
 .activity {
+  box-sizing: border-box;
   width: 48px;
   background: #333333;
   display: flex;
@@ -188,23 +396,66 @@ button, input {
 }
 
 .sidebar {
-  width: 220px;
+  box-sizing: border-box;
   background: #252526;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #1f1f1f;
-  flex-shrink: 0;
-  transition: width 0.15s ease;
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
+  transition: width 0.15s ease;
+}
+
+.sidebar.primary-sidebar {
+  width: var(--sidebar-width, 220px);
+  min-width: 160px;
 }
 
 .sidebar.collapsed {
   width: 0;
+  min-width: 0;
+  flex-basis: 0;
   border-right: none;
 }
 
 .sidebar.collapsed > * {
   display: none;
+}
+
+.panel-resizer {
+  box-sizing: border-box;
+  flex: 0 0 8px;
+  width: 8px;
+  margin: 0 -4px;
+  position: relative;
+  z-index: 30;
+  align-self: stretch;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.panel-resizer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.panel-resizer:hover::before,
+.panel-resizer.dragging::before {
+  background: rgba(74, 170, 255, 0.42);
+}
+
+.main.resizing {
+  user-select: none;
+}
+
+.main.resizing .sidebar,
+.main.resizing .panel {
+  transition: none;
 }
 
 .terminal-area {
@@ -275,8 +526,9 @@ button, input {
 }
 
 .panel {
-  width: 280px;
-  flex-shrink: 0;
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background: #252526;
@@ -285,8 +537,15 @@ button, input {
   overflow: hidden;
 }
 
+.panel.secondary-sidebar {
+  width: var(--panel-width, 280px);
+  min-width: 200px;
+}
+
 .panel.collapsed {
   width: 0;
+  min-width: 0;
+  flex-basis: 0;
   border-left: none;
 }
 

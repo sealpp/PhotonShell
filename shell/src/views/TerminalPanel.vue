@@ -23,5 +23,6 @@ const tabId = computed(() => props.params?.params?.tabId ?? '')
   width: 100%;
   height: 100%;
   overflow: hidden;
+  background: var(--terminal-background, #0d0d0d);
 }
 </style>

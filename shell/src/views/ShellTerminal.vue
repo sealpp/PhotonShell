@@ -16,10 +16,16 @@ import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps<{ tabId: string }>()
 
+const LAYOUT_RESIZE_END_EVENT = 'photon:layout-resize-end'
+const BACKEND_RESIZE_DEBOUNCE_MS = 80
+
 const termEl = ref<HTMLDivElement | null>(null)
 let terminal: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let resizeObserver: ResizeObserver | null = null
+let fitFrame: number | null = null
+let backendResizeTimer: number | null = null
+let pendingBackendResize: { terminalId: string; columns: number; rows: number } | null = null
 let decoder = new TextDecoder('utf-8', { fatal: false })
 const unwatchState = ref<() => void>()
 const unwatchStream = ref<() => void>()
@@ -42,6 +48,45 @@ const activeState = computed(() => {
 function fitAndResize() {
   if (!terminal || !fitAddon) return
   fitAddon.fit()
+}
+
+function scheduleFit() {
+  if (fitFrame !== null) return
+
+  fitFrame = requestAnimationFrame(() => {
+    fitFrame = null
+    fitAndResize()
+  })
+}
+
+function flushBackendResize() {
+  backendResizeTimer = null
+  const pending = pendingBackendResize
+  pendingBackendResize = null
+  if (!pending || !tab.value?.streamId) return
+
+  resizeTerminal(pending.terminalId, pending.columns, pending.rows)
+}
+
+function scheduleBackendResize(columns: number, rows: number) {
+  const currentTab = tab.value
+  if (!currentTab?.streamId) return
+
+  pendingBackendResize = {
+    terminalId: currentTab.terminalId,
+    columns,
+    rows,
+  }
+  if (backendResizeTimer !== null) {
+    window.clearTimeout(backendResizeTimer)
+  }
+  backendResizeTimer = window.setTimeout(flushBackendResize, BACKEND_RESIZE_DEBOUNCE_MS)
+}
+
+function onLayoutResizeEnd() {
+  if (isActive.value) {
+    scheduleFit()
+  }
 }
 
 function openTabTerminal() {
@@ -86,6 +131,10 @@ function isTerminalScreenTarget(event: MouseEvent): boolean {
   return target instanceof Element && target.closest('.xterm-screen') !== null
 }
 
+function getTerminalColor(name: string, fallback: string): string {
+  return getComputedStyle(termEl.value!).getPropertyValue(name).trim() || fallback
+}
+
 onMounted(() => {
   if (!termEl.value || !tab.value) return
 
@@ -95,14 +144,15 @@ onMounted(() => {
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
     fontSize: 13,
     theme: {
-      background: '#0d0d0d',
-      foreground: '#d4d4d4',
+      background: getTerminalColor('--terminal-background', '#0d0d0d'),
+      foreground: getTerminalColor('--terminal-foreground', '#d4d4d4'),
     },
   })
 
   fitAddon = new FitAddon()
   terminal.loadAddon(fitAddon)
   terminal.open(termEl.value)
+  window.addEventListener(LAYOUT_RESIZE_END_EVENT, onLayoutResizeEnd)
 
   terminal.onData((data: string) => {
     if (tab.value?.streamId) {
@@ -111,14 +161,12 @@ onMounted(() => {
   })
 
   terminal.onResize(({ cols, rows }) => {
-    if (tab.value?.streamId) {
-      resizeTerminal(tab.value.terminalId, cols, rows)
-    }
+    scheduleBackendResize(cols, rows)
   })
 
   resizeObserver = new ResizeObserver(() => {
     if (isActive.value) {
-      fitAndResize()
+      scheduleFit()
     }
   })
   resizeObserver.observe(termEl.value)
@@ -148,7 +196,7 @@ onMounted(() => {
     (state) => {
       if (!tab.value) return
       if (state !== 'inactive') {
-        fitAndResize()
+        scheduleFit()
       }
       if (state === 'online-no-terminal') {
         openTabTerminal()
@@ -170,6 +218,16 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
+  window.removeEventListener(LAYOUT_RESIZE_END_EVENT, onLayoutResizeEnd)
+  if (fitFrame !== null) {
+    cancelAnimationFrame(fitFrame)
+  }
+  if (backendResizeTimer !== null) {
+    window.clearTimeout(backendResizeTimer)
+  }
+  fitFrame = null
+  backendResizeTimer = null
+  pendingBackendResize = null
   unwatchState.value?.()
   unwatchStream.value?.()
   unwatchActive.value?.()
@@ -198,5 +256,10 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  background: var(--terminal-background, #0d0d0d);
+}
+
+.shell-terminal :deep(.xterm .xterm-viewport) {
+  background-color: var(--terminal-background, #0d0d0d);
 }
 </style>

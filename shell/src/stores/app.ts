@@ -45,7 +45,9 @@ export interface AppState {
   telemetry: Telemetry | null
   sidebarOpen: boolean
   sidebarView: 'connections'
+  sidebarWidth: number
   panelOpen: boolean
+  panelWidth: number
   pairingModalOpen: boolean
   connectionModalOpen: boolean
   editingHostId: string
@@ -78,7 +80,9 @@ export const store = reactive<AppState>({
   telemetry: null,
   sidebarOpen: true,
   sidebarView: 'connections',
+  sidebarWidth: 220,
   panelOpen: true,
+  panelWidth: 280,
   pairingModalOpen: false,
   connectionModalOpen: false,
   editingHostId: '',

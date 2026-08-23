@@ -136,10 +136,10 @@ onBeforeUnmount(() => {
 }
 
 .main-dock .dv-dockview {
-  --dv-group-view-background-color: #0d0d0d;
+  --dv-group-view-background-color: var(--terminal-background, #0d0d0d);
   --dv-tabs-and-actions-container-background-color: #252526;
   --dv-tabs-and-actions-container-height: 35px;
-  --dv-activegroup-visiblepanel-tab-background-color: #0d0d0d;
+  --dv-activegroup-visiblepanel-tab-background-color: var(--terminal-background, #0d0d0d);
   --dv-inactivegroup-visiblepanel-tab-background-color: #2d2d2d;
   --dv-activegroup-hiddenpanel-tab-background-color: #2d2d2d;
   --dv-inactivegroup-hiddenpanel-tab-background-color: #2d2d2d;
