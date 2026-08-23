@@ -40,10 +40,9 @@ message PhotonMessage {
     TerminalResizeRequest terminal_resize_request = 44;
     TerminalCloseRequest terminal_close_request = 45;
 
-    // 监控
-    TelemetryStartRequest telemetry_start_request = 50;
-    TelemetryStopRequest telemetry_stop_request = 51;
-    TelemetrySnapshot telemetry_snapshot = 52;
+    // SSH exec
+    ExecRequest exec_request = 50;
+    ExecResponse exec_response = 51;
 
     // 错误
     RequestFailed request_failed = 60;
@@ -151,31 +150,16 @@ message TerminalOutput {
   bytes payload = 3;
 }
 
-message TelemetryStartRequest {
+message ExecRequest {
   string session_id = 1;
-  uint32 interval_ms = 2;  // 默认 2000
+  string command = 2;
 }
 
-message TelemetryStopRequest {
+message ExecResponse {
   string session_id = 1;
-}
-
-message Metric {
-  oneof value {
-    double number = 1;
-    string text = 2;
-  }
-  string quality = 3;      // valid / missing
-}
-
-message TelemetrySnapshot {
-  string host_id = 1;
-  int64 sampled_at_ms = 2;
-  Metric cpu_percent = 3;
-  Metric memory_percent = 4;
-  Metric disk_percent = 5;
-  uint32 process_count = 6;
-  string session_id = 7;
+  bytes stdout = 2;
+  bytes stderr = 3;
+  int32 exit_code = 4;
 }
 
 message RequestFailed {

@@ -6,8 +6,11 @@ from typing import Any, Callable, Coroutine, Dict, Optional
 
 import asyncssh
 
-from photon.photon_pb2 import TelemetrySnapshot
-from photon.telemetry import TelemetryCollector
+@dataclass
+class ExecResult:
+    stdout: bytes
+    stderr: bytes
+    exit_code: int
 
 
 @dataclass
@@ -32,7 +35,6 @@ class Session:
         next_stream_id: Callable[[], int],
         on_output: Callable[[str, int, bytes], Coroutine],
         on_state: Callable[[str, str, str, Optional[str]], Coroutine],
-        on_telemetry: Callable[[TelemetrySnapshot], Coroutine],
     ):
         self.session_id = session_id
         self.host_id = host_id
@@ -41,13 +43,11 @@ class Session:
         self._next_stream_id = next_stream_id
         self.on_output = on_output
         self.on_state = on_state
-        self.on_telemetry = on_telemetry
         self.connection: Optional[asyncssh.SSHClientConnection] = None
         self._terminals: Dict[str, Terminal] = {}
         self._stream_to_terminal: Dict[int, str] = {}
         self.state = "idle"
         self.error: Optional[str] = None
-        self._telemetry: Optional[TelemetryCollector] = None
 
     async def _emit_state(self) -> None:
         await self.on_state(self.session_id, self.host_id, self.state, self.error)
@@ -141,21 +141,20 @@ class Session:
             terminal.columns = columns
             terminal.rows = rows
 
-    async def start_telemetry(self, interval_ms: int) -> None:
+    async def exec(self, command: str) -> ExecResult:
         if self.connection is None:
             raise RuntimeError("session not connected")
-        if self._telemetry is None:
-            self._telemetry = TelemetryCollector(
-                self.host_id,
-                self.session_id,
-                self.connection,
-                self.on_telemetry,
-            )
-        await self._telemetry.start(interval_ms)
-
-    async def stop_telemetry(self) -> None:
-        if self._telemetry:
-            await self._telemetry.stop()
+        result = await self.connection.run(
+            command,
+            check=False,
+            timeout=5,
+            encoding=None,
+        )
+        return ExecResult(
+            stdout=result.stdout if isinstance(result.stdout, bytes) else b"",
+            stderr=result.stderr if isinstance(result.stderr, bytes) else b"",
+            exit_code=result.returncode if result.returncode is not None else -1,
+        )
 
     async def close_terminal(self, terminal_id: str) -> None:
         await self._close_terminal(terminal_id)
@@ -176,9 +175,6 @@ class Session:
         terminal.process.close()
 
     async def disconnect(self, reason: str = "") -> None:
-        if self._telemetry:
-            await self._telemetry.stop()
-            self._telemetry = None
         for terminal_id in list(self._terminals.keys()):
             await self._close_terminal(terminal_id)
         if self.connection:
@@ -218,7 +214,6 @@ class SessionManager:
         password: str,
         on_output: Callable[[str, int, bytes], Coroutine],
         on_state: Callable[[str, str, str, Optional[str]], Coroutine],
-        on_telemetry: Callable[[TelemetrySnapshot], Coroutine],
     ) -> Session:
         session = Session(
             session_id=session_id,
@@ -228,7 +223,6 @@ class SessionManager:
             next_stream_id=self.next_stream_id,
             on_output=on_output,
             on_state=on_state,
-            on_telemetry=on_telemetry,
         )
         self._sessions[session_id] = session
         try:
@@ -238,15 +232,11 @@ class SessionManager:
             raise
         return session
 
-    async def start_telemetry(self, session_id: str, interval_ms: int) -> None:
+    async def exec(self, session_id: str, command: str) -> ExecResult:
         session = self._sessions.get(session_id)
-        if session:
-            await session.start_telemetry(interval_ms)
-
-    async def stop_telemetry(self, session_id: str) -> None:
-        session = self._sessions.get(session_id)
-        if session:
-            await session.stop_telemetry()
+        if session is None:
+            raise RuntimeError("session not found")
+        return await session.exec(command)
 
     async def disconnect(self, session_id: str, reason: str = "") -> None:
         session = self._sessions.pop(session_id, None)

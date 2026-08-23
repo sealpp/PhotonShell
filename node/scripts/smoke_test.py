@@ -123,10 +123,10 @@ async def run() -> int:
                 assert h.username == "root"
                 print("list hosts ok")
 
-                # Optional SSH/terminal/telemetry slice
+                # Optional SSH/terminal/exec slice
                 ssh_password = os.environ.get("PHOTON_SMOKE_SSH_PASSWORD")
                 if ssh_password:
-                    await _test_ssh_terminal_telemetry(ws, token, ssh_password)
+                    await _test_ssh_terminal_exec(ws, token, ssh_password)
 
             print("smoke test passed")
             return 0
@@ -138,8 +138,8 @@ async def run() -> int:
                 process.kill()
 
 
-async def _test_ssh_terminal_telemetry(ws: websockets.WebSocketClientProtocol, token: str, password: str) -> None:
-    """If an SSH target is configured, connect, open a PTY, run a command, and read telemetry."""
+async def _test_ssh_terminal_exec(ws: websockets.WebSocketClientProtocol, token: str, password: str) -> None:
+    """If an SSH target is configured, connect, open a PTY, and run exec commands."""
     host_id = "h1"
     session_id = "s-smoke-1"
 
@@ -189,16 +189,16 @@ async def _test_ssh_terminal_telemetry(ws: websockets.WebSocketClientProtocol, t
         if body == "request_failed":
             raise RuntimeError(f"terminal open failed: {resp.request_failed.error.message}")
 
-    # Start telemetry
+    # Run an exec command
     msg = PhotonMessage()
     msg.protocol_version = 0
-    msg.request_id = "tel-1"
+    msg.request_id = "exec-1"
     msg.token = token
-    msg.telemetry_start_request.session_id = session_id
-    msg.telemetry_start_request.interval_ms = 1000
+    msg.exec_request.session_id = session_id
+    msg.exec_request.command = "printf exec-ok"
     await ws.send(msg.SerializeToString())
 
-    # Run a command
+    # Run a terminal command
     msg = PhotonMessage()
     msg.protocol_version = 0
     msg.request_id = "input-1"
@@ -208,6 +208,7 @@ async def _test_ssh_terminal_telemetry(ws: websockets.WebSocketClientProtocol, t
     await ws.send(msg.SerializeToString())
 
     got_output = False
+    got_exec = False
     deadline = time.time() + 10
     while time.time() < deadline:
         resp = PhotonMessage()
@@ -218,19 +219,19 @@ async def _test_ssh_terminal_telemetry(ws: websockets.WebSocketClientProtocol, t
             print(f"terminal output: {text!r}")
             if "smoke-ok" in text:
                 got_output = True
-        elif body == "telemetry_snapshot":
-            snap = resp.telemetry_snapshot
-            print(
-                f"telemetry: cpu={snap.cpu_percent.number:.2f} "
-                f"mem={snap.memory_percent.number:.2f} "
-                f"disk={snap.disk_percent.number:.2f} "
-                f"procs={snap.process_count}"
-            )
-            if got_output:
-                break
+        elif body == "exec_response":
+            result = resp.exec_response
+            assert result.session_id == session_id
+            assert result.stdout == b"exec-ok"
+            assert result.stderr == b""
+            assert result.exit_code == 0
+            got_exec = True
+        if got_output and got_exec:
+            break
 
-    assert got_output, "did not receive command output"
-    print("ssh/terminal/telemetry ok")
+    assert got_output, "did not receive terminal command output"
+    assert got_exec, "did not receive exec response"
+    print("ssh/terminal/exec ok")
 
 
 if __name__ == "__main__":

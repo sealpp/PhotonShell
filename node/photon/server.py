@@ -16,7 +16,6 @@ from photon.photon_pb2 import (
     SessionConnectRequest,
     SessionDisconnectRequest,
     SessionStateEvent,
-    TelemetrySnapshot,
     TerminalCloseRequest,
     TerminalInput,
     TerminalOpenedEvent,
@@ -154,10 +153,8 @@ class PhotonServer:
             await self._handle_terminal_resize(websocket, msg)
         elif body_name == "terminal_close_request":
             await self._handle_terminal_close(websocket, msg)
-        elif body_name == "telemetry_start_request":
-            await self._handle_telemetry_start(websocket, msg)
-        elif body_name == "telemetry_stop_request":
-            await self._handle_telemetry_stop(websocket, msg)
+        elif body_name == "exec_request":
+            await self._handle_exec(websocket, msg)
         else:
             await self._send_failed(
                 websocket,
@@ -331,12 +328,6 @@ class PhotonServer:
         msg.terminal_output.payload = payload
         await self._send_client(msg)
 
-    async def _on_telemetry(self, snapshot: TelemetrySnapshot) -> None:
-        msg = PhotonMessage()
-        msg.protocol_version = PROTOCOL_VERSION
-        msg.telemetry_snapshot.CopyFrom(snapshot)
-        await self._send_client(msg)
-
     async def _handle_session_connect(
         self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage
     ) -> None:
@@ -359,7 +350,6 @@ class PhotonServer:
                 req.password,
                 self._on_terminal_output,
                 self._on_session_state,
-                self._on_telemetry,
             )
         except Exception as exc:
             await self._send_failed(websocket, msg.request_id, "connection_failed", str(exc))
@@ -437,25 +427,32 @@ class PhotonServer:
 
         await self.sessions.close_terminal(msg.terminal_close_request.terminal_id)
 
-    async def _handle_telemetry_start(
+    async def _handle_exec(
         self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage
     ) -> None:
         if not self._validate_token(msg.token):
             await self._send_failed(websocket, msg.request_id, "invalid_token", "token is invalid or expired")
             return
 
-        req = msg.telemetry_start_request
-        interval = req.interval_ms or 2000
-        await self.sessions.start_telemetry(req.session_id, interval)
-
-    async def _handle_telemetry_stop(
-        self, websocket: websockets.WebSocketServerProtocol, msg: PhotonMessage
-    ) -> None:
-        if not self._validate_token(msg.token):
-            await self._send_failed(websocket, msg.request_id, "invalid_token", "token is invalid or expired")
+        req = msg.exec_request
+        session = self.sessions.get(req.session_id)
+        if not session:
+            await self._send_failed(websocket, msg.request_id, "session_not_found", f"no active session for {req.session_id!r}")
             return
 
-        await self.sessions.stop_telemetry(msg.telemetry_stop_request.session_id)
+        try:
+            result = await session.exec(req.command)
+            resp = PhotonMessage()
+            resp.protocol_version = PROTOCOL_VERSION
+            resp.request_id = msg.request_id
+            resp.token = msg.token
+            resp.exec_response.session_id = req.session_id
+            resp.exec_response.stdout = result.stdout
+            resp.exec_response.stderr = result.stderr
+            resp.exec_response.exit_code = result.exit_code
+            await self._send(websocket, resp)
+        except Exception as exc:
+            await self._send_failed(websocket, msg.request_id, "exec_failed", str(exc))
 
 
 async def serve(
