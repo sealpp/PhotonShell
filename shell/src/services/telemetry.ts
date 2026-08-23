@@ -154,7 +154,9 @@ async function poll(sessionId: string, provider: LinuxTelemetryProvider, current
   if (currentGeneration !== generation || !canPoll(sessionId)) return
 
   try {
-    if (!(await provider.probe(sessionId))) {
+    const supported = await provider.probe(sessionId)
+    if (currentGeneration !== generation || !canPoll(sessionId)) return
+    if (!supported) {
       clearActiveTelemetry()
       return
     }
