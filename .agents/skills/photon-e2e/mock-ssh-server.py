@@ -23,7 +23,10 @@ SAMPLE_COMMAND = (
 
 
 async def handle_process(process: asyncssh.SSHServerProcess) -> None:
-    cmd = process.command.strip()
+    cmd = (process.command or "").strip()
+    if not cmd:
+        await asyncio.Event().wait()
+        return
     if cmd == "uname -s":
         process.stdout.write("Linux\n")
     elif cmd == "printf exec-ok":
