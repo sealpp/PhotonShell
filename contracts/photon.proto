@@ -150,11 +150,13 @@ message TerminalOutput {
   bytes payload = 3;
 }
 
+// Node runs the command on the existing SSH session. PWA owns decoding and parsing.
 message ExecRequest {
   string session_id = 1;
   string command = 2;
 }
 
+// stdout/stderr are opaque remote bytes; Node does not assume UTF-8.
 message ExecResponse {
   string session_id = 1;
   bytes stdout = 2;

@@ -6,8 +6,8 @@ Local-first SSH terminal console. This is the v0 PoC workspace.
 
 ## Layout
 
-- `node/` — Python PhotonNode: local WebSocket server, SSH bridge, encrypted SQLite state.
-- `shell/` — Vue 3 + Vite PWA.
+- `node/` — Python PhotonNode: local WebSocket server, SSH bridge, encrypted SQLite state, generic exec.
+- `shell/` — Vue 3 + Vite PWA, including telemetry providers and polling.
 - `me_PhotonShell/` — private documentation and protocol definitions (separate repo).
 
 ## Quick start
