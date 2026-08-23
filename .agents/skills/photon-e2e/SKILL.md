@@ -31,6 +31,26 @@ mock SSH server (asyncssh)
 1. PWA dev server 默认 `8080`，但经常被 IDE/环境占用，Vite 会 fallback 到 `8081` 或更高。因此 `PHOTON_ALLOWED_ORIGIN` 必须对齐**实际** PWA 端口；不要写死 `http://127.0.0.1:8080`。
 2. Node WebSocket 端口 `17373` 在 `shell/src/services/ws.ts` 中硬编码：`ws://${window.location.hostname}:17373`。测试必须让 Node 监听 `17373`，改端口 PWA 会连不上。
 
+### 网络命名空间隔离
+
+完整链路 E2E 如果发现宿主机已有 Node 占用 `17373`，不要终止无关进程；将 PWA、`run-e2e.js` 启动的 PhotonNode/mock SSH 和 Playwright 放进同一个 network namespace。`unshare --net` 默认不会启用 loopback，启动后先执行 `ip link set lo up`。
+
+示例：
+
+```bash
+cd /root/codes/PhotonShell
+unshare --net -- bash -lc '
+  ip link set lo up
+  npm --prefix shell run dev -- --port 8081 --host 127.0.0.1 >/tmp/photon-e2e-vite.log 2>&1 &
+  pwa_pid=$!
+  trap "kill $pwa_pid" EXIT
+  until curl -fsS http://127.0.0.1:8081 >/dev/null; do sleep 0.2; done
+  PWA_URL=http://127.0.0.1:8081 node .agents/skills/photon-e2e/run-e2e.js
+'
+```
+
+隔离 namespace 内的 `127.0.0.1:17373` 与宿主机独立，因此不会碰到宿主机 Node；PWA 和 E2E runner 必须都在 namespace 内启动。
+
 ### 配对码
 
 Node 启动时 stdout 输出：
