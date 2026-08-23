@@ -1,6 +1,6 @@
 ---
 name: photon-e2e
-description: 运行和维护 PhotonShell 端到端测试（PWA + PhotonNode + mock SSH）。当你要写 E2E、调试 telemetry/监控、复现标签生命周期问题、或发现新的测试环境暗坑时使用。
+description: 运行和维护 PhotonShell 端到端测试（PWA + PhotonNode + mock SSH）。当你要写 E2E、调试 PWA telemetry polling、复现标签生命周期问题、或发现新的测试环境暗坑时使用。
 ---
 
 # PhotonShell E2E 测试指南
@@ -8,7 +8,7 @@ description: 运行和维护 PhotonShell 端到端测试（PWA + PhotonNode + mo
 ## 什么时候用
 
 - 用户要求写/跑 E2E。
-- 调试监控/telemetry 不更新、消失、或需要切换标签才出现。
+- 调试 PWA telemetry polling 不更新、消失、或需要切换标签才出现。
 - 新增/修改 UI 改变了选择器或标签生命周期。
 - 在本地完整复现 PWA ↔ Node ↔ SSH 链路的问题。
 
@@ -43,12 +43,11 @@ E2E 必须解析这个 6 位码，不要写死。
 
 ### mock SSH
 
-要完整跑 telemetry，需要一个能响应以下命令的 mock SSH server：
+要完整跑 PWA telemetry polling，需要一个能响应以下 exec 的 mock SSH server：
 
-- `cat /proc/stat`
-- `free -b`
-- `df -P -k /`
-- `ps -eo pid`
+- `uname -s`，返回 `Linux`
+- PWA Linux provider 的合并采样命令，返回带 `__PHOTON_*__` section 标记的输出
+- `printf exec-ok`，用于 generic exec smoke test
 
 可用本目录下的 `mock-ssh-server.py`（基于 `asyncssh`、内存生成 host key）作为 fixture。
 
@@ -63,9 +62,9 @@ E2E 必须解析这个 6 位码，不要写死。
 - 登录按钮：`page.getByRole('button', { name: '登录' })`（只在弹窗里出现，相对安全）
 - 密码输入：`page.locator('input[type="password"]')`
 
-### telemetry 结果判断
+### telemetry polling 结果判断
 
-- 面板一直显示 `--`：说明没有收到 `telemetrySnapshot`，通常是 `ShellTerminal.vue` 没调用 `startTelemetry()`（active watcher 未触发）。
+- 面板一直显示 `--`：说明 PWA 没有完成能力探测或 generic exec polling，优先检查监控面板是否打开、active tab 是否 online，以及 `telemetry.ts` 的 provider 是否启动。
 - 面板显示 `0.0%` 或 `0`：这是 mock 数据正常，不代表失败。关键是**不是** `--`。
 
 ### 标签与布局不持久化
@@ -74,7 +73,7 @@ v0 不保存标签和 Dockview 布局状态。刷新 PWA 后所有 SSH 会话都
 
 ### Vite HMR
 
-多个 Vite 进程共存时（例如环境占 `8080`，`npm run dev` 落到 `8081`），HMR 可能给旧代码。改完 `ShellTerminal.vue` 后，**刷新页面或重启 dev server**，再跑 E2E 才可信。
+多个 Vite 进程共存时（例如环境占 `8080`，`npm run dev` 落到 `8081`），HMR 可能给旧代码。改完 `telemetry.ts` 或 `ws.ts` 后，**刷新页面或重启 dev server**，再跑 E2E 才可信。
 
 ### xterm 渲染器
 
@@ -96,8 +95,8 @@ Playwright Docker 镜像可能没有仓库的 Python 虚拟环境依赖。`run-e
 
 ## 可用示例
 
-- `run-e2e.js`：启动 mock SSH、启动 PhotonNode、用 Playwright 打开 PWA、配对、加主机、验证 telemetry。
-- `mock-ssh-server.py`：为 telemetry 命令返回固定数据的 `asyncssh` server。
+- `run-e2e.js`：启动 mock SSH、启动 PhotonNode、用 Playwright 打开 PWA、配对、加主机、验证 PWA generic exec polling。
+- `mock-ssh-server.py`：为能力探测、合并采样命令和 generic exec 返回固定数据的 `asyncssh` server。
 
 用法（先在一个终端启动 PWA）：
 

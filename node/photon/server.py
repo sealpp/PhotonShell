@@ -441,7 +441,7 @@ class PhotonServer:
             return
 
         try:
-            result = await session.exec(req.command)
+            result = await self.sessions.exec(req.session_id, req.command)
             resp = PhotonMessage()
             resp.protocol_version = PROTOCOL_VERSION
             resp.request_id = msg.request_id

@@ -2,15 +2,22 @@
 import { computed } from 'vue'
 import { store } from '../stores/app'
 
-const metrics = computed(() => {
-  const t = store.telemetry
-  return [
-    { name: 'CPU 使用率 (%)', value: t ? `${t.cpu.toFixed(1)}%` : '--', percent: t ? t.cpu : 0, label: '核心使用' },
-    { name: '内存使用量 (%)', value: t ? `${t.mem.toFixed(1)}%` : '--', percent: t ? t.mem : 0, label: '总内存' },
-    { name: '磁盘使用 (%)', value: t ? `${t.disk.toFixed(1)}%` : '--', percent: t ? t.disk : 0, label: '根分区' },
-    { name: '进程数量', value: t ? String(t.procs) : '--', percent: 0, label: '运行中' },
-  ]
-})
+function metricNumber(id: string): number | null {
+  const metric = store.telemetry?.metrics[id]
+  return metric?.quality === 'valid' && typeof metric.value === 'number' ? metric.value : null
+}
+
+function metricText(id: string, digits: number, suffix = ''): string {
+  const value = metricNumber(id)
+  return value === null ? '--' : `${value.toFixed(digits)}${suffix}`
+}
+
+const metrics = computed(() => [
+  { name: 'CPU 使用率 (%)', value: metricText('cpu.usage', 1, '%'), percent: metricNumber('cpu.usage') ?? 0, label: '核心使用' },
+  { name: '内存使用量 (%)', value: metricText('memory.usage', 1, '%'), percent: metricNumber('memory.usage') ?? 0, label: '总内存' },
+  { name: '磁盘使用 (%)', value: metricText('disk.usage', 1, '%'), percent: metricNumber('disk.usage') ?? 0, label: '根分区' },
+  { name: '进程数量', value: metricText('process.count', 0), percent: 0, label: '运行中' },
+])
 </script>
 
 <template>

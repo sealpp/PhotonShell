@@ -136,11 +136,11 @@ async function main() {
     await page.waitForSelector('.workbench-dialog-content', { state: 'detached', timeout: 5000 });
     console.log('double-click duplicate opens pre-filled connection modal');
 
-    // Wait for telemetry to start automatically (after fix it should not need a tab switch)
+    // Wait for the open metrics panel to pull the active tab's values.
     await page.waitForFunction(
       () => {
-        const el = document.querySelector('.metric-value');
-        return el && el.textContent && !el.textContent.includes('--');
+        const values = Array.from(document.querySelectorAll('.metric-value'));
+        return values.length > 0 && values.every((el) => el.textContent && !el.textContent.includes('--'));
       },
       null,
       { timeout: 10000 }
@@ -148,16 +148,43 @@ async function main() {
     const firstValues = await page.locator('.metric-value').allTextContents();
     console.log('first tab values:', firstValues);
 
-    if (firstValues.some(v => v.includes('--'))) {
-      throw new Error('telemetry did not start for the active tab');
-    }
+    // Closing the panel stops polling and clears the displayed sample.
+    const monitorButton = page.getByRole('button', { name: '系统监控' });
+    await monitorButton.click();
+    await page.waitForFunction(
+      () => document.querySelector('.secondary-sidebar')?.classList.contains('collapsed'),
+      null,
+      { timeout: 5000 }
+    );
+    await page.waitForFunction(
+      () => Array.from(document.querySelectorAll('.metric-value')).every((el) => el.textContent === '--'),
+      null,
+      { timeout: 5000 }
+    );
+    await monitorButton.click();
+    await page.waitForFunction(
+      () => {
+        const values = Array.from(document.querySelectorAll('.metric-value'));
+        return values.length > 0 && values.every((el) => el.textContent && !el.textContent.includes('--'));
+      },
+      null,
+      { timeout: 10000 }
+    );
 
-    // Add second host (same mock SSH) and switch back to verify active-tab lifecycle still works
+    // Add a second host and switch back to verify active-tab polling.
     await addHost('B');
 
     const tabs = await page.locator('.terminal-tab').all();
     if (tabs.length < 2) throw new Error('expected two tabs');
     await tabs[0].click();
+    await page.waitForFunction(
+      () => {
+        const values = Array.from(document.querySelectorAll('.metric-value'));
+        return values.length > 0 && values.every((el) => el.textContent && !el.textContent.includes('--'));
+      },
+      null,
+      { timeout: 10000 }
+    );
 
     const finalValues = await page.locator('.metric-value').allTextContents();
     console.log('values after tab switch:', finalValues);
@@ -166,7 +193,7 @@ async function main() {
       throw new Error('metrics still showing -- after tab switch');
     }
 
-    console.log('E2E test passed: telemetry starts automatically and survives tab switching');
+    console.log('E2E test passed: PWA exec polling follows panel and active-tab lifecycle');
   } catch (e) {
     await page.screenshot({ path: path.join(TMP_DIR, 'failure.png') });
     console.error('Test failed:', e.message);

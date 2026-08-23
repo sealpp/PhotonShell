@@ -9,8 +9,7 @@ import {
   PtyOptionsSchema,
   SessionConnectRequestSchema,
   SessionDisconnectRequestSchema,
-  TelemetryStartRequestSchema,
-  TelemetryStopRequestSchema,
+  ExecRequestSchema,
   TerminalCloseRequestSchema,
   TerminalInputSchema,
   TerminalOpenRequestSchema,
@@ -18,7 +17,7 @@ import {
   type HostProfile,
   type PhotonMessage,
 } from '../proto/photon_pb'
-import { store, type ShellState, type Tab, type Telemetry } from '../stores/app'
+import { store, type ShellState, type Tab } from '../stores/app'
 import { randomId } from '../utils/id'
 
 const TOKEN_KEY = 'photon:token'
@@ -74,17 +73,28 @@ ensureDeviceId()
 let ws: WebSocket | null = null
 let reqId = 0
 const pendingDeletes = new Map<string, string[]>()
+const pendingExecs = new Map<string, {
+  resolve: (result: ExecResult) => void
+  reject: (error: Error) => void
+}>()
 const outputHandlers = new Map<number, (data: Uint8Array) => void>()
-const telemetryStarted = new Set<string>()
+
+export interface ExecResult {
+  stdout: Uint8Array
+  stderr: Uint8Array
+  exitCode: number
+}
 
 function nextReqId(): string {
   return `req-${++reqId}`
 }
 
-function send(msg: PhotonMessage): void {
+function send(msg: PhotonMessage): boolean {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(toBinary(PhotonMessageSchema, msg))
+    return true
   }
+  return false
 }
 
 export function setTerminalOutputHandler(
@@ -117,7 +127,15 @@ export interface WsCallbacks {
   onError: (msg: string) => void
 }
 
+function rejectPendingExecs(message: string): void {
+  for (const pending of pendingExecs.values()) {
+    pending.reject(new Error(message))
+  }
+  pendingExecs.clear()
+}
+
 function closeExistingSocket(): void {
+  rejectPendingExecs('Node connection closed')
   if (ws) {
     try {
       ws.close()
@@ -175,25 +193,26 @@ function handleMessage(resp: PhotonMessage, callbacks?: WsCallbacks): void {
     if (handler) {
       handler(out.payload)
     }
-  } else if (body === 'telemetrySnapshot') {
-    const snap = resp.body.value
-    const telemetry: Telemetry = {
-      cpu: snap.cpuPercent?.value?.case === 'number' ? snap.cpuPercent.value.value : 0,
-      mem: snap.memoryPercent?.value?.case === 'number' ? snap.memoryPercent.value.value : 0,
-      disk: snap.diskPercent?.value?.case === 'number' ? snap.diskPercent.value.value : 0,
-      procs: snap.processCount,
-    }
-    const targetTab = store.tabs.find((t) => t.sessionId === snap.sessionId)
-    if (targetTab) {
-      targetTab.telemetry = telemetry
-      if (targetTab.id === store.activeTabId) {
-        store.telemetry = telemetry
-      }
+  } else if (body === 'execResponse') {
+    const pending = pendingExecs.get(resp.requestId)
+    if (pending) {
+      pendingExecs.delete(resp.requestId)
+      const result = resp.body.value
+      pending.resolve({
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.exitCode,
+      })
     }
   } else if (body === 'requestFailed') {
     pendingDeletes.delete(resp.requestId)
     const err = resp.body.value.error
     store.error = `${err?.code ?? 'unknown'}: ${err?.message ?? ''}`
+    const pending = pendingExecs.get(resp.requestId)
+    if (pending) {
+      pendingExecs.delete(resp.requestId)
+      pending.reject(new Error(store.error))
+    }
     if (err?.code === 'invalid_token') {
       clearAuth()
       store.pairingModalOpen = true
@@ -220,12 +239,14 @@ export function connect(token: string, callbacks?: WsCallbacks): void {
   }
 
   ws.onerror = () => {
+    rejectPendingExecs('Node connection error')
     store.nodeConnected = false
     store.error = 'WebSocket error'
     callbacks?.onError(store.error)
   }
 
   ws.onclose = () => {
+    rejectPendingExecs('Node connection closed')
     store.nodeConnected = false
     store.error = store.error || 'WebSocket closed'
     callbacks?.onError(store.error)
@@ -262,12 +283,14 @@ export function pair(pin: string, callbacks: WsCallbacks): void {
   }
 
   ws.onerror = () => {
+    rejectPendingExecs('Node connection error')
     store.nodeConnected = false
     store.error = 'WebSocket error'
     callbacks.onError(store.error)
   }
 
   ws.onclose = () => {
+    rejectPendingExecs('Node connection closed')
     store.nodeConnected = false
     store.error = store.error || 'WebSocket closed'
     callbacks.onError(store.error)
@@ -382,7 +405,6 @@ export function closeTabs(tabIds: string[]): void {
     if (tab.streamId) {
       setTerminalOutputHandler(tab.streamId, null)
     }
-    stopTelemetry(tab.sessionId)
     disconnectSession(tab.sessionId)
   }
 
@@ -484,34 +506,29 @@ export function closeTerminal(terminalId: string): void {
   send(msg)
 }
 
-export function startTelemetry(sessionId: string, intervalMs: number = 2000): void {
-  if (!store.token || !sessionId || telemetryStarted.has(sessionId)) return
-  telemetryStarted.add(sessionId)
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId: nextReqId(),
-    token: store.token,
-    body: {
-      case: 'telemetryStartRequest',
-      value: create(TelemetryStartRequestSchema, { sessionId, intervalMs }),
-    },
-  })
-  send(msg)
-}
+export function exec(sessionId: string, command: string): Promise<ExecResult> {
+  if (!store.token || !sessionId) {
+    return Promise.reject(new Error('Node session is unavailable'))
+  }
 
-export function stopTelemetry(sessionId: string): void {
-  if (!store.token || !sessionId || !telemetryStarted.has(sessionId)) return
-  telemetryStarted.delete(sessionId)
+  const requestId = nextReqId()
   const msg = create(PhotonMessageSchema, {
     protocolVersion: 0,
-    requestId: nextReqId(),
+    requestId,
     token: store.token,
     body: {
-      case: 'telemetryStopRequest',
-      value: create(TelemetryStopRequestSchema, { sessionId }),
+      case: 'execRequest',
+      value: create(ExecRequestSchema, { sessionId, command }),
     },
   })
-  send(msg)
+
+  return new Promise((resolve, reject) => {
+    pendingExecs.set(requestId, { resolve, reject })
+    if (!send(msg)) {
+      pendingExecs.delete(requestId)
+      reject(new Error('Node is not connected'))
+    }
+  })
 }
 
 

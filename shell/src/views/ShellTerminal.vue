@@ -8,8 +8,6 @@ import {
   resizeTerminal,
   sendTerminalInput,
   setTerminalOutputHandler,
-  startTelemetry,
-  stopTelemetry,
 } from '../services/ws'
 import CommandContextMenu from '../components/CommandContextMenu.vue'
 import { TERMINAL_MENU_ID } from '../services/terminalCommands'
@@ -147,18 +145,13 @@ onMounted(() => {
 
   unwatchActive.value = watch(
     activeState,
-    (state, prev) => {
+    (state) => {
       if (!tab.value) return
       if (state !== 'inactive') {
-        store.telemetry = tab.value.telemetry
         fitAndResize()
       }
       if (state === 'online-no-terminal') {
         openTabTerminal()
-      } else if (state === 'online') {
-        startTelemetry(tab.value.sessionId, 2000)
-      } else if (prev === 'online' && tab.value.sessionId) {
-        stopTelemetry(tab.value.sessionId)
       }
     },
     { immediate: true },
@@ -183,9 +176,6 @@ onBeforeUnmount(() => {
   unwatchEncoding.value?.()
   if (tab.value?.streamId) {
     setTerminalOutputHandler(tab.value.streamId, null)
-  }
-  if (tab.value?.sessionId) {
-    stopTelemetry(tab.value.sessionId)
   }
   terminal?.dispose()
   terminal = null

@@ -6,6 +6,7 @@ from typing import Any, Callable, Coroutine, Dict, Optional
 
 import asyncssh
 
+
 @dataclass
 class ExecResult:
     stdout: bytes

@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { store } from './stores/app'
 import { connect } from './services/ws'
+import { startTelemetryService } from './services/telemetry'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import MainDock from './views/MainDock.vue'
@@ -29,6 +30,7 @@ onMounted(() => {
   } else {
     connect(store.token)
   }
+  startTelemetryService()
 })
 
 

@@ -14,22 +14,32 @@ class MockSSHServer(asyncssh.SSHServer):
 
 
 call_count = {"stat": 0}
+SAMPLE_COMMAND = (
+    "printf '__PHOTON_CPU__\\n'; cat /proc/stat; "
+    "printf '__PHOTON_MEM__\\n'; free -b; "
+    "printf '__PHOTON_DISK__\\n'; df -P -k /; "
+    "printf '__PHOTON_PROCS__\\n'; ps -eo pid"
+)
 
 
 async def handle_process(process: asyncssh.SSHServerProcess) -> None:
     cmd = process.command.strip()
-    if cmd == "cat /proc/stat":
+    if cmd == "uname -s":
+        process.stdout.write("Linux\n")
+    elif cmd == "printf exec-ok":
+        process.stdout.write("exec-ok")
+    elif cmd == SAMPLE_COMMAND:
         call_count["stat"] += 1
-        # Make numbers increase so CPU percent is non-zero and stable-ish
         total = 600 + call_count["stat"] * 100
         idle = 400 + call_count["stat"] * 20
+        process.stdout.write("__PHOTON_CPU__\n")
         process.stdout.write(f"cpu  {total - idle - 100} 0 100 {idle}\n")
-    elif cmd == "free -b":
+        process.stdout.write("__PHOTON_MEM__\n")
         process.stdout.write("Mem: 16000000000 4000000000 4000000000 0 2000000000 12000000000\n")
-    elif cmd == "df -P -k /":
+        process.stdout.write("__PHOTON_DISK__\n")
         process.stdout.write("Filesystem 1K-blocks Used Available Use% Mounted on\n")
         process.stdout.write("/dev/sda1 100000 40000 60000 40% /\n")
-    elif cmd == "ps -eo pid":
+        process.stdout.write("__PHOTON_PROCS__\n")
         process.stdout.write("PID\n1\n2\n3\n")
     else:
         process.stderr.write(f"unknown command: {cmd}\n")

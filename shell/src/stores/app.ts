@@ -5,11 +5,17 @@ import type { CommandContext } from '../services/context'
 export type View = 'welcome' | 'shell'
 export type ShellState = 'idle' | 'connecting' | 'online' | 'error'
 
+export type MetricQuality = 'valid' | 'missing'
+
+export interface MetricValue {
+  value: number | string | null
+  unit: string
+  quality: MetricQuality
+}
+
 export interface Telemetry {
-  cpu: number
-  mem: number
-  disk: number
-  procs: number
+  sampledAt: number
+  metrics: Record<string, MetricValue>
 }
 
 export interface Tab {
