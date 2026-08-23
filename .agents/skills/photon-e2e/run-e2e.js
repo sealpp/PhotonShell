@@ -96,6 +96,27 @@ async function main() {
       console.log(`host ${label} online`);
     }
 
+    async function waitForMetrics() {
+      await page.waitForFunction(
+        () => {
+          const cards = Array.from(document.querySelectorAll('[data-metric-value]'));
+          const gauges = document.querySelectorAll('[data-metric-kind="gauge"] .metric-gauge-chart');
+          const canvases = document.querySelectorAll('[data-metric-kind="gauge"] .metric-gauge-chart canvas');
+          const processCard = document.querySelector('[data-metric-id="process.count"][data-metric-kind="stat"]');
+          return cards.length === 4
+            && cards.every((el) => {
+              const value = el.getAttribute('data-metric-value');
+              return value && !value.includes('--');
+            })
+            && gauges.length === 3
+            && canvases.length === 3
+            && processCard !== null;
+        },
+        null,
+        { timeout: 10000 }
+      );
+    }
+
     // Add first host
     await addHost('A');
 
@@ -137,18 +158,13 @@ async function main() {
     console.log('double-click duplicate opens pre-filled connection modal');
 
     // Wait for the open metrics panel to pull the active tab's values.
-    await page.waitForFunction(
-      () => {
-        const values = Array.from(document.querySelectorAll('.metric-value'));
-        return values.length > 0 && values.every((el) => el.textContent && !el.textContent.includes('--'));
-      },
-      null,
-      { timeout: 10000 }
+    await waitForMetrics();
+    const firstValues = await page.locator('[data-metric-value]').evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute('data-metric-value'))
     );
-    const firstValues = await page.locator('.metric-value').allTextContents();
     console.log('first tab values:', firstValues);
 
-    // Closing the panel stops polling and clears the displayed sample.
+    // Closing the panel stops polling; reopening it starts a fresh sample.
     const monitorButton = page.getByRole('button', { name: '系统监控' });
     await monitorButton.click();
     await page.waitForFunction(
@@ -156,20 +172,8 @@ async function main() {
       null,
       { timeout: 5000 }
     );
-    await page.waitForFunction(
-      () => Array.from(document.querySelectorAll('.metric-value')).every((el) => el.textContent === '--'),
-      null,
-      { timeout: 5000 }
-    );
     await monitorButton.click();
-    await page.waitForFunction(
-      () => {
-        const values = Array.from(document.querySelectorAll('.metric-value'));
-        return values.length > 0 && values.every((el) => el.textContent && !el.textContent.includes('--'));
-      },
-      null,
-      { timeout: 10000 }
-    );
+    await waitForMetrics();
 
     // Add a second host and switch back to verify active-tab polling.
     await addHost('B');
@@ -177,16 +181,11 @@ async function main() {
     const tabs = await page.locator('.terminal-tab').all();
     if (tabs.length < 2) throw new Error('expected two tabs');
     await tabs[0].click();
-    await page.waitForFunction(
-      () => {
-        const values = Array.from(document.querySelectorAll('.metric-value'));
-        return values.length > 0 && values.every((el) => el.textContent && !el.textContent.includes('--'));
-      },
-      null,
-      { timeout: 10000 }
-    );
+    await waitForMetrics();
 
-    const finalValues = await page.locator('.metric-value').allTextContents();
+    const finalValues = await page.locator('[data-metric-value]').evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute('data-metric-value'))
+    );
     console.log('values after tab switch:', finalValues);
 
     if (finalValues.some(v => v.includes('--'))) {

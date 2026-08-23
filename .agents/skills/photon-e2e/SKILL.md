@@ -87,6 +87,7 @@ E2E 必须解析这个 6 位码，不要写死。
 
 - 面板一直显示 `--`：说明 PWA 没有完成能力探测或 generic exec polling，优先检查监控面板是否打开、active tab 是否 online，以及 `telemetry.ts` 的 provider 是否启动。
 - 面板显示 `0.0%` 或 `0`：这是 mock 数据正常，不代表失败。关键是**不是** `--`。
+- 成功采样时，面板应有 4 个 `[data-metric-value]`、3 个 `[data-metric-kind="gauge"] .metric-gauge-chart` 及其 3 个 canvas，以及一个 `[data-metric-id="process.count"][data-metric-kind="stat"]`。
 
 ### 标签与布局不持久化
 
