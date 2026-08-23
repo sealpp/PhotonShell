@@ -50,6 +50,7 @@ E2E 必须解析这个 6 位码，不要写死。
 - `printf exec-ok`，用于 generic exec smoke test
 
 可用本目录下的 `mock-ssh-server.py`（基于 `asyncssh`、内存生成 host key）作为 fixture。
+无命令的 PTY shell 必须保持存活；若 fixture 提前关闭 PTY，后续 generic exec polling 会收到 `SSH connection closed`。
 
 ### Playwright 选择器
 
