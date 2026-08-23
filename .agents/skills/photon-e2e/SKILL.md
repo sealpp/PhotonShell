@@ -80,6 +80,10 @@ v0 不保存标签和 Dockview 布局状态。刷新 PWA 后所有 SSH 会话都
 
 `@xterm/xterm` 6 默认使用 DOM renderer 时，终端屏幕是 `.xterm-screen`，不一定存在 canvas；终端右键测试应定位 `.xterm-screen`，应用侧允许屏幕后代元素触发菜单，以兼容 DOM 和 canvas renderer。
 
+### Chromium 下载
+
+当前 Playwright 1.62.0 解析到的 Chromium headless shell 版本可能尚未同步到 npmmirror；国内镜像返回 404 时，不要修改依赖版本或安全配置，去掉下载镜像环境变量后重试官方 Playwright 下载源。
+
 ### Docker 运行完整链路
 
 Playwright Docker 镜像可能没有仓库的 Python 虚拟环境依赖。`run-e2e.js` 支持 `PHOTON_PYTHON` 覆盖解释器；容器内运行时需安装 `node/pyproject.toml` 依赖，并设置 `PYTHONPATH` 指向 `/workspace/node`。

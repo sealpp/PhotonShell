@@ -2,6 +2,9 @@
 import { computed } from 'vue'
 import { store } from '../stores/app'
 import { closeTab } from '../services/ws'
+import CommandContextMenu from '../components/CommandContextMenu.vue'
+import type { CommandContext } from '../services/context'
+import { TAB_MENU_ID } from '../services/tabCommands'
 import { IconX } from '@tabler/icons-vue'
 
 const props = defineProps<{
@@ -36,6 +39,20 @@ function onClose() {
   }
 }
 
+function tabGroupTabIds(): string[] {
+  const panels = props.params?.api?.group?.panels as Array<{ id?: string }> | undefined
+  if (!Array.isArray(panels)) return tabId.value ? [tabId.value] : []
+  return panels.map((panel) => panel.id).filter((id): id is string => !!id)
+}
+
+function tabContext(): CommandContext {
+  return {
+    area: 'tab',
+    tabId: tabId.value,
+    tabGroupTabIds: tabGroupTabIds(),
+  }
+}
+
 function onDoubleClick() {
   if (!tab.value) return
   const host = store.hosts.find((h) => h.id === tab.value!.hostId)
@@ -47,19 +64,25 @@ function onDoubleClick() {
 </script>
 
 <template>
-  <div class="terminal-tab" @dblclick="onDoubleClick">
-    <span :class="dotClass" />
-    <span class="terminal-tab-label" :title="title">{{ title }}</span>
-    <button
-      type="button"
-      class="terminal-tab-close"
-      title="断开连接"
-      @click.stop="onClose"
-      @dblclick.stop
-    >
-      <IconX :size="14" />
-    </button>
-  </div>
+  <CommandContextMenu
+    v-if="tab"
+    :menu-id="TAB_MENU_ID"
+    :context="tabContext"
+  >
+    <div class="terminal-tab" @dblclick="onDoubleClick">
+      <span :class="dotClass" />
+      <span class="terminal-tab-label" :title="title">{{ title }}</span>
+      <button
+        type="button"
+        class="terminal-tab-close"
+        title="断开连接"
+        @click.stop="onClose"
+        @dblclick.stop
+      >
+        <IconX :size="14" />
+      </button>
+    </div>
+  </CommandContextMenu>
 </template>
 
 <style scoped>

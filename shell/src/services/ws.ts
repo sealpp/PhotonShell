@@ -365,25 +365,37 @@ export function addTab(host: HostProfile, password: string, insertAfterTabId?: s
 }
 
 export function closeTab(tabId: string): void {
-  const idx = store.tabs.findIndex((t) => t.id === tabId)
-  if (idx === -1) return
-  const tab = store.tabs[idx]
-  store.tabs.splice(idx, 1)
+  closeTabs([tabId])
+}
 
-  if (tab.streamId) {
-    setTerminalOutputHandler(tab.streamId, null)
-  }
-  stopTelemetry(tab.sessionId)
-  disconnectSession(tab.sessionId)
+export function closeTabs(tabIds: string[]): void {
+  const closingIds = new Set(tabIds)
+  const tabsToClose = store.tabs.filter((tab) => closingIds.has(tab.id))
+  if (!tabsToClose.length) return
 
-  if (store.activeTabId === tabId) {
-    const next = store.tabs[idx] || store.tabs[idx - 1]
-    store.activeTabId = next ? next.id : ''
-    store.telemetry = next ? next.telemetry : null
-    if (!store.activeTabId) {
-      store.view = 'welcome'
-      store.telemetry = null
+  const activeTabId = store.activeTabId
+  const activeIndex = store.tabs.findIndex((tab) => tab.id === activeTabId)
+  const remainingTabs = store.tabs.filter((tab) => !closingIds.has(tab.id))
+  store.tabs.splice(0, store.tabs.length, ...remainingTabs)
+
+  for (const tab of tabsToClose) {
+    if (tab.streamId) {
+      setTerminalOutputHandler(tab.streamId, null)
     }
+    stopTelemetry(tab.sessionId)
+    disconnectSession(tab.sessionId)
+  }
+
+  if (activeTabId && !closingIds.has(activeTabId) && store.tabs.some((tab) => tab.id === activeTabId)) {
+    return
+  }
+
+  const next = store.tabs[activeIndex] || store.tabs[activeIndex - 1] || store.tabs[0]
+  store.activeTabId = next?.id ?? ''
+  store.telemetry = next?.telemetry ?? null
+  if (!store.activeTabId) {
+    store.view = 'welcome'
+    store.telemetry = null
   }
 }
 

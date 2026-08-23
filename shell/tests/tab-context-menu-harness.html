@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tab Context Menu Harness</title>
+    <style>
+      html, body, #app { width: 100%; height: 100%; margin: 0; background: #111; }
+      #app { padding: 16px; box-sizing: border-box; }
+      #tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+      .terminal-tab { width: 180px; height: 35px; background: #2d2d2d; }
+      output { display: block; color: #fff; font: 12px monospace; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import { createApp, h } from 'vue'
+      import '/src/styles/workbench.css'
+      import TerminalTab from '/src/views/TerminalTab.vue'
+      import { store } from '/src/stores/app'
+
+      const tabDefinitions = {
+        'tab-a': { label: 'tab-a', group: 'first' },
+        'tab-b': { label: 'tab-b', group: 'first' },
+        'tab-c': { label: 'tab-c', group: 'second' },
+        'tab-d': { label: 'tab-d', group: 'second' },
+      }
+      const groups = {
+        first: ['tab-a', 'tab-b'],
+        second: ['tab-c', 'tab-d'],
+      }
+      const singleGroup = new URLSearchParams(location.search).has('single')
+
+      function createTab(id) {
+        return {
+          id,
+          hostId: `host-${id}`,
+          label: tabDefinitions[id].label,
+          state: 'online',
+          error: '',
+          streamId: 0,
+          sessionId: `session-${id}`,
+          terminalId: `terminal-${id}`,
+          telemetry: null,
+          encoding: 'utf-8',
+        }
+      }
+
+      const initialIds = singleGroup ? groups.first : [...groups.first, ...groups.second]
+      store.tabs.splice(0, store.tabs.length, ...initialIds.map(createTab))
+      store.activeTabId = 'tab-a'
+      store.view = 'shell'
+      store.token = 'test-token'
+      store.hosts = []
+      store.telemetry = null
+
+      function panelParams(tab) {
+        const groupName = tabDefinitions[tab.id].group
+        const groupIds = singleGroup ? groups.first : groups[groupName]
+        return {
+          params: { tabId: tab.id },
+          api: {
+            id: tab.id,
+            title: tab.label,
+            close: () => {},
+            group: { panels: groupIds.map((id) => ({ id })) },
+          },
+        }
+      }
+
+      createApp({
+        render() {
+          return h('main', {}, [
+            h('output', { id: 'tab-ids' }, store.tabs.map((tab) => tab.id).join(',')),
+            h('output', { id: 'active-tab' }, store.activeTabId),
+            h('output', { id: 'view' }, store.view),
+            h('section', { id: 'tabs' }, store.tabs.map((tab) => h(TerminalTab, {
+              key: tab.id,
+              params: panelParams(tab),
+            }))),
+          ])
+        },
+      }).mount('#app')
+    </script>
+  </body>
+</html>
