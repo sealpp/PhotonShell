@@ -6,7 +6,6 @@ import type { Tab } from '../stores/app'
 import { store } from '../stores/app'
 import TerminalPanel from './TerminalPanel.vue'
 import TerminalTab from './TerminalTab.vue'
-import DockHeaderActions from './DockHeaderActions.vue'
 
 const api = ref<DockviewApi | null>(null)
 let unsubs: (() => void)[] = []
@@ -121,7 +120,6 @@ onBeforeUnmount(() => {
     :components="(components as any)"
     :tab-components="(tabComponents as any)"
     :default-tab-component="(TerminalTab as any)"
-    :right-header-actions-component="(DockHeaderActions as any)"
     @ready="onReady"
   />
 </template>
@@ -130,6 +128,11 @@ onBeforeUnmount(() => {
 .main-dock {
   width: 100%;
   height: 100%;
+}
+
+.main-dock .dv-tabs-and-actions-container {
+  box-sizing: border-box;
+  padding-right: var(--actions-toolbar-width, 0px);
 }
 
 .main-dock .dv-dockview {

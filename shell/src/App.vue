@@ -5,6 +5,7 @@ import { connect } from './services/ws'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import MainDock from './views/MainDock.vue'
+import ActionsToolbar from './views/ActionsToolbar.vue'
 import PrimarySidebar from './views/PrimarySidebar.vue'
 import SecondarySidebar from './views/SecondarySidebar.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
@@ -53,7 +54,12 @@ onMounted(() => {
         <PrimarySidebar />
       </aside>
       <div class="terminal-area">
-        <MainDock v-if="store.view === 'shell'" />
+        <div v-if="store.view === 'shell'" class="shell-workspace">
+          <div class="main-dock-container">
+            <MainDock />
+            <ActionsToolbar />
+          </div>
+        </div>
         <div v-else class="welcome">
           <div class="welcome-logo">
             <img src="/icon.svg" class="logo-img" alt="PhotonShell" />
@@ -205,6 +211,24 @@ button, input {
   flex-direction: column;
   min-width: 0;
   background: #1e1e1e;
+  overflow: hidden;
+}
+
+.shell-workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-dock-container {
+  --actions-toolbar-width: 44px;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
