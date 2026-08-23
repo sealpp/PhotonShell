@@ -40,6 +40,7 @@ async def run() -> int:
         env["PHOTON_MASTER_PASSWORD"] = "smoke"
         env["PHOTON_STATE_PATH"] = str(state_path)
         env["PHOTON_ALLOWED_ORIGIN"] = "http://127.0.0.1:8080"
+        port = env.get("PHOTON_PORT", "17373")
 
         process = await asyncio.create_subprocess_exec(
             sys.executable,
@@ -57,7 +58,7 @@ async def run() -> int:
             await asyncio.sleep(0.5)
 
             async with websockets.connect(
-                "ws://127.0.0.1:17373",
+                f"ws://127.0.0.1:{port}",
                 origin="http://127.0.0.1:8080",
             ) as ws:
                 # Pair
@@ -131,7 +132,8 @@ async def run() -> int:
             print("smoke test passed")
             return 0
         finally:
-            process.terminate()
+            if process.returncode is None:
+                process.terminate()
             try:
                 await asyncio.wait_for(process.wait(), timeout=5)
             except asyncio.TimeoutError:
