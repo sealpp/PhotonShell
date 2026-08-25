@@ -106,7 +106,8 @@ class LinuxTelemetryProvider {
 
   async sample(sessionId: string): Promise<Telemetry> {
     const result = await exec(sessionId, LINUX_SAMPLE_COMMAND)
-    const sections = parseSections(decoder.decode(result.stdout))
+    const output = decoder.decode(result.stdout)
+    const sections = parseSections(output)
     const cpu = parseCpu(sections.CPU ?? '', this.lastCpu)
     this.lastCpu = cpu.sample
 
@@ -165,7 +166,8 @@ async function poll(sessionId: string, provider: LinuxTelemetryProvider, current
     const tab = activeTab()
     if (tab) tab.telemetry = telemetry
     store.telemetry = telemetry
-  } catch {
+  } catch (error) {
+    console.error('[telemetry] poll failed', sessionId, error)
     if (currentGeneration === generation) clearActiveTelemetry()
   }
 

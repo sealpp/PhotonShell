@@ -1,141 +1,109 @@
 ---
 name: photon-e2e
-description: 运行和维护 PhotonShell 端到端测试（PWA + PhotonNode + mock SSH）。当你要写 E2E、调试 PWA telemetry polling、复现标签生命周期问题、或发现新的测试环境暗坑时使用。
+description: 运行和维护 PhotonShell 端到端测试（PWA/WASM 协议客户端 + PhotonNode transport + mock SSH）。当要写 E2E、调试 PWA telemetry polling、复现标签生命周期或完整验证 PWA ↔ Node ↔ 远端协议链路时使用。
 ---
 
 # PhotonShell E2E 测试指南
 
-## 什么时候用
-
-- 用户要求写/跑 E2E。
-- 调试 PWA telemetry polling 不更新、消失、或需要切换标签才出现。
-- 新增/修改 UI 改变了选择器或标签生命周期。
-- 在本地完整复现 PWA ↔ Node ↔ SSH 链路的问题。
-
 ## 测试栈
 
-```
+```text
 Playwright (Chromium)
   ↓ HTTP/WebSocket
-PWA (Vite/Vue，动态端口)
-  ↓ ws://127.0.0.1:17373
-PhotonNode (Python)
-  ↓ SSH
+PWA (Vite/Vue + WASM SSH client)
+  ↓ loopback WebSocket transport
+PhotonNode (Python pairing + TCP/UDP relay)
+  ↓ TCP
 mock SSH server (asyncssh)
 ```
 
-## 必须知道的暗坑
+PhotonNode 不实现 SSH，也不保存主机或凭据业务数据。完整链路中的 SSH 协议由 PWA/WASM
+客户端执行；mock SSH 只属于测试依赖。
 
-### 端口
+## 端口
 
-1. PWA dev server 默认 `8080`，但经常被 IDE/环境占用，Vite 会 fallback 到 `8081` 或更高。因此 `PHOTON_ALLOWED_ORIGIN` 必须对齐**实际** PWA 端口；不要写死 `http://127.0.0.1:8080`。
-2. Node WebSocket 端口 `17373` 在 `shell/src/services/ws.ts` 中硬编码：`ws://${window.location.hostname}:17373`。测试必须让 Node 监听 `17373`，改端口 PWA 会连不上。
-
-### 网络命名空间隔离
-
-完整链路 E2E 如果发现宿主机已有 Node 占用 `17373`，不要终止无关进程；将 PWA、`run-e2e.js` 启动的 PhotonNode/mock SSH 和 Playwright 放进同一个 network namespace。`unshare --net` 默认不会启用 loopback，启动后先执行 `ip link set lo up`。
+1. PWA dev server 默认 `8080`，但被占用时 Vite 会 fallback 到更高端口。启动 Node 时
+   `PHOTON_ALLOWED_ORIGIN` 必须与实际 PWA Origin 完全一致。
+2. Node WebSocket 默认监听 `17373`，PWA transport 地址在 `shell/src/services/nodeClient.ts`
+   中固定使用当前页面 hostname 和该端口。
+3. 如果宿主机已有进程占用 `17373`，不要终止无关进程。将 PWA、mock SSH、PhotonNode 和
+   Playwright 放进同一个 network namespace；`unshare --net` 后先执行 `ip link set lo up`。
 
 示例：
 
 ```bash
-cd /root/codes/PhotonShell
 unshare --net -- bash -lc '
   ip link set lo up
   npm --prefix shell run dev -- --port 8081 --host 127.0.0.1 >/tmp/photon-e2e-vite.log 2>&1 &
   pwa_pid=$!
-  trap "kill $pwa_pid" EXIT
+  trap "kill $pwa_pid 2>/dev/null || true" EXIT
   until curl -fsS http://127.0.0.1:8081 >/dev/null; do sleep 0.2; done
   PWA_URL=http://127.0.0.1:8081 node .agents/skills/photon-e2e/run-e2e.js
 '
 ```
 
-隔离 namespace 内的 `127.0.0.1:17373` 与宿主机独立，因此不会碰到宿主机 Node；PWA 和 E2E runner 必须都在 namespace 内启动。
+## Node 与配对
 
-### 配对码
+Node 启动后输出：
 
-Node 启动时 stdout 输出：
-
-```
+```text
 Listening on ws://127.0.0.1:17373, pairing code: 123456
 ```
 
-E2E 必须解析这个 6 位码，不要写死。
+E2E 必须解析实际六位码，不要写死。Node 的当前开发后端使用内存 trust store；Windows
+正式后端使用当前用户 Credential Manager 保存节点身份和配对公钥。测试不设置
+`PHOTON_MASTER_PASSWORD` 或 `PHOTON_STATE_PATH`。
 
-### mock SSH
+## mock SSH
 
-要完整跑 PWA telemetry polling，需要一个能响应以下 exec 的 mock SSH server：
+`.agents/skills/photon-e2e/mock-ssh-server.py` 应覆盖：
 
-- `uname -s`，返回 `Linux`
-- PWA Linux provider 的合并采样命令，返回带 `__PHOTON_*__` section 标记的输出
-- `printf exec-ok`，用于 generic exec smoke test
+- 密码认证；
+- PWA SSH 的交互式 PTY shell；
+- `uname -s`；
+- telemetry 合并采样命令；
+- `printf exec-ok` 和简单终端命令。
 
-可用本目录下的 `mock-ssh-server.py`（基于 `asyncssh`、内存生成 host key）作为 fixture。
-无命令的 PTY shell 必须保持存活；若 fixture 提前关闭 PTY，后续 generic exec polling 会收到 `SSH connection closed`。
+交互式 shell 必须保持存活。PWA telemetry 使用 SSH shell marker 执行隐藏采样，不依赖
+Node generic exec。
 
-### Playwright 选择器
+## 选择器
 
-`配对`、`登录`、`新建连接` 这些文字同时出现在侧边栏和弹窗里，`getByText`/`getByRole` 会命中多个元素。必须用 CSS 限定：
+`配对`、`登录`、`新建连接` 文字可能同时出现在侧边栏和弹窗中，必须限定作用域：
 
-- Dialog 内容：`page.locator('.workbench-dialog-content')`
-- 主操作按钮：`page.locator('.workbench-dialog-content .workbench-dialog-button--primary')`
-- 取消按钮：`page.locator('.workbench-dialog-button--default')`
-- 新建连接：`page.locator('.new-btn')`
-- 登录按钮：`page.getByRole('button', { name: '登录' })`（只在弹窗里出现，相对安全）
-- 密码输入：`page.locator('input[type="password"]')`
+- Dialog 内容：`.workbench-dialog-content`
+- 主操作按钮：`.workbench-dialog-content .workbench-dialog-button--primary`
+- 取消按钮：`.workbench-dialog-button--default`
+- 新建连接：`.new-btn`
+- 登录按钮：`page.getByRole('button', { name: '登录' })`
+- 密码输入：`input[type="password"]`
+- 主机指纹接受：`#host-key-accept`
+- PWA vault 主密码：`#vault-password`、`#vault-password-confirm`
 
-### telemetry polling 结果判断
+## 遥测验收
 
-- 面板一直显示 `--`：说明 PWA 没有完成能力探测或 generic exec polling，优先检查监控面板是否打开、active tab 是否 online，以及 `telemetry.ts` 的 provider 是否启动。
-- 面板显示 `0.0%` 或 `0`：这是 mock 数据正常，不代表失败。关键是**不是** `--`。
-- 成功采样时，面板应有 4 个 `[data-metric-value]`、3 个 `[data-metric-kind="gauge"] .metric-gauge-chart` 及其 3 个 canvas，以及一个 `[data-metric-id="process.count"][data-metric-kind="stat"]`。
+成功采样时：
 
-### 标签与布局不持久化
+- 有 4 个 `[data-metric-value]` 且不包含 `--`；
+- 有 3 个 `[data-metric-kind="gauge"] .metric-gauge-chart`；
+- 有 `[data-metric-id="process.count"][data-metric-kind="stat"]`。
 
-v0 不保存标签和 Dockview 布局状态。刷新 PWA 后所有 SSH 会话都会断开，且不会恢复任何标签/分栏。E2E 脚本每次运行时都应从「配对 → 新建连接」开始，不要依赖刷新后保留之前的状态。
+当前仪表盘使用 CSS gauge，不依赖 canvas。面板关闭、标签切换或 session 断开时必须停止
+polling；刷新后 host profile、凭据和设备身份保留，但活动 tab/stream 不恢复。
 
-### Vite HMR
+## PWA WASM 资源
 
-多个 Vite 进程共存时（例如环境占 `8080`，`npm run dev` 落到 `8081`），HMR 可能给旧代码。改完 `telemetry.ts` 或 `ws.ts` 后，**刷新页面或重启 dev server**，再跑 E2E 才可信。
+Vite 配置会从已锁定的 npm 依赖复制以下运行时资源到开发/构建 public 目录：
 
-### xterm 渲染器
+- `sshclient.wasm`
+- `wasm_exec.js`
+- `argon2-bundled.min.js`
 
-`@xterm/xterm` 6 默认使用 DOM renderer 时，终端屏幕是 `.xterm-screen`，不一定存在 canvas；终端右键测试应定位 `.xterm-screen`，应用侧允许屏幕后代元素触发菜单，以兼容 DOM 和 canvas renderer。
+这些生成文件不提交。修改 `ws.ts`、`nodeClient.ts`、`ssh.ts`、`vault.ts` 或 Vite 配置后，
+刷新页面或重启 dev server 再跑 E2E，避免 HMR 使用旧的 WASM/模块状态。
 
-### Chromium 下载
+## 文件卫生
 
-当前 Playwright 1.62.0 解析到的 Chromium headless shell 版本可能尚未同步到 npmmirror；国内镜像返回 404 时，不要修改依赖版本或安全配置，去掉下载镜像环境变量后重试官方 Playwright 下载源。
-
-### Docker 运行完整链路
-
-Playwright Docker 镜像可能没有仓库的 Python 虚拟环境依赖。`run-e2e.js` 支持 `PHOTON_PYTHON` 覆盖解释器；容器内运行时需安装 `node/pyproject.toml` 依赖，并设置 `PYTHONPATH` 指向 `/workspace/node`。
-
-### 文件卫生
-
-- 用 `/tmp/photon-e2e/` 或类似目录放 `state.db` 和失败截图，不要提交。
-- `package-lock.json`、`node_modules`、`.venv`、`shell/dist`、`shell/src/proto` 都已 gitignore。
-- 测试脚本更新后，同步更新本 skill，不要留过期示例路径。
-
-## 可用示例
-
-- `run-e2e.js`：启动 mock SSH、启动 PhotonNode、用 Playwright 打开 PWA、配对、加主机、验证 PWA generic exec polling。
-- `mock-ssh-server.py`：为能力探测、合并采样命令和 generic exec 返回固定数据的 `asyncssh` server。
-
-用法（先在一个终端启动 PWA）：
-
-```bash
-cd shell
-npm run dev
-```
-
-再在另一个终端：
-
-```bash
-cd .agents/skills/photon-e2e
-PWA_URL=http://127.0.0.1:8081 node run-e2e.js
-```
-
-## 维护原则
-
-- **自动记录**：每次发现新的环境、选择器、链路暗坑，更新本 `SKILL.md`。
-- **重整冗余**：不要重复代码里能直接读到的实现细节；本 skill 只保留测试环境和经验。
-- **去除过期**：端口策略、UI 选择器、命令输出格式、脚本路径发生变化时，立即删除或修正对应条目。
+- 失败截图和临时日志放在 `/tmp/photon-e2e/`；
+- `node_modules`、`.venv`、`shell/dist`、`shell/src/proto` 和 WASM 运行时复制文件不提交；
+- 测试脚本、端口策略、选择器或链路行为变化时同步更新本 skill。

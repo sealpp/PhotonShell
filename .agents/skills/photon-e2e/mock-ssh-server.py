@@ -1,4 +1,6 @@
 import asyncio
+import re
+
 import asyncssh
 
 
@@ -22,34 +24,67 @@ SAMPLE_COMMAND = (
 )
 
 
+def sample_output() -> str:
+    call_count["stat"] += 1
+    total = 600 + call_count["stat"] * 100
+    idle = 400 + call_count["stat"] * 20
+    return (
+        "__PHOTON_CPU__\n"
+        f"cpu  {total - idle - 100} 0 100 {idle}\n"
+        "__PHOTON_MEM__\n"
+        "Mem: 16000000000 4000000000 4000000000 0 2000000000 12000000000\n"
+        "__PHOTON_DISK__\n"
+        "Filesystem 1K-blocks Used Available Use% Mounted on\n"
+        "/dev/sda1 100000 40000 60000 40% /\n"
+        "__PHOTON_PROCS__\n"
+        "PID\n1\n2\n3\n"
+    )
+
+
+def command_output(command: str) -> tuple[str, int]:
+    if command == "uname -s":
+        return "Linux\n", 0
+    if command == "printf exec-ok":
+        return "exec-ok", 0
+    if command == SAMPLE_COMMAND:
+        return sample_output(), 0
+    if command == "echo smoke-ok":
+        return "smoke-ok\n", 0
+    return f"unknown command: {command}\n", 1
+
+
+async def handle_shell(process: asyncssh.SSHServerProcess) -> None:
+    async for line in process.stdin:
+        command = line.strip()
+        marker = re.search(
+            r"printf '(__PHOTON_EXEC_START_[A-Za-z0-9]+__)\\n'; (.*); status=\$\?; printf '\\n(__PHOTON_EXEC_END_[A-Za-z0-9]+__)%s\\n'",
+            command,
+        )
+        if marker:
+            start, inner, end = marker.groups()
+            output, status = command_output(inner)
+            process.stdout.write(f"{start}\n")
+            process.stdout.write(output)
+            process.stdout.write(f"\n{end}{status}\n")
+            continue
+        output, status = command_output(command)
+        process.stdout.write(output)
+        if status:
+            process.exit(status)
+            return
+
+
 async def handle_process(process: asyncssh.SSHServerProcess) -> None:
-    cmd = (process.command or "").strip()
-    if not cmd:
-        await asyncio.Event().wait()
+    command = (process.command or "").strip()
+    if command:
+        output, status = command_output(command)
+        process.stdout.write(output)
+        if status:
+            process.exit(status)
+        else:
+            process.exit(0)
         return
-    if cmd == "uname -s":
-        process.stdout.write("Linux\n")
-    elif cmd == "printf exec-ok":
-        process.stdout.write("exec-ok")
-    elif cmd == SAMPLE_COMMAND:
-        call_count["stat"] += 1
-        total = 600 + call_count["stat"] * 100
-        idle = 400 + call_count["stat"] * 20
-        process.stdout.write("__PHOTON_CPU__\n")
-        process.stdout.write(f"cpu  {total - idle - 100} 0 100 {idle}\n")
-        process.stdout.write("__PHOTON_MEM__\n")
-        process.stdout.write("Mem: 16000000000 4000000000 4000000000 0 2000000000 12000000000\n")
-        process.stdout.write("__PHOTON_DISK__\n")
-        process.stdout.write("Filesystem 1K-blocks Used Available Use% Mounted on\n")
-        process.stdout.write("/dev/sda1 100000 40000 60000 40% /\n")
-        process.stdout.write("__PHOTON_PROCS__\n")
-        process.stdout.write("PID\n1\n2\n3\n")
-    else:
-        process.stderr.write(f"unknown command: {cmd}\n")
-        process.exit(1)
-        return
-    process.stdout.write_eof()
-    process.exit(0)
+    await handle_shell(process)
 
 
 async def main() -> int:
@@ -64,6 +99,7 @@ async def main() -> int:
     port = server.sockets[0].getsockname()[1]
     print(f"MOCK_SSH_PORT={port}", flush=True)
     await asyncio.Event().wait()
+    return 0
 
 
 if __name__ == "__main__":
