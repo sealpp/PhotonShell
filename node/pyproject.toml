@@ -1,18 +1,18 @@
 [project]
 name = "photon-node"
 version = "0.1.0"
-description = "PhotonShell local WebSocket-to-SSH node"
+description = "PhotonShell local WebSocket-to-TCP/UDP transport node"
 requires-python = ">=3.11"
 dependencies = [
     "websockets>=13,<14",
-    "asyncssh>=2.19,<3",
     "cryptography>=43",
-    "grpcio-tools>=1.70,<2",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
+    "asyncssh>=2.19,<3",
+    "grpcio-tools>=1.70,<2",
 ]
 
 [build-system]

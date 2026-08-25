@@ -60,6 +60,14 @@ function addPanel(tab: Tab) {
     params: { tabId: tab.id },
     renderer: 'always',
   })
+
+  if (store.activeTabId === tab.id) {
+    nextTick(() => {
+      if (store.activeTabId === tab.id) {
+        api.value?.getPanel(tab.id)?.api.setActive()
+      }
+    })
+  }
 }
 
 function removePanel(tabId: string) {

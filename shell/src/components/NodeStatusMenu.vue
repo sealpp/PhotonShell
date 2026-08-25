@@ -19,13 +19,13 @@ const nodeHost = computed(() => {
 })
 
 const nodeStatus = computed(() => {
-  if (!store.token) return 'unpaired'
+  if (!store.paired) return 'unpaired'
   return store.nodeConnected ? 'connected' : 'disconnected'
 })
 
 const items = computed(() => menuRegistry.resolve(NODE_MENU_ID, {
   area: 'node',
-  hasToken: Boolean(store.token),
+  isPaired: store.paired,
 }))
 
 function execute(item: typeof items.value[number]) {
@@ -41,10 +41,10 @@ function execute(item: typeof items.value[number]) {
         type="button"
         class="node-status"
         :class="nodeStatus"
-        :title="store.token ? `Node: ${nodeHost} (${nodeStatus === 'connected' ? '已连接' : '未连接'})` : 'Node: 未配对，点击配对'"
+        :title="store.paired ? `Node: ${nodeHost} (${nodeStatus === 'connected' ? '已连接' : '未连接'})` : 'Node: 未配对，点击配对'"
       >
         <i class="codicon codicon-remote" />
-        <span v-if="store.token" class="node-label">WS: {{ nodeHost }}</span>
+        <span v-if="store.paired" class="node-label">WS: {{ nodeHost }}</span>
         <span v-else class="node-label">未配对</span>
       </button>
     </template>

@@ -1,9 +1,15 @@
 import { reactive } from 'vue'
-import type { HostProfile } from '../proto/photon_pb'
 import type { CommandContext } from '../services/context'
 
 export type View = 'welcome' | 'shell'
 export type ShellState = 'idle' | 'connecting' | 'online' | 'error'
+
+export interface HostProfile {
+  id: string
+  address: string
+  port: number
+  username: string
+}
 
 export type MetricQuality = 'valid' | 'missing'
 
@@ -33,7 +39,8 @@ export interface Tab {
 
 export interface AppState {
   view: View
-  token: string
+  identityLoaded: boolean
+  paired: boolean
   deviceId: string
   deviceName: string
   error: string
@@ -50,6 +57,13 @@ export interface AppState {
   panelWidth: number
   pairingModalOpen: boolean
   connectionModalOpen: boolean
+  vaultDialogOpen: boolean
+  vaultUnlocked: boolean
+  hostKeyPrompt: {
+    host: string
+    port: number
+    fingerprint: string
+  } | null
   editingHostId: string
   insertAfterTabId: string
   deleteConfirmOpen: boolean
@@ -68,7 +82,8 @@ export interface AppState {
 
 export const store = reactive<AppState>({
   view: 'welcome',
-  token: '',
+  identityLoaded: false,
+  paired: false,
   deviceId: '',
   deviceName: 'PhotonShell PWA',
   error: '',
@@ -85,6 +100,9 @@ export const store = reactive<AppState>({
   panelWidth: 280,
   pairingModalOpen: false,
   connectionModalOpen: false,
+  vaultDialogOpen: false,
+  vaultUnlocked: false,
+  hostKeyPrompt: null,
   editingHostId: '',
   insertAfterTabId: '',
   deleteConfirmOpen: false,

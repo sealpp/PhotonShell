@@ -1,83 +1,28 @@
-import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
-import {
-  HostCreateRequestSchema,
-  HostDeleteRequestSchema,
-  HostListRequestSchema,
-  NodeHelloSchema,
-  PairBeginSchema,
-  PhotonMessageSchema,
-  PtyOptionsSchema,
-  SessionConnectRequestSchema,
-  SessionDisconnectRequestSchema,
-  ExecRequestSchema,
-  TerminalCloseRequestSchema,
-  TerminalInputSchema,
-  TerminalOpenRequestSchema,
-  TerminalResizeRequestSchema,
-  type HostProfile,
-  type PhotonMessage,
-} from '../proto/photon_pb'
-import { store, type ShellState, type Tab } from '../stores/app'
 import { randomId } from '../utils/id'
+import { store, type HostProfile, type ShellState, type Tab } from '../stores/app'
+import {
+  deleteHosts as deleteStoredHosts,
+  listHosts as listStoredHosts,
+  saveHost,
+} from './storage'
+import {
+  initializeVault,
+  isVaultUnlocked,
+  loadCredentialRecord,
+  saveCredentialRecord,
+} from './vault'
+import {
+  closeSsh,
+  connectSsh,
+  exec as runExec,
+  getSshSession,
+  resize as resizeSsh,
+  sendInput,
+} from './ssh'
+import { nodeClient, type NodeCallbacks } from './nodeClient'
 
-const TOKEN_KEY = 'photon:token'
-const DEVICE_ID_KEY = 'photon:deviceId'
-
-function generateDeviceId(): string {
-  if (typeof window !== 'undefined' && 'randomUUID' in window.crypto) {
-    return window.crypto.randomUUID()
-  }
-  return randomId()
-}
-
-function loadPersistedAuth(): void {
-  const token = localStorage.getItem(TOKEN_KEY)
-  const deviceId = localStorage.getItem(DEVICE_ID_KEY)
-  if (token) store.token = token
-  if (deviceId) store.deviceId = deviceId
-}
-
-function persistAuth(token: string, deviceId: string): void {
-  localStorage.setItem(TOKEN_KEY, token)
-  if (deviceId) localStorage.setItem(DEVICE_ID_KEY, deviceId)
-}
-
-export function clearAuth(): void {
-  store.token = ''
-  store.deviceId = ''
-  store.nodeConnected = false
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(DEVICE_ID_KEY)
-}
-
-export function disconnectNode(): void {
-  closeExistingSocket()
-  clearAuth()
-}
-
-function ensureDeviceId(): void {
-  if (!store.deviceId) {
-    store.deviceId = generateDeviceId()
-    localStorage.setItem(DEVICE_ID_KEY, store.deviceId)
-  }
-}
-
-export function wsUrl(): string {
-  return `ws://${window.location.hostname}:17373`
-}
-
-// Restore any persisted token/device on module load.
-loadPersistedAuth()
-ensureDeviceId()
-
-let ws: WebSocket | null = null
-let reqId = 0
-const pendingDeletes = new Map<string, string[]>()
-const pendingExecs = new Map<string, {
-  resolve: (result: ExecResult) => void
-  reject: (error: Error) => void
-}>()
 const outputHandlers = new Map<number, (data: Uint8Array) => void>()
+const pendingOutput = new Map<number, Uint8Array[]>()
 
 export interface ExecResult {
   stdout: Uint8Array
@@ -85,264 +30,109 @@ export interface ExecResult {
   exitCode: number
 }
 
-function nextReqId(): string {
-  return `req-${++reqId}`
+export async function initializePwa(): Promise<void> {
+  await nodeClient.initializeIdentity()
+  await initializeVault()
+  store.vaultUnlocked = isVaultUnlocked()
+  store.hosts = await listStoredHosts()
 }
 
-function send(msg: PhotonMessage): boolean {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(toBinary(PhotonMessageSchema, msg))
-    return true
+export function wsUrl(): string {
+  return nodeClient.wsUrl()
+}
+
+export function setNodeDisconnectedHandler(handler: (() => void) | undefined): void {
+  nodeClient.setDisconnectedHandler(handler)
+}
+
+export function clearAuth(): void {
+  nodeClient.clearPairing()
+  store.paired = false
+  store.nodeConnected = false
+}
+
+export function disconnectNode(): void {
+  nodeClient.disconnect()
+}
+
+export async function pair(pairingCode: string, callbacks: NodeCallbacks = {}): Promise<void> {
+  try {
+    await nodeClient.pair(pairingCode, callbacks)
+    store.error = ''
+    store.pairingModalOpen = false
+    await listHosts()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    store.error = message
+    callbacks.onError?.(message)
+    throw error
   }
-  return false
+}
+
+export async function connect(callbacks: NodeCallbacks = {}): Promise<void> {
+  try {
+    await nodeClient.connect(callbacks)
+    store.error = ''
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    store.nodeConnected = false
+    store.error = message
+    callbacks.onError?.(message)
+    throw error
+  }
+}
+
+export async function listHosts(): Promise<void> {
+  store.hosts = await listStoredHosts()
+}
+
+export async function createHost(host: HostProfile): Promise<void> {
+  await saveHost(host)
+  const current = store.hosts.findIndex((item) => item.id === host.id)
+  if (current === -1) store.hosts.push(host)
+  else store.hosts[current] = host
+}
+
+export async function deleteHosts(hostIds: string[]): Promise<void> {
+  if (!hostIds.length) return
+  await deleteStoredHosts(hostIds)
+  const deleted = new Set(hostIds)
+  store.hosts = store.hosts.filter((host) => !deleted.has(host.id))
+  store.selectedHostIds = new Set(
+    Array.from(store.selectedHostIds).filter((id) => !deleted.has(id)),
+  )
 }
 
 export function setTerminalOutputHandler(
   streamId: number,
   handler: ((data: Uint8Array) => void) | null,
 ): void {
-  if (handler) {
-    outputHandlers.set(streamId, handler)
-  } else {
+  if (!handler) {
     outputHandlers.delete(streamId)
+    pendingOutput.delete(streamId)
+    return
   }
+  outputHandlers.set(streamId, handler)
+  const buffered = pendingOutput.get(streamId)
+  pendingOutput.delete(streamId)
+  for (const data of buffered ?? []) handler(data)
 }
 
-function sendHello(): void {
-  const token = store.token
-  if (!token) return
-  const hello = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId: nextReqId(),
-    token,
-    body: {
-      case: 'nodeHello',
-      value: create(NodeHelloSchema, { pwaVersion: '0.1.0' }),
-    },
-  })
-  send(hello)
-}
-
-export interface WsCallbacks {
-  onError: (msg: string) => void
-}
-
-function rejectPendingExecs(message: string): void {
-  for (const pending of pendingExecs.values()) {
-    pending.reject(new Error(message))
+function emitTerminalOutput(streamId: number, data: Uint8Array): void {
+  const handler = outputHandlers.get(streamId)
+  if (handler) {
+    handler(data)
+    return
   }
-  pendingExecs.clear()
-}
-
-function closeExistingSocket(): void {
-  rejectPendingExecs('Node connection closed')
-  if (ws) {
-    try {
-      ws.close()
-    } catch {
-      // ignore
-    }
-    ws = null
+  const buffered = pendingOutput.get(streamId) ?? []
+  const total = buffered.reduce((sum, item) => sum + item.length, 0)
+  if (total + data.length <= 1024 * 1024) {
+    buffered.push(data.slice())
+    pendingOutput.set(streamId, buffered)
   }
-}
-
-function handleMessage(resp: PhotonMessage, callbacks?: WsCallbacks): void {
-  const body = resp.body.case
-
-  if (body === 'pairSucceeded') {
-    store.token = resp.body.value.token
-    persistAuth(store.token, store.deviceId)
-    sendHello()
-  } else if (body === 'nodeHelloAck') {
-    store.pairingModalOpen = false
-    store.view = 'welcome'
-    listHosts()
-  } else if (body === 'hostListResponse') {
-    store.hosts = resp.body.value.hosts as HostProfile[]
-  } else if (body === 'hostDeleteResponse') {
-    const ids = pendingDeletes.get(resp.requestId)
-    pendingDeletes.delete(resp.requestId)
-    const deleted = new Set(ids ?? [])
-    store.hosts = store.hosts.filter((h) => !deleted.has(h.id))
-    store.selectedHostIds = new Set(
-      Array.from(store.selectedHostIds).filter((id) => !deleted.has(id)),
-    )
-  } else if (body === 'sessionStateEvent') {
-    const evt = resp.body.value
-    const tab = store.tabs.find((t) => t.sessionId === evt.sessionId)
-    if (tab) {
-      tab.state = evt.state as ShellState
-      tab.error = evt.error || ''
-      if (tab.state === 'idle' || tab.state === 'error') {
-        tab.telemetry = null
-        if (tab.id === store.activeTabId) {
-          store.telemetry = null
-        }
-      }
-    }
-  } else if (body === 'terminalOpenedEvent') {
-    const evt = resp.body.value
-    const tab = store.tabs.find((t) => t.terminalId === evt.terminalId)
-    if (tab) {
-      tab.streamId = evt.streamId
-      tab.sessionId = evt.sessionId
-    }
-  } else if (body === 'terminalOutput') {
-    const out = resp.body.value
-    const handler = outputHandlers.get(out.streamId)
-    if (handler) {
-      handler(out.payload)
-    }
-  } else if (body === 'execResponse') {
-    const pending = pendingExecs.get(resp.requestId)
-    if (pending) {
-      pendingExecs.delete(resp.requestId)
-      const result = resp.body.value
-      pending.resolve({
-        stdout: result.stdout,
-        stderr: result.stderr,
-        exitCode: result.exitCode,
-      })
-    }
-  } else if (body === 'requestFailed') {
-    pendingDeletes.delete(resp.requestId)
-    const err = resp.body.value.error
-    store.error = `${err?.code ?? 'unknown'}: ${err?.message ?? ''}`
-    const pending = pendingExecs.get(resp.requestId)
-    if (pending) {
-      pendingExecs.delete(resp.requestId)
-      pending.reject(new Error(store.error))
-    }
-    if (err?.code === 'invalid_token') {
-      clearAuth()
-      store.pairingModalOpen = true
-    }
-    callbacks?.onError(store.error)
-  }
-}
-
-export function connect(token: string, callbacks?: WsCallbacks): void {
-  closeExistingSocket()
-  ws = new WebSocket(wsUrl())
-  ws.binaryType = 'arraybuffer'
-
-  ws.onopen = () => {
-    store.token = token
-    store.nodeConnected = true
-    sendHello()
-  }
-
-  ws.onmessage = (event: MessageEvent) => {
-    const data = new Uint8Array(event.data as ArrayBuffer)
-    const resp = fromBinary(PhotonMessageSchema, data)
-    handleMessage(resp, callbacks)
-  }
-
-  ws.onerror = () => {
-    rejectPendingExecs('Node connection error')
-    store.nodeConnected = false
-    store.error = 'WebSocket error'
-    callbacks?.onError(store.error)
-  }
-
-  ws.onclose = () => {
-    rejectPendingExecs('Node connection closed')
-    store.nodeConnected = false
-    store.error = store.error || 'WebSocket closed'
-    callbacks?.onError(store.error)
-  }
-}
-
-export function pair(pin: string, callbacks: WsCallbacks): void {
-  closeExistingSocket()
-  ws = new WebSocket(wsUrl())
-  ws.binaryType = 'arraybuffer'
-
-  ws.onopen = () => {
-    store.nodeConnected = true
-    ensureDeviceId()
-    const msg = create(PhotonMessageSchema, {
-      protocolVersion: 0,
-      requestId: nextReqId(),
-      body: {
-        case: 'pairBegin',
-        value: create(PairBeginSchema, {
-          pin,
-          deviceName: store.deviceName,
-          deviceId: store.deviceId,
-        }),
-      },
-    })
-    send(msg)
-  }
-
-  ws.onmessage = (event: MessageEvent) => {
-    const data = new Uint8Array(event.data as ArrayBuffer)
-    const resp = fromBinary(PhotonMessageSchema, data)
-    handleMessage(resp, callbacks)
-  }
-
-  ws.onerror = () => {
-    rejectPendingExecs('Node connection error')
-    store.nodeConnected = false
-    store.error = 'WebSocket error'
-    callbacks.onError(store.error)
-  }
-
-  ws.onclose = () => {
-    rejectPendingExecs('Node connection closed')
-    store.nodeConnected = false
-    store.error = store.error || 'WebSocket closed'
-    callbacks.onError(store.error)
-  }
-}
-
-export function listHosts(): void {
-  if (!store.token) return
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId: nextReqId(),
-    token: store.token,
-    body: {
-      case: 'hostListRequest',
-      value: create(HostListRequestSchema, {}),
-    },
-  })
-  send(msg)
-}
-
-export function createHost(host: HostProfile): void {
-  if (!store.token) return
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId: nextReqId(),
-    token: store.token,
-    body: {
-      case: 'hostCreateRequest',
-      value: create(HostCreateRequestSchema, { host }),
-    },
-  })
-  send(msg)
-}
-
-export function deleteHosts(hostIds: string[]): void {
-  if (!store.token || !hostIds.length) return
-  const requestId = nextReqId()
-  pendingDeletes.set(requestId, hostIds)
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId,
-    token: store.token,
-    body: {
-      case: 'hostDeleteRequest',
-      value: create(HostDeleteRequestSchema, { hostIds }),
-    },
-  })
-  send(msg)
 }
 
 export function addTab(host: HostProfile, password: string, insertAfterTabId?: string): void {
-  if (!store.token) return
   const tabId = randomId()
   const sessionId = randomId()
   const terminalId = randomId()
@@ -360,31 +150,64 @@ export function addTab(host: HostProfile, password: string, insertAfterTabId?: s
   }
 
   if (insertAfterTabId) {
-    const idx = store.tabs.findIndex((t) => t.id === insertAfterTabId)
-    if (idx !== -1) {
-      store.tabs.splice(idx + 1, 0, tab)
-    } else {
-      store.tabs.push(tab)
-    }
+    const index = store.tabs.findIndex((item) => item.id === insertAfterTabId)
+    if (index >= 0) store.tabs.splice(index + 1, 0, tab)
+    else store.tabs.push(tab)
   } else {
     store.tabs.push(tab)
   }
-
   store.activeTabId = tabId
   store.view = 'shell'
   store.connectionModalOpen = false
   store.editingHostId = ''
+  void startTab(tab, host, password)
+}
 
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId: nextReqId(),
-    token: store.token,
-    body: {
-      case: 'sessionConnectRequest',
-      value: create(SessionConnectRequestSchema, { hostId: host.id, password, sessionId }),
-    },
-  })
-  send(msg)
+async function startTab(tab: Tab, host: HostProfile, password: string): Promise<void> {
+  try {
+    let credential = password
+    if (!credential) {
+      const saved = await loadCredentialRecord(host.id)
+      credential = saved?.password ?? ''
+    }
+    if (!credential) throw new Error('请输入 SSH 密码，或先保存凭据')
+    await saveCredentialRecord(host.id, { password: credential })
+
+    const reactiveTab = store.tabs.find((item) => item.id === tab.id)
+    if (!reactiveTab) throw new Error('tab not found in reactive store')
+
+    const initialOutput: Uint8Array[] = []
+    const connection = await connectSsh(
+      {
+        sessionId: reactiveTab.sessionId,
+        host: host.address,
+        port: host.port,
+        username: host.username,
+        password: credential,
+      },
+      (state, error) => updateTabState(reactiveTab.sessionId, state, error),
+      (data) => {
+        if (!reactiveTab.streamId) initialOutput.push(data.slice())
+        else emitTerminalOutput(reactiveTab.streamId, data)
+      },
+    )
+    reactiveTab.streamId = connection.streamId
+    for (const data of initialOutput) emitTerminalOutput(reactiveTab.streamId, data)
+    updateTabState(reactiveTab.sessionId, 'online')
+  } catch (error) {
+    updateTabState(tab.sessionId, 'error', error instanceof Error ? error.message : String(error))
+  }
+}
+
+function updateTabState(sessionId: string, state: ShellState, error = ''): void {
+  const tab = store.tabs.find((item) => item.sessionId === sessionId)
+  if (!tab) return
+  tab.state = state
+  tab.error = error
+  if (state === 'idle' || state === 'error') {
+    tab.telemetry = null
+    if (tab.id === store.activeTabId) store.telemetry = null
+  }
 }
 
 export function closeTab(tabId: string): void {
@@ -392,26 +215,22 @@ export function closeTab(tabId: string): void {
 }
 
 export function closeTabs(tabIds: string[]): void {
-  const closingIds = new Set(tabIds)
-  const tabsToClose = store.tabs.filter((tab) => closingIds.has(tab.id))
+  const closing = new Set(tabIds)
+  const tabsToClose = store.tabs.filter((tab) => closing.has(tab.id))
   if (!tabsToClose.length) return
 
   const activeTabId = store.activeTabId
   const activeIndex = store.tabs.findIndex((tab) => tab.id === activeTabId)
-  const remainingTabs = store.tabs.filter((tab) => !closingIds.has(tab.id))
-  store.tabs.splice(0, store.tabs.length, ...remainingTabs)
-
+  store.tabs = store.tabs.filter((tab) => !closing.has(tab.id))
   for (const tab of tabsToClose) {
     if (tab.streamId) {
-      setTerminalOutputHandler(tab.streamId, null)
+      outputHandlers.delete(tab.streamId)
+      pendingOutput.delete(tab.streamId)
     }
-    disconnectSession(tab.sessionId)
+    void closeSsh(tab.sessionId)
   }
 
-  if (activeTabId && !closingIds.has(activeTabId) && store.tabs.some((tab) => tab.id === activeTabId)) {
-    return
-  }
-
+  if (activeTabId && !closing.has(activeTabId) && store.tabs.some((tab) => tab.id === activeTabId)) return
   const next = store.tabs[activeIndex] || store.tabs[activeIndex - 1] || store.tabs[0]
   store.activeTabId = next?.id ?? ''
   store.telemetry = next?.telemetry ?? null
@@ -421,114 +240,20 @@ export function closeTabs(tabIds: string[]): void {
   }
 }
 
-function disconnectSession(sessionId: string, reason: string = ''): void {
-  if (!store.token || !sessionId) return
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId: nextReqId(),
-    token: store.token,
-    body: {
-      case: 'sessionDisconnectRequest',
-      value: create(SessionDisconnectRequestSchema, { sessionId, reason }),
-    },
-  })
-  send(msg)
-}
-
-export function openTerminal(sessionId: string, terminalId: string, columns: number, rows: number): void {
-  if (!store.token || !sessionId) return
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId: nextReqId(),
-    token: store.token,
-    body: {
-      case: 'terminalOpenRequest',
-      value: create(TerminalOpenRequestSchema, {
-        sessionId,
-        terminalId,
-        pty: create(PtyOptionsSchema, {
-          term: 'xterm-256color',
-          columns,
-          rows,
-        }),
-      }),
-    },
-  })
-  send(msg)
-}
-
 export function sendTerminalInput(streamId: number, payload: Uint8Array): void {
-  if (!store.token) return
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId: nextReqId(),
-    token: store.token,
-    body: {
-      case: 'terminalInput',
-      value: create(TerminalInputSchema, { streamId, sequence: 0n, payload }),
-    },
+  const tab = store.tabs.find((item) => item.streamId === streamId)
+  if (tab) void sendInput(tab.sessionId, payload).catch((error) => {
+    updateTabState(tab.sessionId, 'error', error instanceof Error ? error.message : String(error))
   })
-  send(msg)
 }
 
 export function resizeTerminal(terminalId: string, columns: number, rows: number): void {
-  if (!store.token) return
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId: nextReqId(),
-    token: store.token,
-    body: {
-      case: 'terminalResizeRequest',
-      value: create(TerminalResizeRequestSchema, {
-        terminalId,
-        pty: create(PtyOptionsSchema, {
-          term: 'xterm-256color',
-          columns,
-          rows,
-        }),
-      }),
-    },
-  })
-  send(msg)
+  const tab = store.tabs.find((item) => item.terminalId === terminalId)
+  if (tab) void resizeSsh(tab.sessionId, columns, rows)
 }
 
-export function closeTerminal(terminalId: string): void {
-  if (!store.token) return
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId: nextReqId(),
-    token: store.token,
-    body: {
-      case: 'terminalCloseRequest',
-      value: create(TerminalCloseRequestSchema, { terminalId }),
-    },
-  })
-  send(msg)
+export async function exec(sessionId: string, command: string): Promise<ExecResult> {
+  const session = getSshSession(sessionId)
+  if (!session) throw new Error('SSH session is unavailable')
+  return runExec(session, command)
 }
-
-export function exec(sessionId: string, command: string): Promise<ExecResult> {
-  if (!store.token || !sessionId) {
-    return Promise.reject(new Error('Node session is unavailable'))
-  }
-
-  const requestId = nextReqId()
-  const msg = create(PhotonMessageSchema, {
-    protocolVersion: 0,
-    requestId,
-    token: store.token,
-    body: {
-      case: 'execRequest',
-      value: create(ExecRequestSchema, { sessionId, command }),
-    },
-  })
-
-  return new Promise((resolve, reject) => {
-    pendingExecs.set(requestId, { resolve, reject })
-    if (!send(msg)) {
-      pendingExecs.delete(requestId)
-      reject(new Error('Node is not connected'))
-    }
-  })
-}
-
-

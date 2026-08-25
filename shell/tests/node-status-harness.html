@@ -17,11 +17,12 @@
       import NodeStatusMenu from '/src/components/NodeStatusMenu.vue'
       import { store } from '/src/stores/app'
 
-      store.token = ''
+      store.paired = false
+      store.deviceId = ''
       store.nodeConnected = false
       store.pairingModalOpen = false
 
-      window.setToken = (token) => { store.token = token }
+      window.setPaired = () => { store.paired = true; store.deviceId = 'test-device' }
 
       createApp({
         render() {

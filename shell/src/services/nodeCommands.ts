@@ -1,12 +1,13 @@
-import { IconCopy, IconLinkOff, IconPlug } from '@tabler/icons-vue'
+import { IconCopy, IconKey, IconLinkOff, IconPlug } from '@tabler/icons-vue'
 import { commandRegistry, menuRegistry } from './commands'
 import { disconnectNode, wsUrl } from './ws'
+import { lockVault } from './vault'
 import { store } from '../stores/app'
 import { writeToClipboard } from '../utils/clipboard'
 
 commandRegistry.register({
   id: 'node.pair',
-  label: (ctx) => ctx.hasToken ? '重新配对' : '配对',
+  label: (ctx) => ctx.isPaired ? '重新配对' : '配对',
   icon: IconPlug,
   execute: () => {
     store.pairingModalOpen = true
@@ -14,10 +15,30 @@ commandRegistry.register({
 })
 
 commandRegistry.register({
+  id: 'pwa.vaultPassword',
+  label: '设置 PWA 主密码',
+  icon: IconKey,
+  execute: () => {
+    store.vaultDialogOpen = true
+  },
+})
+
+commandRegistry.register({
+  id: 'pwa.lockVault',
+  label: '锁定 PWA 凭据',
+  icon: IconKey,
+  when: (ctx) => ctx.isPaired === true,
+  execute: () => {
+    lockVault()
+    store.vaultUnlocked = false
+  },
+})
+
+commandRegistry.register({
   id: 'node.disconnect',
   label: '断开当前 Node 连接',
   icon: IconLinkOff,
-  when: (ctx) => ctx.hasToken === true,
+  when: (ctx) => ctx.isPaired === true,
   execute: () => {
     disconnectNode()
   },
@@ -36,6 +57,8 @@ export const NODE_MENU_ID = 'node.status'
 
 menuRegistry.register(NODE_MENU_ID, [
   { kind: 'command', commandId: 'node.pair' },
+  { kind: 'command', commandId: 'pwa.vaultPassword' },
+  { kind: 'command', commandId: 'pwa.lockVault' },
   { kind: 'command', commandId: 'node.disconnect' },
   { kind: 'command', commandId: 'node.copyAddress' },
 ])

@@ -51,7 +51,8 @@
       store.tabs.splice(0, store.tabs.length, ...initialIds.map(createTab))
       store.activeTabId = 'tab-a'
       store.view = 'shell'
-      store.token = 'test-token'
+      store.paired = true
+      store.deviceId = 'test-device'
       store.hosts = []
       store.telemetry = null
 

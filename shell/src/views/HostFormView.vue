@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { create } from '@bufbuild/protobuf'
-import { HostProfileSchema } from '../proto/photon_pb'
-import { store } from '../stores/app'
+import { store, type HostProfile } from '../stores/app'
 import { addTab, createHost } from '../services/ws'
+import { loadCredentialRecord } from '../services/vault'
 import { randomId } from '../utils/id'
 import UiDialog from '../components/UiDialog.vue'
 
@@ -29,24 +28,33 @@ onMounted(() => {
   password.value = ''
 })
 
-function submit() {
+async function submit() {
   localError.value = ''
   store.error = ''
-  if (!password.value) {
-    localError.value = '请输入 SSH 密码'
-    return
+  try {
+    const hostId = store.editingHostId || randomId()
+    let credential = password.value
+    if (!credential) {
+      const saved = await loadCredentialRecord(hostId)
+      credential = saved?.password ?? ''
+    }
+    if (!credential) {
+      localError.value = '请输入 SSH 密码'
+      return
+    }
+    const host: HostProfile = {
+      id: hostId,
+      address: address.value,
+      port: port.value,
+      username: username.value,
+    }
+    await createHost(host)
+    const insertAfterTabId = store.insertAfterTabId
+    store.insertAfterTabId = ''
+    addTab(host, credential, insertAfterTabId)
+  } catch (reason) {
+    localError.value = reason instanceof Error ? reason.message : String(reason)
   }
-  const hostId = store.editingHostId || randomId()
-  const host = create(HostProfileSchema, {
-    id: hostId,
-    address: address.value,
-    port: port.value,
-    username: username.value,
-  })
-  createHost(host)
-  const insertAfterTabId = store.insertAfterTabId
-  store.insertAfterTabId = ''
-  addTab(host, password.value, insertAfterTabId)
 }
 
 function close() {
@@ -61,7 +69,7 @@ function close() {
   <UiDialog
     :open="true"
     :title="store.editingHostId ? '连接' : '新建连接'"
-    description="输入 SSH 主机连接信息；密码不会保存。"
+    description="输入 SSH 主机连接信息；凭据会在 PWA 本地加密保存。"
     width="520px"
     @close="close"
   >

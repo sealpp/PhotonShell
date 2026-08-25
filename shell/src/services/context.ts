@@ -13,5 +13,5 @@ export interface CommandContext {
   tabEncoding?: string
   selectedIds?: string[]
   selectedCount?: number
-  hasToken?: boolean
+  isPaired?: boolean
 }

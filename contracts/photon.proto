@@ -2,174 +2,124 @@ syntax = "proto3";
 
 package photon;
 
-// v0 统一信封
-// 所有 PWA <-> PhotonNode 消息都序列化为一个 PhotonMessage，
-// 通过 WebSocket binary frame 传输。
-// v1 将在此基础上新增消息类型，transport 不变。
 message PhotonMessage {
-  uint32 protocol_version = 1;  // v0 固定为 0
-  string request_id = 2;        // 请求/响应对；事件可为空
-  string token = 3;             // 配对成功后 bearer token
+  uint32 protocol_version = 1;
+  string request_id = 2;
 
   oneof body {
-    // 配对
     PairBegin pair_begin = 10;
-    PairSucceeded pair_succeeded = 11;
+    PairChallenge pair_challenge = 11;
+    PairProof pair_proof = 12;
+    PairSucceeded pair_succeeded = 13;
 
-    // 握手
-    NodeHello node_hello = 12;
-    NodeHelloAck node_hello_ack = 13;
+    AuthBegin auth_begin = 20;
+    AuthChallenge auth_challenge = 21;
+    AuthProof auth_proof = 22;
+    AuthSucceeded auth_succeeded = 23;
 
-    // 主机
-    HostCreateRequest host_create_request = 20;
-    HostListRequest host_list_request = 21;
-    HostListResponse host_list_response = 22;
-    HostDeleteRequest host_delete_request = 23;
-    HostDeleteResponse host_delete_response = 24;
-
-    // 会话
-    SessionConnectRequest session_connect_request = 30;
-    SessionDisconnectRequest session_disconnect_request = 31;
-    SessionStateEvent session_state_event = 32;
-
-    // 终端
-    TerminalOpenRequest terminal_open_request = 40;
-    TerminalOpenedEvent terminal_opened_event = 41;
-    TerminalInput terminal_input = 42;
-    TerminalOutput terminal_output = 43;
-    TerminalResizeRequest terminal_resize_request = 44;
-    TerminalCloseRequest terminal_close_request = 45;
-
-    // SSH exec
-    ExecRequest exec_request = 50;
-    ExecResponse exec_response = 51;
-
-    // 错误
-    RequestFailed request_failed = 60;
+    TransportOpenRequest transport_open_request = 30;
+    TransportOpenedEvent transport_opened_event = 31;
+    TransportData transport_data = 32;
+    TransportCredit transport_credit = 33;
+    TransportHalfCloseRequest transport_half_close_request = 34;
+    TransportCloseRequest transport_close_request = 35;
+    TransportClosedEvent transport_closed_event = 36;
+    TransportErrorEvent transport_error_event = 37;
   }
 }
 
 message PairBegin {
-  string pin = 1;          // 6 位数字
-  string device_name = 2;
-  string device_id = 3;    // 浏览器稳定设备标识，用于同设备 token 覆盖
+  string pairing_code = 1;
+  string device_id = 2;
+  string device_name = 3;
+  bytes device_public_key = 4;
+  bytes client_nonce = 5;
+}
+
+message PairChallenge {
+  string pairing_id = 1;
+  string node_id = 2;
+  bytes node_public_key = 3;
+  bytes node_nonce = 4;
+}
+
+message PairProof {
+  string pairing_id = 1;
+  bytes device_signature = 2;
 }
 
 message PairSucceeded {
-  string token = 1;
+  string device_id = 1;
+  string node_id = 2;
+  bytes node_public_key = 3;
 }
 
-message NodeHello {
-  string pwa_version = 1;
+message AuthBegin {
+  string device_id = 1;
+  string connection_id = 2;
+  bytes client_nonce = 3;
 }
 
-message NodeHelloAck {
-  string node_version = 1;
-  uint32 protocol_version = 2;
+message AuthChallenge {
+  string connection_id = 1;
+  string node_id = 2;
+  bytes node_public_key = 3;
+  bytes node_nonce = 4;
+  bytes node_signature = 5;
 }
 
-message HostProfile {
-  string id = 1;
-  string address = 2;
-  uint32 port = 3;
-  string username = 4;
+message AuthProof {
+  string connection_id = 1;
+  bytes device_signature = 2;
 }
 
-message HostCreateRequest {
-  HostProfile host = 1;
+message AuthSucceeded {
+  string device_id = 1;
+  string node_id = 2;
 }
 
-message HostListRequest {}
-
-message HostListResponse {
-  repeated HostProfile hosts = 1;
+message TransportOpenRequest {
+  uint32 stream_id = 1;
+  string transport = 2;
+  string host = 3;
+  uint32 port = 4;
 }
 
-message HostDeleteRequest {
-  repeated string host_ids = 1;
+message TransportOpenedEvent {
+  uint32 stream_id = 1;
+  string transport = 2;
+  uint64 input_credit_bytes = 3;
+  uint64 output_credit_bytes = 4;
 }
 
-message HostDeleteResponse {
-  uint32 deleted_count = 1;
+message TransportData {
+  uint32 stream_id = 1;
+  uint64 sequence = 2;
+  bytes payload = 3;
 }
 
-message SessionConnectRequest {
-  string host_id = 1;
-  string password = 2;     // v0 一次性使用，不落盘
-  string session_id = 3;   // 客户端生成，每个新标签独立
+message TransportCredit {
+  uint32 stream_id = 1;
+  string direction = 2;
+  uint64 add_bytes = 3;
 }
 
-message SessionDisconnectRequest {
-  string session_id = 1;
+message TransportHalfCloseRequest {
+  uint32 stream_id = 1;
+}
+
+message TransportCloseRequest {
+  uint32 stream_id = 1;
   string reason = 2;
 }
 
-message SessionStateEvent {
-  string host_id = 1;
-  string state = 2;        // idle / connecting / online / error
-  string error = 3;
-  string session_id = 4;   // 与标签一一对应
-}
-
-message PtyOptions {
-  string term = 1;
-  uint32 columns = 2;
-  uint32 rows = 3;
-}
-
-message TerminalOpenRequest {
-  string session_id = 1;
-  string terminal_id = 2;
-  PtyOptions pty = 3;
-}
-
-message TerminalOpenedEvent {
-  string terminal_id = 1;
-  string session_id = 2;
-  uint32 stream_id = 3;
-}
-
-message TerminalCloseRequest {
-  string terminal_id = 1;
-}
-
-message TerminalResizeRequest {
-  string terminal_id = 1;
-  PtyOptions pty = 2;
-}
-
-message TerminalInput {
+message TransportClosedEvent {
   uint32 stream_id = 1;
-  uint64 sequence = 2;
-  bytes payload = 3;
+  string reason = 2;
 }
 
-message TerminalOutput {
+message TransportErrorEvent {
   uint32 stream_id = 1;
-  uint64 sequence = 2;
-  bytes payload = 3;
-}
-
-// Node runs the command on the existing SSH session. PWA owns decoding and parsing.
-message ExecRequest {
-  string session_id = 1;
-  string command = 2;
-}
-
-// stdout/stderr are opaque remote bytes; Node does not assume UTF-8.
-message ExecResponse {
-  string session_id = 1;
-  bytes stdout = 2;
-  bytes stderr = 3;
-  int32 exit_code = 4;
-}
-
-message RequestFailed {
-  string request_id = 1;
-  AppError error = 2;
-}
-
-message AppError {
-  string code = 1;
-  string message = 2;
+  string code = 2;
+  string message = 3;
 }

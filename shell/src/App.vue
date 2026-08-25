@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { store } from './stores/app'
-import { connect } from './services/ws'
+import { connect, initializePwa, setNodeDisconnectedHandler } from './services/ws'
 import { startTelemetryService } from './services/telemetry'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
@@ -12,6 +12,8 @@ import SecondarySidebar from './views/SecondarySidebar.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
 import TerminalSessionInfo from './components/TerminalSessionInfo.vue'
 import ManualPasteDialog from './components/ManualPasteDialog.vue'
+import VaultPasswordDialog from './components/VaultPasswordDialog.vue'
+import HostKeyPrompt from './components/HostKeyPrompt.vue'
 import { IconList } from '@tabler/icons-vue'
 import NodeStatusMenu from './components/NodeStatusMenu.vue'
 
@@ -200,22 +202,55 @@ function endResize(event?: PointerEvent) {
   scheduleFinalTerminalFit()
 }
 
-onMounted(() => {
-  if (!store.token) {
+let reconnectTimer: number | null = null
+
+function scheduleReconnect() {
+  if (!store.paired || reconnectTimer !== null) return
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null
+    void connectNode()
+  }, 2000)
+}
+
+async function connectNode() {
+  if (!store.paired) return
+  try {
+    await connect()
+  } catch (error) {
+    store.error = error instanceof Error ? error.message : String(error)
+    scheduleReconnect()
+  }
+}
+
+onMounted(async () => {
+  setNodeDisconnectedHandler(scheduleReconnect)
+  try {
+    await initializePwa()
+    if (!store.paired) {
+      store.pairingModalOpen = true
+    } else {
+      await connectNode()
+    }
+  } catch (error) {
+    store.error = error instanceof Error ? error.message : String(error)
     store.pairingModalOpen = true
-  } else {
-    connect(store.token)
   }
   startTelemetryService()
 })
 
 onBeforeUnmount(() => {
   endResize()
+  setNodeDisconnectedHandler(undefined)
+  if (reconnectTimer !== null) {
+    window.clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
 })
 </script>
 
 <template>
   <div class="app">
+    <div v-if="store.error" class="global-error">{{ store.error }}</div>
     <div
       ref="mainEl"
       class="main"
@@ -261,7 +296,7 @@ onBeforeUnmount(() => {
             <img src="/icon.svg" class="logo-img" alt="PhotonShell" />
           </div>
           <h2>PhotonShell</h2>
-          <p v-if="!store.token">请点击左下角 Node 状态按钮，选择「配对」。</p>
+          <p v-if="!store.paired">请点击左下角 Node 状态按钮，选择「配对」。</p>
           <p v-else-if="!store.hosts.length">暂无保存的主机，点击侧边栏「+ 新建连接」添加。</p>
           <p v-else>选择左侧主机（支持 Ctrl/Shift 多选），或右键批量操作。</p>
         </div>
@@ -288,6 +323,8 @@ onBeforeUnmount(() => {
     <HostFormView v-if="store.connectionModalOpen" />
     <TerminalSessionInfo v-if="store.terminalSessionInfo?.open" />
     <ManualPasteDialog v-if="store.manualPaste?.open" />
+    <VaultPasswordDialog v-if="store.vaultDialogOpen" />
+    <HostKeyPrompt />
     <DeleteConfirm v-if="store.deleteConfirmOpen" />
   </div>
 </template>
@@ -343,6 +380,16 @@ button, input {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+}
+
+.global-error {
+  background: #ef4444;
+  color: #fff;
+  padding: 8px 12px;
+  font-size: 13px;
+  text-align: center;
+  flex-shrink: 0;
+  z-index: 100;
 }
 
 .main {

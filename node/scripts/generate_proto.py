@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Python protobuf bindings for the PhotonShell v0 contract."""
+"""Generate Python protobuf bindings for the PhotonShell transport contract."""
 
 import sys
 from pathlib import Path

@@ -25,6 +25,12 @@ node/data/
 *.db
 *.enc
 
+# PWA runtime WASM assets copied from npm dependencies
+shell/public/sshclient.wasm
+shell/public/wasm_exec.js
+shell/public/argon2.wasm
+shell/public/argon2-bundled.min.js
+
 # IDE
 .idea/
 .devin/

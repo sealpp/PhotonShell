@@ -4,7 +4,6 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { store } from '../stores/app'
 import {
-  openTerminal,
   resizeTerminal,
   sendTerminalInput,
   setTerminalOutputHandler,
@@ -31,6 +30,9 @@ const unwatchState = ref<() => void>()
 const unwatchStream = ref<() => void>()
 const unwatchActive = ref<() => void>()
 const unwatchEncoding = ref<() => void>()
+const unwatchTerminalMount = ref<() => void>()
+
+let pendingStreamId: number | null = null
 
 const tab = computed(() => store.tabs.find((t) => t.id === props.tabId))
 const isActive = computed(() => store.activeTabId === props.tabId)
@@ -89,13 +91,6 @@ function onLayoutResizeEnd() {
   }
 }
 
-function openTabTerminal() {
-  if (!terminal || !fitAddon || !tab.value || tab.value.state !== 'online' || tab.value.streamId || !isActive.value) return
-  fitAddon.fit()
-  const { cols, rows } = terminal
-  openTerminal(tab.value.sessionId, tab.value.terminalId, cols || 80, rows || 24)
-}
-
 function resetDecoder(encoding: string) {
   if (!terminal) return
   const flushed = decoder.decode()
@@ -132,11 +127,26 @@ function isTerminalScreenTarget(event: MouseEvent): boolean {
 }
 
 function getTerminalColor(name: string, fallback: string): string {
-  return getComputedStyle(termEl.value!).getPropertyValue(name).trim() || fallback
+  if (!termEl.value) return fallback
+  return getComputedStyle(termEl.value).getPropertyValue(name).trim() || fallback
 }
 
-onMounted(() => {
-  if (!termEl.value || !tab.value) return
+function bindOutput() {
+  const streamId = tab.value?.streamId ?? pendingStreamId
+  if (!streamId || !terminal) return
+  setTerminalOutputHandler(streamId, writeOutput)
+
+  // Ensure the remote PTY receives the initial window size as soon as the
+  // output handler is bound; xterm's onResize may not fire by itself.
+  fitAddon?.fit()
+  const currentTab = tab.value
+  if (currentTab && currentTab.streamId) {
+    resizeTerminal(currentTab.terminalId, terminal.cols, terminal.rows)
+  }
+}
+
+function initTerminal() {
+  if (terminal || !termEl.value || !tab.value) return
 
   terminal = new Terminal({
     cursorBlink: true,
@@ -180,26 +190,12 @@ onMounted(() => {
     },
   )
 
-  unwatchStream.value = watch(
-    () => tab.value?.streamId,
-    (streamId) => {
-      if (streamId && tab.value) {
-        setTerminalOutputHandler(streamId, (data: Uint8Array) => {
-          writeOutput(data)
-        })
-      }
-    },
-  )
-
   unwatchActive.value = watch(
     activeState,
     (state) => {
       if (!tab.value) return
       if (state !== 'inactive') {
         scheduleFit()
-      }
-      if (state === 'online-no-terminal') {
-        openTabTerminal()
       }
     },
     { immediate: true },
@@ -214,6 +210,26 @@ onMounted(() => {
     },
   )
 
+  bindOutput()
+}
+
+onMounted(() => {
+  unwatchStream.value = watch(
+    () => tab.value?.streamId,
+    (streamId) => {
+      if (streamId) {
+        pendingStreamId = streamId
+        bindOutput()
+      }
+    },
+    { immediate: true },
+  )
+
+  unwatchTerminalMount.value = watch(
+    [() => tab.value, () => termEl.value],
+    () => initTerminal(),
+    { flush: 'post', immediate: true },
+  )
 })
 
 onBeforeUnmount(() => {
@@ -232,6 +248,7 @@ onBeforeUnmount(() => {
   unwatchStream.value?.()
   unwatchActive.value?.()
   unwatchEncoding.value?.()
+  unwatchTerminalMount.value?.()
   if (tab.value?.streamId) {
     setTerminalOutputHandler(tab.value.streamId, null)
   }
@@ -247,7 +264,9 @@ onBeforeUnmount(() => {
     :context="terminalContext"
     :can-open="isTerminalScreenTarget"
   >
-    <div ref="termEl" class="shell-terminal" />
+    <div class="shell-terminal">
+      <div ref="termEl" class="shell-terminal-content" />
+    </div>
   </CommandContextMenu>
 </template>
 
@@ -257,6 +276,11 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow: hidden;
   background: var(--terminal-background, #0d0d0d);
+}
+
+.shell-terminal-content {
+  width: 100%;
+  height: 100%;
 }
 
 .shell-terminal :deep(.xterm .xterm-viewport) {

@@ -7,10 +7,14 @@ import UiDialog from '../components/UiDialog.vue'
 const pin = ref('')
 const localError = ref('')
 
-function submit() {
+async function submit() {
   localError.value = ''
   store.error = ''
-  pair(pin.value, { onError: (msg) => { localError.value = msg } })
+  try {
+    await pair(pin.value, { onError: (msg) => { localError.value = msg } })
+  } catch {
+    return
+  }
 }
 
 function close() {
