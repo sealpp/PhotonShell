@@ -1,13 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { GaugeChart } from 'echarts/charts'
-import { TooltipComponent } from 'echarts/components'
-import type { EChartsOption } from 'echarts'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import VChart from 'vue-echarts'
-
-use([CanvasRenderer, GaugeChart, TooltipComponent])
 
 type GaugeStatus = 'normal' | 'warning' | 'critical' | 'unavailable'
 
@@ -44,96 +36,17 @@ function formatValue(value: number | null): string {
 const available = computed(() => props.value !== null && props.status !== 'unavailable')
 const value = computed(() => (props.value === null ? 0 : clamp(props.value)))
 const color = computed(() => STATUS_COLORS[props.status])
-
-const chartOption = computed<EChartsOption>(() => {
-  const ratio = value.value / 100
-  const axisColors: [number, string][] = available.value
-    ? [[ratio, color.value], [1, TRACK_COLOR]]
-    : [[1, TRACK_COLOR]]
-
-  return {
-    animation: available.value,
-    animationDuration: 350,
-    animationDurationUpdate: 500,
-    animationEasingUpdate: 'cubicOut',
-    tooltip: {
-      show: available.value,
-      trigger: 'item',
-      backgroundColor: '#2d2d2d',
-      borderColor: '#3c3c3c',
-      borderWidth: 1,
-      textStyle: {
-        color: '#cccccc',
-        fontSize: 11,
-      },
-      formatter: () => `${props.name}<br/><strong style="color:${color.value}">${formatValue(props.value)}</strong>`,
-    },
-    series: [
-      {
-        type: 'gauge',
-        min: 0,
-        max: 100,
-        startAngle: 90,
-        endAngle: -269.9,
-        center: ['50%', '50%'],
-        radius: '82%',
-        pointer: {
-          show: false,
-        },
-        progress: {
-          show: available.value,
-          roundCap: true,
-          width: 14,
-          itemStyle: {
-            color: color.value,
-          },
-        },
-        axisLine: {
-          roundCap: true,
-          lineStyle: {
-            width: 14,
-            color: axisColors,
-          },
-        },
-        splitLine: {
-          show: false,
-        },
-        axisTick: {
-          show: false,
-        },
-        axisLabel: {
-          show: false,
-        },
-        anchor: {
-          show: false,
-        },
-        title: {
-          show: false,
-        },
-        detail: {
-          show: true,
-          valueAnimation: available.value,
-          offsetCenter: [0, 0],
-          color: available.value ? '#ffffff' : '#666666',
-          fontSize: 18,
-          fontWeight: 600,
-          formatter: () => formatValue(props.value),
-        },
-        data: [{ value: value.value }],
-      },
-    ],
-  }
-})
+const style = computed(() => ({
+  '--gauge-value': `${value.value}%`,
+  '--gauge-color': available.value ? color.value : TRACK_COLOR,
+}))
 </script>
 
 <template>
   <div class="metric-gauge" :data-status="props.status">
-    <VChart
-      class="metric-gauge-chart"
-      :option="chartOption"
-      :aria-label="`${props.name} ${formatValue(props.value)}`"
-      autoresize
-    />
+    <div class="metric-gauge-chart" :style="style" :aria-label="`${props.name} ${formatValue(props.value)}`">
+      <span class="metric-gauge-value">{{ formatValue(props.value) }}</span>
+    </div>
   </div>
 </template>
 
@@ -142,10 +55,39 @@ const chartOption = computed<EChartsOption>(() => {
   width: 100%;
   height: 118px;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .metric-gauge-chart {
-  width: 100%;
-  height: 100%;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--gauge-color) var(--gauge-value),
+    #3a3a3a var(--gauge-value)
+  );
+  position: relative;
+}
+
+.metric-gauge-chart::after {
+  content: '';
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  background: var(--workbench-bg, #1e1e1e);
+}
+
+.metric-gauge-value {
+  position: relative;
+  z-index: 1;
+  color: var(--workbench-text-strong, #fff);
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 </style>

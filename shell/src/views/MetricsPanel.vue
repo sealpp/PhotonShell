@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue'
+import { computed } from 'vue'
 import { store } from '../stores/app'
-
-const MetricGauge = defineAsyncComponent(() => import('../components/MetricGauge.vue'))
+import MetricGauge from '../components/MetricGauge.vue'
 
 type MetricStatus = 'normal' | 'warning' | 'critical' | 'unavailable'
 type MetricKind = 'gauge' | 'stat'
