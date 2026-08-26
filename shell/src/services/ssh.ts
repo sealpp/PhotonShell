@@ -7,6 +7,7 @@ import { requireWebCrypto } from './webCrypto'
 
 const SSH_CONNECT_TIMEOUT_MS = 15_000
 const SSH_EXEC_TIMEOUT_MS = 10_000
+const SSH_HOST_KEY_RETRY_DELAY_MS = 100
 const MAX_EXEC_OUTPUT_BYTES = 4 * 1024 * 1024
 const SSH_CHANNEL_DATA = 94
 const SSH_CHANNEL_EXTENDED_DATA = 95
@@ -142,6 +143,7 @@ async function connectSshOnce(
   let stream: NodeTransportStream | undefined
   let activeSession: PwaSshSession | undefined
   let hostKeyFailure: Error | undefined
+  let intentionalClose = false
   let rejectHostKey: (error: Error) => void = () => undefined
   const hostKeyAbort = new Promise<never>((_, reject) => {
     rejectHostKey = reject
@@ -149,12 +151,14 @@ async function connectSshOnce(
   let transport: CustomTransport
   let sshPromise: Promise<Awaited<ReturnType<typeof SSHClient.connect>>> | undefined
   transport = new CustomTransport(
-    `ssh-${info.sessionId}`,
+    `ssh-${info.sessionId}-${randomId()}`,
     async () => {
       stream = await nodeClient.openStream('tcp', info.host, info.port)
       stream.onData = (data) => transport.injectData(data)
       stream.onError = (error) => onState('error', error.message)
-      stream.onClose = () => onState('idle')
+      stream.onClose = () => {
+        if (!intentionalClose) onState('idle')
+      }
     },
     async () => {
       await stream?.close('ssh_closed')
@@ -180,12 +184,14 @@ async function connectSshOnce(
             if (knownHostKey && !bytesEqual(knownHostKey, observedHostKey)) {
               hostKeyFailure = new HostKeyMismatchError()
               rejectHostKey(hostKeyFailure)
+              intentionalClose = true
               void transport.disconnect()
               return
             }
             if (!knownHostKey) {
               hostKeyFailure = new HostKeyRequiredError(observedHostKey)
               rejectHostKey(hostKeyFailure)
+              intentionalClose = true
               void transport.disconnect()
               return
             }
@@ -239,6 +245,7 @@ async function connectSshOnce(
       streamId: stream.streamId,
     }
   } catch (error) {
+    intentionalClose = true
     await transport.disconnect().catch(() => undefined)
     if (sshPromise) {
       await Promise.race([
@@ -293,6 +300,7 @@ export async function connectSsh(
       publicKey: bytesToBase64(error.publicKey),
       fingerprint: hostKeyFingerprint,
     })
+    await new Promise<void>((resolve) => setTimeout(resolve, SSH_HOST_KEY_RETRY_DELAY_MS))
     return connectSshOnce(info, error.publicKey, onState, onOutput)
   }
 }
@@ -327,9 +335,13 @@ async function closeSshSession(sessionId: string): Promise<void> {
 
 export async function closeSsh(sessionId: string): Promise<void> {
   await closeSshSession(sessionId)
+  await closeExec(sessionId)
+  sendLocks.delete(sessionId)
+}
+
+export async function closeExec(sessionId: string): Promise<void> {
   await closeSshSession(`exec-${sessionId}`)
   execLocks.delete(sessionId)
-  sendLocks.delete(sessionId)
 }
 
 function lastMatchIndex(value: string, expression: RegExp): number {
@@ -416,19 +428,21 @@ export async function exec(
 ): Promise<{ stdout: Uint8Array; stderr: Uint8Array; exitCode: number }> {
   const previous = execLocks.get(info.sessionId) ?? Promise.resolve()
   const task = previous.then(async () => {
-    const execSessionId = `exec-${randomId()}`
-    let connection: SshConnectionInfo | undefined
+    const execSessionId = `exec-${info.sessionId}`
     try {
-      connection = await connectSsh(
-        { ...info, sessionId: execSessionId },
-        () => undefined,
-        () => undefined,
-      )
+      if (!sessions.has(execSessionId)) {
+        await connectSsh(
+          { ...info, sessionId: execSessionId },
+          () => undefined,
+          () => undefined,
+        )
+      }
       const result = await waitForExecOutput(execSessionId, command)
       await new Promise<void>((resolve) => setTimeout(resolve, 50))
       return result
-    } finally {
-      if (connection) await closeSshSession(execSessionId)
+    } catch (error) {
+      await closeSshSession(execSessionId)
+      throw error
     }
   })
   const lock = task.then(() => undefined, () => undefined)

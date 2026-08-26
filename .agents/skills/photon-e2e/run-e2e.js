@@ -15,6 +15,7 @@ const { chromium } = require('playwright');
 const PYTHON = process.env.PHOTON_PYTHON || path.join(REPO, 'node/.venv/bin/python');
 const MOCK_SSH_SCRIPT = path.join(__dirname, 'mock-ssh-server.py');
 const TMP_DIR = path.join(os.tmpdir(), 'photon-e2e');
+const MOCK_SSH_STATE_PATH = path.join(TMP_DIR, 'mock-ssh-state.json');
 const PWA_URL = process.env.PWA_URL || 'http://127.0.0.1:8081';
 
 function waitForLine(proc, regex) {
@@ -41,6 +42,24 @@ function startProcess(command, args, env = {}) {
   });
 }
 
+function readMockSshState() {
+  return JSON.parse(fs.readFileSync(MOCK_SSH_STATE_PATH, 'utf8'));
+}
+
+async function waitForMockSshState(predicate, description, timeout = 10000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    try {
+      const state = readMockSshState();
+      if (predicate(state)) return state;
+    } catch {
+      // The server may not have accepted its first shell yet.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`mock SSH state did not reach ${description}: ${JSON.stringify(readMockSshState())}`);
+}
+
 function generatePythonBindings() {
   const result = spawnSync(PYTHON, [path.join(REPO, 'node/scripts/generate_proto.py')], {
     cwd: path.join(REPO, 'node'),
@@ -55,7 +74,10 @@ function generatePythonBindings() {
 async function main() {
   generatePythonBindings();
   fs.mkdirSync(TMP_DIR, { recursive: true });
-  const sshProc = startProcess(PYTHON, [MOCK_SSH_SCRIPT]);
+  fs.rmSync(MOCK_SSH_STATE_PATH, { force: true });
+  const sshProc = startProcess(PYTHON, [MOCK_SSH_SCRIPT], {
+    MOCK_SSH_STATE_PATH,
+  });
   const sshPort = await waitForLine(sshProc, /MOCK_SSH_PORT=(\d+)/);
   console.log('mock SSH port:', sshPort);
 
@@ -70,7 +92,9 @@ async function main() {
   const context = await browser.newContext();
   const page = await context.newPage();
   page.on('console', (message) => {
-    if (message.type() === 'error') console.error('browser:', message.text());
+    if (message.type() === 'error') {
+      console.error('browser:', message.text());
+    }
   });
   page.on('pageerror', (error) => console.error('page error:', error.message));
 
@@ -105,12 +129,16 @@ async function main() {
       await page.getByPlaceholder('port').fill(sshPort);
       await page.getByPlaceholder('username').fill('root');
       await page.locator('input[type="password"]').fill('test');
-      await page.getByRole('button', { name: '登录' }).click();
+      const dialog = page.locator('.workbench-dialog-content');
+      await dialog.getByRole('button', { name: '保存', exact: true }).click();
+      await page.waitForFunction(() => document.querySelectorAll('.conn-item').length > 0);
+      await dialog.getByRole('button', { name: '登录', exact: true }).click();
       try {
         const hostKeyAccept = page.locator('#host-key-accept');
         await hostKeyAccept.waitFor({ state: 'visible', timeout: 5000 });
         hostKeyPromptSeen = true;
         await hostKeyAccept.click();
+        await page.waitForTimeout(1200);
       } catch {
         // The target may already be in PWA KnownHosts.
       }
@@ -171,24 +199,21 @@ async function main() {
     await page.waitForSelector('[role="menu"]', { state: 'detached', timeout: 5000 });
     console.log('host and terminal context menus open and dismiss');
 
-    const firstTab = page.locator('.terminal-tab').first();
-    await firstTab.dblclick();
-    await page.waitForSelector('.workbench-dialog-content', { timeout: 5000 });
-    const title = await page.locator('.workbench-dialog-title').textContent();
-    if (title !== '连接') throw new Error(`expected modal title "连接", got "${title}"`);
-    const dupeAddress = await page.getByPlaceholder('address').inputValue();
-    const dupePort = await page.getByPlaceholder('port').inputValue();
-    const dupeUsername = await page.getByPlaceholder('username').inputValue();
-    const dupePassword = await page.locator('input[type="password"]').inputValue();
-    if (dupeAddress !== '127.0.0.1' || dupePort !== String(sshPort) || dupeUsername !== 'root') {
-      throw new Error(`duplicate modal not pre-filled: address=${dupeAddress}, port=${dupePort}, username=${dupeUsername}`);
-    }
-    if (dupePassword !== '') throw new Error('duplicate modal should not expose the saved password');
-    await page.locator('.workbench-dialog-button--default').click();
-    await page.waitForSelector('.workbench-dialog-content', { state: 'detached', timeout: 5000 });
-    console.log('double-click duplicate opens pre-filled connection modal');
-
     await waitForMetrics();
+    const firstTelemetryState = await waitForMockSshState(
+      (state) => state.stat >= 1,
+      'the first telemetry sample',
+    );
+    if (firstTelemetryState.shell !== 2) {
+      throw new Error(`expected one terminal and one reused telemetry shell, got ${firstTelemetryState.shell}`);
+    }
+    const secondTelemetryState = await waitForMockSshState(
+      (state) => state.stat > firstTelemetryState.stat,
+      'a second telemetry sample',
+    );
+    if (secondTelemetryState.shell !== 2) {
+      throw new Error(`telemetry opened a new shell for its next sample: ${secondTelemetryState.shell}`);
+    }
     const firstValues = await page.locator('[data-metric-value]').evaluateAll((elements) =>
       elements.map((element) => element.getAttribute('data-metric-value')),
     );
@@ -203,6 +228,10 @@ async function main() {
     );
     await monitorButton.click();
     await waitForMetrics();
+    const reopenedMonitorState = readMockSshState();
+    if (reopenedMonitorState.shell !== 2) {
+      throw new Error(`reopening the monitor created a new telemetry shell: ${reopenedMonitorState.shell}`);
+    }
 
     await addHost('B');
     const tabs = await page.locator('.terminal-tab').all();

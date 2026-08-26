@@ -63,6 +63,7 @@ E2E 必须解析实际六位码，不要写死。Node 的当前开发后端使�
 - `uname -s`；
 - telemetry 合并采样命令；
 - `printf exec-ok` 和简单终端命令。
+- telemetry 后台 shell 的连接计数，验证首次探测、连续采样和收起再打开面板均复用同一连接。
 
 交互式 shell 必须保持存活。PWA telemetry 使用 SSH shell marker 执行隐藏采样，不依赖
 Node generic exec。

@@ -1,5 +1,8 @@
 import asyncio
+import json
+import os
 import re
+from pathlib import Path
 
 import asyncssh
 
@@ -15,7 +18,8 @@ class MockSSHServer(asyncssh.SSHServer):
         return True
 
 
-call_count = {"stat": 0}
+call_count = {"shell": 0, "stat": 0}
+state_path = os.environ.get("MOCK_SSH_STATE_PATH")
 SAMPLE_COMMAND = (
     "printf '__PHOTON_CPU__\\n'; cat /proc/stat; "
     "printf '__PHOTON_MEM__\\n'; free -b; "
@@ -26,6 +30,7 @@ SAMPLE_COMMAND = (
 
 def sample_output() -> str:
     call_count["stat"] += 1
+    write_state()
     total = 600 + call_count["stat"] * 100
     idle = 400 + call_count["stat"] * 20
     return (
@@ -41,6 +46,11 @@ def sample_output() -> str:
     )
 
 
+def write_state() -> None:
+    if state_path:
+        Path(state_path).write_text(json.dumps(call_count), encoding="utf-8")
+
+
 def command_output(command: str) -> tuple[str, int]:
     if command == "uname -s":
         return "Linux\n", 0
@@ -54,8 +64,12 @@ def command_output(command: str) -> tuple[str, int]:
 
 
 async def handle_shell(process: asyncssh.SSHServerProcess) -> None:
+    call_count["shell"] += 1
+    write_state()
     async for line in process.stdin:
         command = line.strip()
+        if not command or command == "\x00":
+            continue
         marker = re.search(
             r"printf '(__PHOTON_EXEC_START_[A-Za-z0-9]+__)\\n'; (.*); status=\$\?; printf '\\n(__PHOTON_EXEC_END_[A-Za-z0-9]+__)%s\\n'",
             command,

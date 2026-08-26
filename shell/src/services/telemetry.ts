@@ -1,6 +1,6 @@
 import { watch } from 'vue'
 import { store, type MetricValue, type Tab, type Telemetry } from '../stores/app'
-import { exec } from './ws'
+import { closeExec, exec } from './ws'
 
 const POLL_INTERVAL_MS = 2000
 const LINUX_PROBE_COMMAND = 'uname -s'
@@ -123,9 +123,15 @@ class LinuxTelemetryProvider {
   }
 }
 
+type TelemetrySession = {
+  provider: LinuxTelemetryProvider
+  supported: boolean | undefined
+}
+
 let stopWatch: (() => void) | undefined
 let timer: ReturnType<typeof setTimeout> | undefined
 let generation = 0
+const telemetrySessions = new Map<string, TelemetrySession>()
 
 function activeTab(): Tab | undefined {
   return store.tabs.find((tab) => tab.id === store.activeTabId)
@@ -151,38 +157,67 @@ function clearActiveTelemetry(): void {
   store.telemetry = null
 }
 
-async function poll(sessionId: string, provider: LinuxTelemetryProvider, currentGeneration: number): Promise<void> {
+function pruneTelemetrySessions(): void {
+  const activeSessions = new Set(store.tabs.map((tab) => tab.sessionId))
+  for (const sessionId of telemetrySessions.keys()) {
+    if (!activeSessions.has(sessionId)) telemetrySessions.delete(sessionId)
+  }
+}
+
+function telemetrySession(sessionId: string): TelemetrySession {
+  let session = telemetrySessions.get(sessionId)
+  if (!session) {
+    session = {
+      provider: new LinuxTelemetryProvider(),
+      supported: undefined,
+    }
+    telemetrySessions.set(sessionId, session)
+  }
+  return session
+}
+
+async function poll(sessionId: string, currentGeneration: number): Promise<void> {
   if (currentGeneration !== generation || !canPoll(sessionId)) return
 
+  const session = telemetrySession(sessionId)
   try {
-    const supported = await provider.probe(sessionId)
-    if (currentGeneration !== generation || !canPoll(sessionId)) return
-    if (!supported) {
+    if (session.supported === false) {
       clearActiveTelemetry()
       return
     }
-    const telemetry = await provider.sample(sessionId)
+    if (session.supported === undefined) {
+      session.supported = await session.provider.probe(sessionId)
+      if (!session.supported) {
+        await closeExec(sessionId)
+        if (currentGeneration === generation) clearActiveTelemetry()
+        return
+      }
+      if (currentGeneration !== generation || !canPoll(sessionId)) return
+    }
+    const telemetry = await session.provider.sample(sessionId)
     if (currentGeneration !== generation || !canPoll(sessionId)) return
     const tab = activeTab()
     if (tab) tab.telemetry = telemetry
     store.telemetry = telemetry
   } catch (error) {
     console.error('[telemetry] poll failed', sessionId, error)
+    telemetrySessions.delete(sessionId)
     if (currentGeneration === generation) clearActiveTelemetry()
   }
 
   if (currentGeneration === generation && canPoll(sessionId)) {
-    timer = setTimeout(() => void poll(sessionId, provider, currentGeneration), POLL_INTERVAL_MS)
+    timer = setTimeout(() => void poll(sessionId, currentGeneration), POLL_INTERVAL_MS)
   }
 }
 
 function reconcile(): void {
   stopPolling()
+  pruneTelemetrySessions()
   const tab = activeTab()
   if (!tab || !canPoll(tab.sessionId)) return
 
   const currentGeneration = generation
-  void poll(tab.sessionId, new LinuxTelemetryProvider(), currentGeneration)
+  void poll(tab.sessionId, currentGeneration)
 }
 
 export function startTelemetryService(): void {

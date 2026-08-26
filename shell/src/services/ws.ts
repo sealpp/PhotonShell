@@ -11,6 +11,7 @@ import {
   loadCredentialRecord,
 } from './vault'
 import {
+  closeExec as closeSshExec,
   closeSsh,
   connectSsh,
   exec as runExec,
@@ -341,4 +342,8 @@ export async function exec(sessionId: string, command: string): Promise<ExecResu
   const session = getSshSession(sessionId)
   if (!session) throw new Error('SSH session is unavailable')
   return runExec(session, command)
+}
+
+export function closeExec(sessionId: string): Promise<void> {
+  return closeSshExec(sessionId)
 }
