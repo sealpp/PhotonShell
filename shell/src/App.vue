@@ -5,6 +5,7 @@ import { connect, initializePwa, setNodeDisconnectedHandler } from './services/w
 import { startTelemetryService } from './services/telemetry'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
+import LoginDialog from './components/LoginDialog.vue'
 import MainDock from './views/MainDock.vue'
 import ActionsToolbar from './views/ActionsToolbar.vue'
 import PrimarySidebar from './views/PrimarySidebar.vue'
@@ -321,6 +322,7 @@ onBeforeUnmount(() => {
     </div>
     <PairingView v-if="store.pairingModalOpen" />
     <HostFormView v-if="store.connectionModalOpen" />
+    <LoginDialog v-if="store.loginDialogOpen" />
     <TerminalSessionInfo v-if="store.terminalSessionInfo?.open" />
     <ManualPasteDialog v-if="store.manualPaste?.open" />
     <VaultPasswordDialog v-if="store.vaultDialogOpen" />

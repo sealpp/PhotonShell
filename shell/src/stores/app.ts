@@ -57,6 +57,11 @@ export interface AppState {
   panelWidth: number
   pairingModalOpen: boolean
   connectionModalOpen: boolean
+  loginDialogOpen: boolean
+  loginDialogHostId: string
+  loginDialogTabId: string
+  loginDialogError: string
+  loginDialogInsertAfterTabId: string
   vaultDialogOpen: boolean
   vaultUnlocked: boolean
   hostKeyPrompt: {
@@ -100,6 +105,11 @@ export const store = reactive<AppState>({
   panelWidth: 280,
   pairingModalOpen: false,
   connectionModalOpen: false,
+  loginDialogOpen: false,
+  loginDialogHostId: '',
+  loginDialogTabId: '',
+  loginDialogError: '',
+  loginDialogInsertAfterTabId: '',
   vaultDialogOpen: false,
   vaultUnlocked: false,
   hostKeyPrompt: null,

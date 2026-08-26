@@ -3,6 +3,7 @@ import { store } from '../stores/app'
 import CommandContextMenu from '../components/CommandContextMenu.vue'
 import type { CommandContext } from '../services/context'
 import { HOST_MENU_ID } from '../services/hostCommands'
+import { connectHost } from '../services/ws'
 import { IconPlus, IconPlug } from '@tabler/icons-vue'
 
 function isSelected(hostId: string): boolean {
@@ -68,8 +69,7 @@ function openNewConnection() {
 }
 
 function openConnect(host: typeof store.hosts[0]) {
-  store.editingHostId = host.id
-  store.connectionModalOpen = true
+  void connectHost(host)
 }
 </script>
 

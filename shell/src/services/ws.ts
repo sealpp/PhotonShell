@@ -9,7 +9,6 @@ import {
   initializeVault,
   isVaultUnlocked,
   loadCredentialRecord,
-  saveCredentialRecord,
 } from './vault'
 import {
   closeSsh,
@@ -132,7 +131,11 @@ function emitTerminalOutput(streamId: number, data: Uint8Array): void {
   }
 }
 
-export function addTab(host: HostProfile, password: string, insertAfterTabId?: string): void {
+export interface AddTabOptions {
+  allowLoginDialog?: boolean
+}
+
+export function addTab(host: HostProfile, password: string, insertAfterTabId?: string, options?: AddTabOptions): Tab {
   const tabId = randomId()
   const sessionId = randomId()
   const terminalId = randomId()
@@ -160,18 +163,90 @@ export function addTab(host: HostProfile, password: string, insertAfterTabId?: s
   store.view = 'shell'
   store.connectionModalOpen = false
   store.editingHostId = ''
-  void startTab(tab, host, password)
+  void startTab(tab, host, password, options)
+  return tab
 }
 
-async function startTab(tab: Tab, host: HostProfile, password: string): Promise<void> {
+export function reconnectTab(tab: Tab, host: HostProfile, password: string, options?: AddTabOptions): Tab | undefined {
+  const reactiveTab = store.tabs.find((item) => item.id === tab.id)
+  if (!reactiveTab) return undefined
+  if (reactiveTab.streamId) {
+    setTerminalOutputHandler(reactiveTab.streamId, null)
+    outputHandlers.delete(reactiveTab.streamId)
+    pendingOutput.delete(reactiveTab.streamId)
+  }
+  void closeSsh(reactiveTab.sessionId)
+  reactiveTab.state = 'connecting'
+  reactiveTab.error = ''
+  reactiveTab.telemetry = null
+  reactiveTab.sessionId = randomId()
+  reactiveTab.streamId = 0
+  void startTab(reactiveTab, host, password, options)
+  return reactiveTab
+}
+
+const AUTH_ERROR_PATTERN = /authentication|permission\s*denied|too\s*many\s*authentication|invalid\s*credentials/i
+
+function isAuthError(message: string): boolean {
+  return AUTH_ERROR_PATTERN.test(message)
+}
+
+function isSavedHost(host: HostProfile): boolean {
+  return store.hosts.some((item) => item.id === host.id)
+}
+
+function openLoginDialog(host: HostProfile, error: string, tabId = '', insertAfterTabId = ''): void {
+  store.loginDialogHostId = host.id
+  store.loginDialogTabId = tabId
+  store.loginDialogError = error
+  store.loginDialogInsertAfterTabId = insertAfterTabId
+  store.loginDialogOpen = true
+}
+
+async function getSavedCredential(hostId: string): Promise<string | undefined> {
+  if (!store.vaultUnlocked) return undefined
+  try {
+    const saved = await loadCredentialRecord(hostId)
+    if (!saved) return undefined
+    return saved.password ?? ''
+  } catch {
+    return undefined
+  }
+}
+
+export async function connectHost(host: HostProfile, insertAfterTabId?: string): Promise<void> {
+  const credential = await getSavedCredential(host.id)
+  if (credential === undefined) {
+    openLoginDialog(host, '', '', insertAfterTabId)
+    return
+  }
+  addTab(host, credential, insertAfterTabId)
+}
+
+export async function connectHostForTab(tab: Tab): Promise<void> {
+  const host = store.hosts.find((item) => item.id === tab.hostId)
+  if (!host) return
+  const credential = await getSavedCredential(host.id)
+  if (credential === undefined) {
+    openLoginDialog(host, '', tab.id)
+    return
+  }
+  reconnectTab(tab, host, credential)
+}
+
+async function startTab(tab: Tab, host: HostProfile, password: string, options?: AddTabOptions): Promise<void> {
+  const { allowLoginDialog = true } = options ?? {}
   try {
     let credential = password
+    let loaded = false
     if (!credential) {
       const saved = await loadCredentialRecord(host.id)
-      credential = saved?.password ?? ''
+      if (saved) {
+        credential = saved.password ?? ''
+        loaded = true
+      }
     }
-    if (!credential) throw new Error('请输入 SSH 密码，或先保存凭据')
-    await saveCredentialRecord(host.id, { password: credential })
+    if (!credential && !loaded) throw new Error('请输入 SSH 密码，或先保存凭据')
 
     const reactiveTab = store.tabs.find((item) => item.id === tab.id)
     if (!reactiveTab) throw new Error('tab not found in reactive store')
@@ -194,8 +269,18 @@ async function startTab(tab: Tab, host: HostProfile, password: string): Promise<
     reactiveTab.streamId = connection.streamId
     for (const data of initialOutput) emitTerminalOutput(reactiveTab.streamId, data)
     updateTabState(reactiveTab.sessionId, 'online')
+    if (store.loginDialogOpen && store.loginDialogHostId === host.id) {
+      store.loginDialogOpen = false
+      store.loginDialogError = ''
+    }
   } catch (error) {
-    updateTabState(tab.sessionId, 'error', error instanceof Error ? error.message : String(error))
+    const message = error instanceof Error ? error.message : String(error)
+    updateTabState(tab.sessionId, 'error', message)
+    if (allowLoginDialog && isSavedHost(host) && isAuthError(message)) {
+      openLoginDialog(host, message, tab.id)
+    } else if (store.loginDialogOpen && store.loginDialogHostId === host.id) {
+      store.loginDialogError = message
+    }
   }
 }
 

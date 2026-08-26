@@ -68,9 +68,30 @@ commandRegistry.register({
   },
 })
 
+commandRegistry.register({
+  id: 'tab.editHost',
+  label: '编辑主机',
+  when: (ctx) => ctx.area === 'tab',
+  enabled: (ctx) => {
+    const tab = getTab(ctx)
+    if (!tab) return false
+    return store.hosts.some((host) => host.id === tab.hostId)
+  },
+  execute: (ctx) => {
+    const tab = getTab(ctx)
+    if (!tab) return
+    const host = store.hosts.find((h) => h.id === tab.hostId)
+    if (!host) return
+    store.editingHostId = host.id
+    store.connectionModalOpen = true
+  },
+})
+
 menuRegistry.register(TAB_MENU_ID, [
   { kind: 'command', commandId: 'tab.close' },
   { kind: 'command', commandId: 'tab.closeOthers' },
   { kind: 'command', commandId: 'tab.closeToRight' },
   { kind: 'command', commandId: 'tab.closeAll' },
+  { kind: 'separator' },
+  { kind: 'command', commandId: 'tab.editHost' },
 ])
