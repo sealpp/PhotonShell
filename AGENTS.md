@@ -25,6 +25,10 @@ End-to-end testing guidance for PhotonShell is maintained as a project skill: `.
 
 Do not duplicate the detailed caveats here; update the skill directly. This section exists only to disclose the skill location.
 
+### Dev server cleanup
+
+After finishing local testing or browser validation, kill the PWA Vite dev server (`npm run dev`, usually on `127.0.0.1:8080`) and the PhotonNode Python process (`./.venv/bin/python -m photon.main`, usually on `127.0.0.1:17373`) unless the user explicitly asks to keep them running. This avoids keeping ports 8080/17373 occupied when the user wants to start their own manual tests.
+
 ## Known Pitfalls
 
 ### SSH / sshclient-wasm lifecycle
