@@ -192,8 +192,8 @@ export function hasMasterPassword(): boolean {
 }
 
 export async function setMasterPassword(password: string): Promise<void> {
-  if (password.length < 8) {
-    throw new Error('主密码至少需要 8 个字符')
+  if (password.length === 0) {
+    throw new Error('主密码不能为空')
   }
   if (!activeVaultKey || !meta) {
     throw new Error('PWA vault 尚未解锁')

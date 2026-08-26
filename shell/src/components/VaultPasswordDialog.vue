@@ -7,11 +7,18 @@ import {
   setMasterPassword,
   unlockWithMasterPassword,
 } from '../services/vault'
+import { estimateStrength } from '../services/passwordStrength'
 
 const password = ref('')
 const confirmation = ref('')
 const error = ref('')
 const unlockMode = computed(() => hasMasterPassword() && !store.vaultUnlocked)
+const strength = computed(() => {
+  if (unlockMode.value || password.value.length === 0) {
+    return undefined
+  }
+  return estimateStrength(password.value)
+})
 
 async function submit() {
   error.value = ''
@@ -48,6 +55,15 @@ function close() {
     <div class="form-group">
       <label for="vault-password">主密码</label>
       <input id="vault-password" v-model="password" type="password" autocomplete="current-password" />
+      <div v-if="strength" class="strength-hint">
+        <p class="strength-label" :class="`strength-label--${strength.variant}`">
+          密码强度：{{ strength.label }}
+        </p>
+        <p v-if="strength.warning" class="strength-warning">{{ strength.warning }}</p>
+        <ul v-if="strength.suggestions.length" class="strength-suggestions">
+          <li v-for="(suggestion, index) in strength.suggestions" :key="index">{{ suggestion }}</li>
+        </ul>
+      </div>
     </div>
     <div v-if="!unlockMode" class="form-group">
       <label for="vault-password-confirm">确认主密码</label>
@@ -89,5 +105,41 @@ input {
   margin: 0;
   color: #f87171;
   font-size: 12px;
+}
+
+.strength-hint {
+  margin-top: var(--workbench-space-1);
+  font-size: 12px;
+}
+
+.strength-label {
+  margin: 0;
+}
+
+.strength-label--weak {
+  color: #f87171;
+}
+
+.strength-label--medium {
+  color: #facc15;
+}
+
+.strength-label--strong {
+  color: #4ade80;
+}
+
+.strength-warning,
+.strength-suggestions {
+  margin: var(--workbench-space-1) 0 0;
+  color: var(--workbench-text-muted);
+  padding-left: var(--workbench-space-4);
+}
+
+.strength-suggestions {
+  list-style: disc;
+}
+
+.strength-suggestions li {
+  margin: 0;
 }
 </style>
