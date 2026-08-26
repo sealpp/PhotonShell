@@ -221,10 +221,10 @@ async function connectSshOnce(
     // sshclient-wasm lazily requests the PTY/shell on the first channel write
     // for any session, including exec-* telemetry sessions. A zero-length
     // write may be dropped by the underlying Go channel, so send a single
-    // carriage return to force the PTY/shell to start before the first real
-    // command is sent.
+    // NUL byte to force the PTY/shell to start before the first real command
+    // is sent. NUL is ignored by bash and does not cause an empty command.
     try {
-      await session.ssh.send(new TextEncoder().encode('\r'))
+      await session.ssh.send(new TextEncoder().encode('\x00'))
     } catch (err) {
       console.error('[ssh] startShell failed', info.sessionId, err)
     }
