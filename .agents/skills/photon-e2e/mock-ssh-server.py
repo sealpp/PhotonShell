@@ -67,8 +67,11 @@ async def handle_shell(process: asyncssh.SSHServerProcess) -> None:
     call_count["shell"] += 1
     write_state()
     async for line in process.stdin:
-        command = line.strip()
-        if not command or command == "\x00":
+        # sshclient-wasm needs a non-empty first write to trigger PTY/shell
+        # startup. We use a leading VSTART (0x11) or NUL (0x00) byte for that;
+        # it is not a real command and should be stripped before execution.
+        command = line.lstrip("\x00\x11").strip()
+        if not command:
             continue
         marker = re.search(
             r"printf '(__PHOTON_EXEC_START_[A-Za-z0-9]+__)\\n'; (.*); status=\$\?; printf '\\n(__PHOTON_EXEC_END_[A-Za-z0-9]+__)%s\\n'",

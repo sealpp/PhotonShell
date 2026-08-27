@@ -227,10 +227,13 @@ async function connectSshOnce(
     // sshclient-wasm lazily requests the PTY/shell on the first channel write
     // for any session, including exec-* telemetry sessions. A zero-length
     // write may be dropped by the underlying Go channel, so send a single
-    // NUL byte to force the PTY/shell to start before the first real command
-    // is sent. NUL is ignored by bash and does not cause an empty command.
+    // VSTART (0x11, ^Q) byte to force the PTY/shell to start before the first
+    // real command is sent. With IXON enabled (the default on all POSIX TTYs),
+    // the terminal driver consumes this byte for output flow control and does
+    // not echo it, unlike NUL which is echoed as "^@" and leaves a stray "^"
+    // in front of the first prompt.
     try {
-      await session.ssh.send(new TextEncoder().encode('\x00'))
+      await session.ssh.send(new TextEncoder().encode('\x11'))
     } catch (err) {
       console.error('[ssh] startShell failed', info.sessionId, err)
     }
