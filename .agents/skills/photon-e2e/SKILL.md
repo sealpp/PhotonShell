@@ -22,8 +22,8 @@ PhotonNode 不实现 SSH，也不保存主机或凭据业务数据。完整链�
 
 ## 端口
 
-1. PWA dev server 默认 `8080`，但被占用时 Vite 会 fallback 到更高端口。启动 Node 时
-   `PHOTON_ALLOWED_ORIGIN` 必须与实际 PWA Origin 完全一致。
+1. PWA dev server 默认 `8080`，但被占用时 Vite 会 fallback 到更高端口。Node 只绑定
+   loopback 且不做 Origin 校验，PWA 端口变化无需调整 Node 配置。
 2. Node WebSocket 默认监听 `17373`，PWA transport 地址在 `shell/src/services/nodeClient.ts`
    中固定使用当前页面 hostname 和该端口。
 3. 如果宿主机已有进程占用 `17373`，不要终止无关进程。将 PWA、mock SSH、PhotonNode 和

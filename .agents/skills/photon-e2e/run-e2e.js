@@ -82,7 +82,6 @@ async function main() {
   console.log('mock SSH port:', sshPort);
 
   const nodeProc = startProcess(PYTHON, ['-m', 'photon.main'], {
-    PHOTON_ALLOWED_ORIGIN: PWA_URL,
     PHOTON_PORT: '17373',
   });
   const pin = await waitForLine(nodeProc, /pairing code: (\d{6})/);

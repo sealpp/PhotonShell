@@ -43,7 +43,6 @@ Then open `http://127.0.0.1:8080`, enter the pairing code, and add a host. The P
 | --- | --- | --- |
 | `PHOTON_HOST` | `127.0.0.1` | WebSocket listen host; only loopback addresses are accepted. |
 | `PHOTON_PORT` | `17373` | WebSocket listen port. |
-| `PHOTON_ALLOWED_ORIGIN` | `http://127.0.0.1:8080` | Exact browser Origin accepted by PhotonNode. |
 
 ## Protocol generation
 
@@ -68,8 +67,7 @@ cd node
 
 ## Notes
 
-- PhotonNode binds loopback only and rejects non-loopback listen addresses.
-- The WebSocket Origin allowlist is exact; it is not a substitute for device challenge authentication.
+- PhotonNode binds loopback only and rejects non-loopback listen addresses. The loopback boundary plus device challenge authentication are the security controls; there is no WebSocket Origin check.
 - SSH, RDP, X11, and other client protocol implementations belong in the PWA. Adding a protocol does not require a PhotonNode protocol update.
 - PhotonNode does not expose local files, local processes, TCP listeners, SOCKS, or reverse-connection capabilities.
 - The PWA vault uses AES-256-GCM records, a browser profile key for automatic unlock, and an Argon2id-WASM master-password wrapper.
