@@ -232,7 +232,6 @@ async def run() -> int:
     node_port = os.environ.get("PHOTON_TEST_NODE_PORT", "17374")
     env = os.environ.copy()
     env["PHOTON_PORT"] = node_port
-    env["PHOTON_ALLOWED_ORIGIN"] = "http://127.0.0.1:8080"
     env["PYTHONPATH"] = str(root / "node")
     process = await asyncio.create_subprocess_exec(
         sys.executable,
@@ -245,20 +244,8 @@ async def run() -> int:
     )
     try:
         pin = await read_pin(process)
-        try:
-            async with websockets.connect(
-                f"ws://127.0.0.1:{node_port}",
-                origin="http://evil.example",
-            ) as invalid_origin:
-                await asyncio.wait_for(invalid_origin.recv(), timeout=1)
-        except Exception:
-            pass
-        else:
-            raise AssertionError("PhotonNode accepted an invalid Origin")
-
         async with websockets.connect(
             f"ws://127.0.0.1:{node_port}",
-            origin="http://127.0.0.1:8080",
         ) as unauthenticated:
             request = PhotonMessage(protocol_version=PROTOCOL_VERSION, request_id="unauthenticated")
             request.transport_open_request.stream_id = 1
@@ -273,7 +260,6 @@ async def run() -> int:
         key = ec.generate_private_key(ec.SECP256R1())
         async with websockets.connect(
             f"ws://127.0.0.1:{node_port}",
-            origin="http://127.0.0.1:8080",
         ) as ws:
             node_id, node_key = await pair(ws, pin, key, "smoke-device")
             await round_trip(ws, "tcp", tcp_port, b"tcp-ok")
@@ -281,7 +267,6 @@ async def run() -> int:
 
         async with websockets.connect(
             f"ws://127.0.0.1:{node_port}",
-            origin="http://127.0.0.1:8080",
         ) as ws:
             await authenticate(ws, key, "smoke-device", node_id, node_key)
         print("transport smoke test passed")

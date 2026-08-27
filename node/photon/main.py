@@ -13,11 +13,10 @@ from photon.trust import TrustRepository
 def main() -> int:
     host = os.environ.get("PHOTON_HOST", "127.0.0.1")
     port = int(os.environ.get("PHOTON_PORT", "17373"))
-    allowed_origin = os.environ.get("PHOTON_ALLOWED_ORIGIN", "http://127.0.0.1:8080")
 
     try:
         trust = TrustRepository()
-        asyncio.run(serve(trust, host, port, allowed_origin))
+        asyncio.run(serve(trust, host, port))
     except KeyboardInterrupt:
         print("\nShutting down...", flush=True)
     except Exception as exc:

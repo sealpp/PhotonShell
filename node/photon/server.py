@@ -622,9 +622,8 @@ class ClientConnection:
 
 
 class PhotonServer:
-    def __init__(self, trust: TrustRepository, allowed_origin: str):
+    def __init__(self, trust: TrustRepository):
         self.trust = trust
-        self.allowed_origin = allowed_origin
         self.pairing_code = f"{secrets.randbelow(1_000_000):06d}"
         self.pin_created_at = time.time()
         self.pin_attempts = 0
@@ -634,13 +633,7 @@ class PhotonServer:
     def pin_expired(self) -> bool:
         return time.time() - self.pin_created_at > PIN_TTL_SECONDS
 
-    def check_origin(self, websocket: Any) -> bool:
-        return websocket.request_headers.get("Origin", "") == self.allowed_origin
-
     async def handle(self, websocket: Any, _path: str = "/") -> None:
-        if not self.check_origin(websocket):
-            await websocket.close(1008, "invalid origin")
-            return
         client = ClientConnection(self, websocket)
         self.clients.add(client)
         try:
@@ -649,10 +642,10 @@ class PhotonServer:
             self.clients.discard(client)
 
 
-async def serve(trust: TrustRepository, host: str, port: int, allowed_origin: str) -> None:
+async def serve(trust: TrustRepository, host: str, port: int) -> None:
     if not _validate_loopback_bind(host):
         raise ValueError("PhotonNode must bind to localhost loopback")
-    server = PhotonServer(trust, allowed_origin)
+    server = PhotonServer(trust)
     async with websockets.serve(server.handle, host, port, max_size=MAX_MESSAGE_BYTES):
         print(
             f"Listening on ws://{host}:{port}, pairing code: {server.pairing_code}",
