@@ -104,21 +104,6 @@ async function main() {
     await page.locator('.workbench-dialog-content .workbench-dialog-button--primary').click();
     await page.waitForSelector('text=新建连接', { timeout: 10000 });
 
-    await page.locator('.node-status').click();
-    await page.getByText('设置 PWA 主密码').click();
-    await page.locator('#vault-password').fill('test-master-password');
-    await page.locator('#vault-password-confirm').fill('test-master-password');
-    await page.locator('.workbench-dialog-content .workbench-dialog-button--primary').click();
-    await page.waitForSelector('#vault-password', { state: 'detached', timeout: 10000 });
-
-    await page.locator('.node-status').click();
-    await page.getByText('锁定 PWA 凭据').click();
-    await page.locator('.node-status').click();
-    await page.getByText('设置 PWA 主密码').click();
-    await page.locator('#vault-password').fill('test-master-password');
-    await page.locator('.workbench-dialog-content .workbench-dialog-button--primary').click();
-    await page.waitForSelector('#vault-password', { state: 'detached', timeout: 10000 });
-
     let hostKeyPromptSeen = false;
 
     async function addHost(label) {
@@ -251,6 +236,21 @@ async function main() {
     if (await page.locator('.conn-item').count() !== 2) {
       throw new Error('PWA host records did not survive a reload');
     }
+
+    const expectedReloadTabCount = await page.locator('.terminal-tab').count() + 1;
+    await page.locator('.conn-item').first().locator('.conn-btn').click();
+    await page.waitForFunction(
+      (expected) => {
+        const tabs = document.querySelectorAll('.terminal-tab');
+        return tabs.length >= expected && tabs[tabs.length - 1].querySelector('.dot.online') !== null;
+      },
+      expectedReloadTabCount,
+      { timeout: 20000 },
+    );
+    if (await page.locator('.workbench-dialog-content').count() !== 0) {
+      throw new Error('saved credential connection unexpectedly opened a login dialog');
+    }
+    console.log('saved SSH credential auto-loaded after reload');
 
     console.log('E2E test passed: PWA protocol client and PWA-owned telemetry follow active-tab lifecycle');
   } catch (error) {

@@ -13,7 +13,6 @@ import SecondarySidebar from './views/SecondarySidebar.vue'
 import DeleteConfirm from './components/DeleteConfirm.vue'
 import TerminalSessionInfo from './components/TerminalSessionInfo.vue'
 import ManualPasteDialog from './components/ManualPasteDialog.vue'
-import VaultPasswordDialog from './components/VaultPasswordDialog.vue'
 import HostKeyPrompt from './components/HostKeyPrompt.vue'
 import { IconList } from '@tabler/icons-vue'
 import NodeStatusMenu from './components/NodeStatusMenu.vue'
@@ -234,7 +233,6 @@ onMounted(async () => {
     }
   } catch (error) {
     store.error = error instanceof Error ? error.message : String(error)
-    store.pairingModalOpen = true
   }
   startTelemetryService()
 })
@@ -325,7 +323,6 @@ onBeforeUnmount(() => {
     <LoginDialog v-if="store.loginDialogOpen" />
     <TerminalSessionInfo v-if="store.terminalSessionInfo?.open" />
     <ManualPasteDialog v-if="store.manualPaste?.open" />
-    <VaultPasswordDialog v-if="store.vaultDialogOpen" />
     <HostKeyPrompt />
     <DeleteConfirm v-if="store.deleteConfirmOpen" />
   </div>

@@ -12,7 +12,6 @@ const username = ref('root')
 const password = ref('')
 const localError = ref('')
 const saving = ref(false)
-const pendingSave = ref(false)
 const showUnsavedConfirm = ref(false)
 
 const savedHostId = ref('')
@@ -24,19 +23,6 @@ const savedPassword = ref<string | null>(null)
 onMounted(init)
 
 watch(() => store.editingHostId, init)
-watch(
-  () => store.vaultDialogOpen,
-  (open, previous) => {
-    if (previous && !open && pendingSave.value) {
-      pendingSave.value = false
-      if (store.vaultUnlocked) {
-        void saveCredential()
-      } else {
-        localError.value = 'PWA 凭据未解锁，密码未保存。'
-      }
-    }
-  },
-)
 
 const isNew = computed(() => !store.editingHostId)
 
@@ -56,7 +42,6 @@ function init() {
   localError.value = ''
   store.error = ''
   saving.value = false
-  pendingSave.value = false
   showUnsavedConfirm.value = false
 
   const h = store.hosts.find((host) => host.id === store.editingHostId)
@@ -83,15 +68,16 @@ function init() {
 }
 
 async function loadSavedPassword() {
-  if (!store.editingHostId || !store.vaultUnlocked) {
+  if (!store.editingHostId) {
     savedPassword.value = ''
     return
   }
   try {
     const saved = await loadCredentialRecord(store.editingHostId)
     savedPassword.value = saved?.password ?? ''
-  } catch {
+  } catch (reason) {
     savedPassword.value = ''
+    localError.value = reason instanceof Error ? reason.message : String(reason)
   }
 }
 
@@ -107,11 +93,6 @@ function hostFromForm(): HostProfile {
 
 async function saveCredential() {
   if (!password.value) return
-  if (!store.vaultUnlocked) {
-    pendingSave.value = true
-    store.vaultDialogOpen = true
-    return
-  }
   await saveCredentialRecord(store.editingHostId, { password: password.value })
   savedPassword.value = password.value
 }
@@ -133,16 +114,10 @@ async function save() {
     await saveCredential()
 
     saving.value = false
-    pendingSave.value = false
   } catch (reason) {
     saving.value = false
     const message = reason instanceof Error ? reason.message : String(reason)
-    if (message.includes('PWA vault is locked') || message.includes('vault')) {
-      pendingSave.value = true
-      store.vaultDialogOpen = true
-    } else {
-      localError.value = message
-    }
+    localError.value = message
   }
 }
 
@@ -181,7 +156,6 @@ function close() {
   store.insertAfterTabId = ''
   localError.value = ''
   saving.value = false
-  pendingSave.value = false
   showUnsavedConfirm.value = false
 }
 </script>

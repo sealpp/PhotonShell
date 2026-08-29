@@ -1,7 +1,6 @@
-import { IconCopy, IconKey, IconLinkOff, IconPlug } from '@tabler/icons-vue'
+import { IconCopy, IconLinkOff, IconPlug } from '@tabler/icons-vue'
 import { commandRegistry, menuRegistry } from './commands'
 import { disconnectNode, wsUrl } from './ws'
-import { lockVault } from './vault'
 import { store } from '../stores/app'
 import { writeToClipboard } from '../utils/clipboard'
 
@@ -11,26 +10,6 @@ commandRegistry.register({
   icon: IconPlug,
   execute: () => {
     store.pairingModalOpen = true
-  },
-})
-
-commandRegistry.register({
-  id: 'pwa.vaultPassword',
-  label: '设置 PWA 主密码',
-  icon: IconKey,
-  execute: () => {
-    store.vaultDialogOpen = true
-  },
-})
-
-commandRegistry.register({
-  id: 'pwa.lockVault',
-  label: '锁定 PWA 凭据',
-  icon: IconKey,
-  when: (ctx) => ctx.isPaired === true,
-  execute: () => {
-    lockVault()
-    store.vaultUnlocked = false
   },
 })
 
@@ -57,8 +36,6 @@ export const NODE_MENU_ID = 'node.status'
 
 menuRegistry.register(NODE_MENU_ID, [
   { kind: 'command', commandId: 'node.pair' },
-  { kind: 'command', commandId: 'pwa.vaultPassword' },
-  { kind: 'command', commandId: 'pwa.lockVault' },
   { kind: 'command', commandId: 'node.disconnect' },
   { kind: 'command', commandId: 'node.copyAddress' },
 ])

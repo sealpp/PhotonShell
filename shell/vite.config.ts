@@ -14,8 +14,6 @@ function copyRuntimeAssets() {
       const assets = [
         ['sshclient-wasm/dist/sshclient.wasm', 'sshclient.wasm'],
         ['sshclient-wasm/dist/wasm_exec.js', 'wasm_exec.js'],
-        ['argon2-browser/dist/argon2-bundled.min.js', 'argon2-bundled.min.js'],
-        ['argon2-browser/dist/argon2.wasm', 'argon2.wasm'],
       ]
       mkdirSync(config.publicDir, { recursive: true })
       for (const [source, target] of assets) {

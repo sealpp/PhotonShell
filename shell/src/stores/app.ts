@@ -62,8 +62,6 @@ export interface AppState {
   loginDialogTabId: string
   loginDialogError: string
   loginDialogInsertAfterTabId: string
-  vaultDialogOpen: boolean
-  vaultUnlocked: boolean
   hostKeyPrompt: {
     host: string
     port: number
@@ -110,8 +108,6 @@ export const store = reactive<AppState>({
   loginDialogTabId: '',
   loginDialogError: '',
   loginDialogInsertAfterTabId: '',
-  vaultDialogOpen: false,
-  vaultUnlocked: false,
   hostKeyPrompt: null,
   editingHostId: '',
   insertAfterTabId: '',

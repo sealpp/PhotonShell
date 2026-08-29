@@ -12,20 +12,13 @@ const VAULT_VERSION = 1
 const PROFILE_KEY_ALGORITHM = 'AES-KW'
 const VAULT_KEY_ALGORITHM = 'AES-GCM'
 const NONCE_BYTES = 12
-const PASSWORD_SALT_BYTES = 16
-const ARGON2_MEMORY_KIB = 64 * 1024
-const ARGON2_TIME_COST = 3
-const ARGON2_PARALLELISM = 1
-const VAULT_KEY_BYTES = 32
 const textEncoder = new TextEncoder()
 
 interface VaultMeta {
   key: typeof VAULT_META_KEY
   version: typeof VAULT_VERSION
-  profileKey?: CryptoKey
+  profileKey: CryptoKey
   profileWrappedVaultKey: string
-  passwordWrappedVaultKey?: string
-  passwordSalt?: string
 }
 
 export interface CredentialPayload {
@@ -34,41 +27,7 @@ export interface CredentialPayload {
   passphrase?: string
 }
 
-let meta: VaultMeta | undefined
-let activeVaultKey: CryptoKey | undefined
-let argon2Loader: Promise<Argon2Api> | undefined
-
-type Argon2Api = {
-  ArgonType: { Argon2id: number }
-  hash: (options: {
-    pass: string
-    salt: Uint8Array
-    time: number
-    mem: number
-    hashLen: number
-    parallelism: number
-    type: number
-  }) => Promise<{ hash: Uint8Array }>
-}
-
-function loadArgon2(): Promise<Argon2Api> {
-  const runtime = globalThis as typeof globalThis & { argon2?: Argon2Api; argon2WasmPath?: string }
-  runtime.argon2WasmPath = '/argon2.wasm'
-  if (runtime.argon2) return Promise.resolve(runtime.argon2)
-  if (argon2Loader) return argon2Loader
-  argon2Loader = new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = '/argon2-bundled.min.js'
-    script.async = true
-    script.onload = () => {
-      if (runtime.argon2) resolve(runtime.argon2)
-      else reject(new Error('Argon2 runtime did not load'))
-    }
-    script.onerror = () => reject(new Error('failed to load Argon2 runtime'))
-    document.head.appendChild(script)
-  })
-  return argon2Loader
-}
+let activeVaultKey!: CryptoKey
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = ''
@@ -131,29 +90,9 @@ async function unwrapVaultKey(wrapped: string, wrappingKey: CryptoKey): Promise<
   )
 }
 
-async function derivePasswordKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
-  const argon2 = await loadArgon2()
-  const result = await argon2.hash({
-    pass: password,
-    salt,
-    time: ARGON2_TIME_COST,
-    mem: ARGON2_MEMORY_KIB,
-    hashLen: VAULT_KEY_BYTES,
-    parallelism: ARGON2_PARALLELISM,
-    type: argon2.ArgonType.Argon2id,
-  })
-  return requireWebCrypto().subtle.importKey(
-    'raw',
-    arrayBuffer(result.hash),
-    { name: PROFILE_KEY_ALGORITHM },
-    false,
-    ['wrapKey', 'unwrapKey'],
-  )
-}
-
 export async function initializeVault(): Promise<void> {
   requireWebCrypto()
-  meta = await readMeta<VaultMeta>(VAULT_META_KEY)
+  let meta = await readMeta<VaultMeta>(VAULT_META_KEY)
   if (!meta) {
     const profileKey = await generateProfileKey()
     const vaultKey = await generateVaultKey()
@@ -173,66 +112,12 @@ export async function initializeVault(): Promise<void> {
   }
 
   if (!meta.profileKey) {
-    activeVaultKey = undefined
-    return
+    throw new Error('PWA vault profile key is missing')
   }
-  try {
-    activeVaultKey = await unwrapVaultKey(meta.profileWrappedVaultKey, meta.profileKey)
-  } catch {
-    activeVaultKey = undefined
-  }
-}
-
-export function isVaultUnlocked(): boolean {
-  return activeVaultKey !== undefined
-}
-
-export function hasMasterPassword(): boolean {
-  return Boolean(meta?.passwordWrappedVaultKey && meta.passwordSalt)
-}
-
-export async function setMasterPassword(password: string): Promise<void> {
-  if (password.length === 0) {
-    throw new Error('主密码不能为空')
-  }
-  if (!activeVaultKey || !meta) {
-    throw new Error('PWA vault 尚未解锁')
-  }
-
-  const salt = randomBytes(PASSWORD_SALT_BYTES)
-  const passwordKey = await derivePasswordKey(password, salt)
-  meta = {
-    ...meta,
-    passwordSalt: bytesToBase64(salt),
-    passwordWrappedVaultKey: await wrapVaultKey(activeVaultKey, passwordKey),
-  }
-  await saveMeta(meta)
-}
-
-export async function unlockWithMasterPassword(password: string): Promise<void> {
-  if (!meta?.passwordSalt || !meta.passwordWrappedVaultKey) {
-    throw new Error('尚未设置 PWA 主密码')
-  }
-
-  const passwordKey = await derivePasswordKey(password, base64ToBytes(meta.passwordSalt))
-  const vaultKey = await unwrapVaultKey(meta.passwordWrappedVaultKey, passwordKey)
-  activeVaultKey = vaultKey
-
-  if (!meta.profileKey) {
-    meta.profileKey = await generateProfileKey()
-  }
-  meta.profileWrappedVaultKey = await wrapVaultKey(vaultKey, meta.profileKey)
-  await saveMeta(meta)
-}
-
-export function lockVault(): void {
-  activeVaultKey = undefined
+  activeVaultKey = await unwrapVaultKey(meta.profileWrappedVaultKey, meta.profileKey)
 }
 
 export async function saveCredentialRecord(id: string, value: CredentialPayload): Promise<void> {
-  if (!activeVaultKey) {
-    throw new Error('PWA vault is locked')
-  }
   const nonce = randomBytes(NONCE_BYTES)
   const plaintext = textEncoder.encode(JSON.stringify(value))
   const ciphertext = await requireWebCrypto().subtle.encrypt(
@@ -254,9 +139,6 @@ export async function saveCredentialRecord(id: string, value: CredentialPayload)
 }
 
 export async function loadCredentialRecord(id: string): Promise<CredentialPayload | undefined> {
-  if (!activeVaultKey) {
-    throw new Error('PWA vault is locked')
-  }
   const record = await readCredential(id)
   if (!record) return undefined
   if (record.version !== VAULT_VERSION) {

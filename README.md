@@ -70,5 +70,5 @@ cd node
 - PhotonNode binds loopback only and rejects non-loopback listen addresses. The loopback boundary plus device challenge authentication are the security controls; there is no WebSocket Origin check.
 - SSH, RDP, X11, and other client protocol implementations belong in the PWA. Adding a protocol does not require a PhotonNode protocol update.
 - PhotonNode does not expose local files, local processes, TCP listeners, SOCKS, or reverse-connection capabilities.
-- The PWA vault uses AES-256-GCM records, a browser profile key for automatic unlock, and an Argon2id-WASM master-password wrapper.
+- The PWA vault uses AES-256-GCM records and a browser profile key for automatic unlock. Vault data is local to the browser profile; v0 has no export, backup, migration, or recovery path.
 - Tabs and layout are runtime state. Refreshing the PWA closes active transport streams; host profiles, credentials, and pairing identity remain in IndexedDB.

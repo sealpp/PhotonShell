@@ -7,7 +7,6 @@ import {
 } from './storage'
 import {
   initializeVault,
-  isVaultUnlocked,
   loadCredentialRecord,
 } from './vault'
 import {
@@ -33,7 +32,6 @@ export interface ExecResult {
 export async function initializePwa(): Promise<void> {
   await nodeClient.initializeIdentity()
   await initializeVault()
-  store.vaultUnlocked = isVaultUnlocked()
   store.hosts = await listStoredHosts()
 }
 
@@ -205,34 +203,39 @@ function openLoginDialog(host: HostProfile, error: string, tabId = '', insertAft
 }
 
 async function getSavedCredential(hostId: string): Promise<string | undefined> {
-  if (!store.vaultUnlocked) return undefined
-  try {
-    const saved = await loadCredentialRecord(hostId)
-    if (!saved) return undefined
-    return saved.password ?? ''
-  } catch {
-    return undefined
-  }
+  const saved = await loadCredentialRecord(hostId)
+  if (!saved) return undefined
+  return saved.password ?? ''
 }
 
 export async function connectHost(host: HostProfile, insertAfterTabId?: string): Promise<void> {
-  const credential = await getSavedCredential(host.id)
-  if (credential === undefined) {
-    openLoginDialog(host, '', '', insertAfterTabId)
-    return
+  try {
+    const credential = await getSavedCredential(host.id)
+    if (credential === undefined) {
+      openLoginDialog(host, '', '', insertAfterTabId)
+      return
+    }
+    addTab(host, credential, insertAfterTabId)
+  } catch (error) {
+    store.error = error instanceof Error ? error.message : String(error)
   }
-  addTab(host, credential, insertAfterTabId)
 }
 
 export async function connectHostForTab(tab: Tab): Promise<void> {
   const host = store.hosts.find((item) => item.id === tab.hostId)
   if (!host) return
-  const credential = await getSavedCredential(host.id)
-  if (credential === undefined) {
-    openLoginDialog(host, '', tab.id)
-    return
+  try {
+    const credential = await getSavedCredential(host.id)
+    if (credential === undefined) {
+      openLoginDialog(host, '', tab.id)
+      return
+    }
+    reconnectTab(tab, host, credential)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    store.error = message
+    updateTabState(tab.sessionId, 'error', message)
   }
-  reconnectTab(tab, host, credential)
 }
 
 async function startTab(tab: Tab, host: HostProfile, password: string, options?: AddTabOptions): Promise<void> {

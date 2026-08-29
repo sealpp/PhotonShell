@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { store } from '../stores/app'
-import { saveCredentialRecord, loadCredentialRecord } from '../services/vault'
+import { saveCredentialRecord } from '../services/vault'
 import { addTab, reconnectTab } from '../services/ws'
 import UiDialog from './UiDialog.vue'
 
 const password = ref('')
 const localError = ref('')
 const saving = ref(false)
-const pendingSave = ref(false)
 
 const host = () => store.hosts.find((h) => h.id === store.loginDialogHostId)
 
@@ -16,7 +15,6 @@ onMounted(() => {
   password.value = ''
   localError.value = store.loginDialogError
   saving.value = false
-  pendingSave.value = false
 })
 
 watch(
@@ -26,21 +24,6 @@ watch(
     password.value = ''
     localError.value = store.loginDialogError
     saving.value = false
-    pendingSave.value = false
-  },
-)
-
-watch(
-  () => store.vaultDialogOpen,
-  (open, previous) => {
-    if (previous && !open && pendingSave.value) {
-      pendingSave.value = false
-      if (store.vaultUnlocked) {
-        void save()
-      } else {
-        localError.value = 'PWA 凭据未解锁，密码未保存。'
-      }
-    }
   },
 )
 
@@ -54,29 +37,12 @@ async function save() {
   saving.value = true
   localError.value = ''
   try {
-    if (!store.vaultUnlocked) {
-      pendingSave.value = true
-      store.vaultDialogOpen = true
-      saving.value = false
-      return
-    }
     await saveCredentialRecord(h.id, { password: password.value })
-    // 验证保存成功
-    const saved = await loadCredentialRecord(h.id)
-    if (!saved || saved.password !== password.value) {
-      throw new Error('密码保存失败')
-    }
     saving.value = false
-    pendingSave.value = false
   } catch (reason) {
     saving.value = false
     const message = reason instanceof Error ? reason.message : String(reason)
-    if (message.includes('PWA vault is locked') || message.includes('vault')) {
-      pendingSave.value = true
-      store.vaultDialogOpen = true
-    } else {
-      localError.value = message
-    }
+    localError.value = message
   }
 }
 
@@ -105,7 +71,6 @@ function close() {
   store.loginDialogInsertAfterTabId = ''
   password.value = ''
   localError.value = ''
-  pendingSave.value = false
 }
 </script>
 

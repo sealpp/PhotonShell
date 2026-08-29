@@ -304,7 +304,6 @@ export class NodeClient {
     store.deviceId = this.identity?.deviceId ?? ''
     store.deviceName = this.identity?.deviceName ?? 'PhotonShell PWA'
     store.paired = Boolean(this.identity?.nodeId && this.identity?.nodePublicKey)
-    store.vaultUnlocked = false
   }
 
   async pair(pairingCode: string, callbacks: NodeCallbacks = {}): Promise<void> {

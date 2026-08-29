@@ -51,8 +51,8 @@ Listening on ws://127.0.0.1:17373, pairing code: 123456
 ```
 
 E2E 必须解析实际六位码，不要写死。Node 的当前开发后端使用内存 trust store；Windows
-正式后端使用当前用户 Credential Manager 保存节点身份和配对公钥。测试不设置
-`PHOTON_MASTER_PASSWORD` 或 `PHOTON_STATE_PATH`。
+正式后端使用当前用户 Credential Manager 保存节点身份和配对公钥。PWA vault 使用浏览器
+profile key 自动解锁，不需要额外的口令配置。
 
 ## mock SSH
 
@@ -79,7 +79,6 @@ Node generic exec。
 - 登录按钮：`page.getByRole('button', { name: '登录' })`
 - 密码输入：`input[type="password"]`
 - 主机指纹接受：`#host-key-accept`
-- PWA vault 主密码：`#vault-password`、`#vault-password-confirm`
 
 ## 遥测验收
 
@@ -90,7 +89,8 @@ Node generic exec。
 - 有 `[data-metric-id="process.count"][data-metric-kind="stat"]`。
 
 当前仪表盘使用 CSS gauge，不依赖 canvas。面板关闭、标签切换或 session 断开时必须停止
-polling；刷新后 host profile、凭据和设备身份保留，但活动 tab/stream 不恢复。
+polling；刷新后 host profile、凭据和设备身份保留，但活动 tab/stream 不恢复；刷新后重新连接
+应自动读取已保存凭据且不打开密码对话框。
 
 ## PWA WASM 资源
 
@@ -98,7 +98,6 @@ Vite 配置会从已锁定的 npm 依赖复制以下运行时资源到开发/构
 
 - `sshclient.wasm`
 - `wasm_exec.js`
-- `argon2-bundled.min.js`
 
 这些生成文件不提交。修改 `ws.ts`、`nodeClient.ts`、`ssh.ts`、`vault.ts` 或 Vite 配置后，
 刷新页面或重启 dev server 再跑 E2E，避免 HMR 使用旧的 WASM/模块状态。
