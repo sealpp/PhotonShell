@@ -152,6 +152,7 @@ export function addTab(host: HostProfile, password: string, insertAfterTabId?: s
   }
 
   if (insertAfterTabId) {
+    tab.afterTabId = insertAfterTabId
     const index = store.tabs.findIndex((item) => item.id === insertAfterTabId)
     if (index >= 0) store.tabs.splice(index + 1, 0, tab)
     else store.tabs.push(tab)
@@ -221,22 +222,6 @@ export async function connectHost(host: HostProfile, insertAfterTabId?: string):
   }
 }
 
-export async function connectHostForTab(tab: Tab): Promise<void> {
-  const host = store.hosts.find((item) => item.id === tab.hostId)
-  if (!host) return
-  try {
-    const credential = await getSavedCredential(host.id)
-    if (credential === undefined) {
-      openLoginDialog(host, '', tab.id)
-      return
-    }
-    reconnectTab(tab, host, credential)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    store.error = message
-    updateTabState(tab.sessionId, 'error', message)
-  }
-}
 
 async function startTab(tab: Tab, host: HostProfile, password: string, options?: AddTabOptions): Promise<void> {
   const { allowLoginDialog = true } = options ?? {}

@@ -36,6 +36,7 @@ export interface Tab {
   terminalId: string
   telemetry: Telemetry | null
   encoding: string
+  afterTabId?: string
 }
 
 export interface AppState {

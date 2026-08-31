@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { store } from '../stores/app'
-import { closeTab, connectHostForTab } from '../services/ws'
+import { closeTab, connectHost } from '../services/ws'
 import CommandContextMenu from '../components/CommandContextMenu.vue'
 import type { CommandContext } from '../services/context'
 import { TAB_MENU_ID } from '../services/tabCommands'
@@ -55,10 +55,11 @@ function tabContext(): CommandContext {
 
 function onDoubleClick() {
   if (!tabId.value) return
-  const reactiveTab = store.tabs.find((t) => t.id === tabId.value)
-  if (!reactiveTab) return
-  if (reactiveTab.state === 'online' || reactiveTab.state === 'connecting') return
-  void connectHostForTab(reactiveTab)
+  const sourceTab = store.tabs.find((t) => t.id === tabId.value)
+  if (!sourceTab) return
+  const host = store.hosts.find((h) => h.id === sourceTab.hostId)
+  if (!host) return
+  void connectHost(host, sourceTab.id)
 }
 </script>
 

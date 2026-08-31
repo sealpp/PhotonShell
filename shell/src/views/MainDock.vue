@@ -48,17 +48,29 @@ function onReady(event: DockviewReadyEvent) {
 }
 
 function addPanel(tab: Tab) {
-  if (!api.value) return
-  if (api.value.getPanel(tab.id)) return
+  const dockviewApi = api.value
+  if (!dockviewApi) return
+  if (dockviewApi.getPanel(tab.id)) return
   const host = store.hosts.find((h) => h.id === tab.hostId)
   const title = host ? (host.name ?? '') : tab.label || tab.id
-  api.value.addPanel({
+
+  const position = (() => {
+    if (!tab.afterTabId) return undefined
+    const refPanel = dockviewApi.getPanel(tab.afterTabId)
+    if (!refPanel) return undefined
+    const index = refPanel.api.group.panels.findIndex((p) => p.id === tab.afterTabId)
+    if (index === -1) return undefined
+    return { referencePanel: tab.afterTabId, direction: 'within' as const, index: index + 1 }
+  })()
+
+  dockviewApi.addPanel({
     id: tab.id,
     title,
     component: 'terminal',
     tabComponent: 'terminalTab',
     params: { tabId: tab.id },
     renderer: 'always',
+    position,
   })
 
   if (store.activeTabId === tab.id) {
