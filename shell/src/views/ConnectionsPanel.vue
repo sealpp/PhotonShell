@@ -95,7 +95,7 @@ function openConnect(host: typeof store.hosts[0]) {
           @click="onItemClick(h, $event)"
         >
           <div class="conn-info">
-            <div class="name">{{ h.address }}</div>
+            <div class="name">{{ h.name }}</div>
             <div class="meta">{{ h.username }} · {{ h.port }}</div>
           </div>
           <button type="button" class="conn-btn" title="连接" @click.stop="openConnect(h)">

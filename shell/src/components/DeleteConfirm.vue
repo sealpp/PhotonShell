@@ -36,7 +36,7 @@ function confirm() {
       这些主机已有打开的标签，删除配置不影响已打开的标签。
     </p>
     <ul class="host-list">
-      <li v-for="h in hostsToDelete" :key="h.id">{{ h.address }}</li>
+      <li v-for="h in hostsToDelete" :key="h.id">{{ h.name }}</li>
     </ul>
     <p class="hint">删除后不可恢复，是否继续？</p>
     <p v-if="store.error" class="error">{{ store.error }}</p>

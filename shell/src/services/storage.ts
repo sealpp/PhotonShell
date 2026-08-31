@@ -1,12 +1,9 @@
+import type { HostProfile } from '../stores/app'
+
 const DB_NAME = 'photon-shell'
 const DB_VERSION = 2
 
-export interface HostProfile {
-  id: string
-  address: string
-  port: number
-  username: string
-}
+export type { HostProfile } from '../stores/app'
 
 export interface StoredIdentity {
   key: 'identity'

@@ -82,15 +82,15 @@ function close() {
 <template>
   <UiDialog
     :open="true"
-    :title="host() ? `登录到 ${host()!.address}` : '登录'"
+    :title="host() ? `登录到 ${host()!.name || ''}` : '登录'"
     description="输入 SSH 密码以连接。"
     width="420px"
     @close="close"
   >
     <div v-if="host()" class="host-info">
       <div class="info-row">
-        <span class="info-label">地址</span>
-        <span class="info-value">{{ host()!.address }}</span>
+        <span class="info-label">名称</span>
+        <span class="info-value">{{ host()!.name }}</span>
       </div>
       <div class="info-row">
         <span class="info-label">端口</span>

@@ -6,12 +6,16 @@ import { saveCredentialRecord } from '../services/vault'
 import { randomId } from '../utils/id'
 import UiDialog from '../components/UiDialog.vue'
 
-const address = ref('127.0.0.1')
+const name = ref('')
+const address = ref('')
 const port = ref(22)
 const username = ref('root')
 const password = ref('')
 const localError = ref('')
 const saving = ref(false)
+const nameBlurred = ref(false)
+const addressTouched = ref(false)
+const syncing = ref(false)
 
 onMounted(init)
 
@@ -28,25 +32,68 @@ function init() {
 
   const h = store.hosts.find((host) => host.id === store.editingHostId)
   if (h) {
+    name.value = h.name ?? ''
     address.value = h.address
     port.value = h.port
     username.value = h.username
   } else {
-    address.value = '127.0.0.1'
+    name.value = ''
+    address.value = ''
     port.value = 22
     username.value = 'root'
   }
   password.value = ''
+  nameBlurred.value = false
+  addressTouched.value = false
+  syncing.value = false
+}
+
+function onNameInput() {
+  if (nameBlurred.value || addressTouched.value) return
+  if (!syncing.value && address.value === '') {
+    syncing.value = true
+  }
+  if (syncing.value) {
+    address.value = name.value
+  }
+}
+
+function onNameBlur() {
+  nameBlurred.value = true
+  syncing.value = false
+}
+
+function onAddressFocus() {
+  addressTouched.value = true
+  syncing.value = false
+}
+
+function onAddressInput() {
+  addressTouched.value = true
+  syncing.value = false
 }
 
 function hostFromForm(): HostProfile {
   const id = store.editingHostId || randomId()
   return {
     id,
+    name: name.value,
     address: address.value,
     port: port.value,
     username: username.value,
   }
+}
+
+function isValid(): boolean {
+  if (name.value.trim() === '') {
+    localError.value = '名称不能为空'
+    return false
+  }
+  if (address.value.trim() === '') {
+    localError.value = '地址不能为空'
+    return false
+  }
+  return true
 }
 
 async function saveCredential(id: string) {
@@ -57,8 +104,9 @@ async function saveCredential(id: string) {
 async function saveHost(): Promise<HostProfile | undefined> {
   localError.value = ''
   store.error = ''
-  saving.value = true
+  if (!isValid()) return
 
+  saving.value = true
   try {
     const host = hostFromForm()
     await createHost(host)
@@ -107,10 +155,28 @@ function close() {
     width="520px"
     @close="close"
   >
+    <div class="form-group">
+      <label for="host-name">名称</label>
+      <input
+        id="host-name"
+        v-model="name"
+        placeholder="名称"
+        required
+        @input="onNameInput"
+        @blur="onNameBlur"
+      />
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label for="host-address">地址</label>
-        <input id="host-address" v-model="address" placeholder="address" />
+        <input
+          id="host-address"
+          v-model="address"
+          placeholder="127.0.0.1"
+          required
+          @focus="onAddressFocus"
+          @input="onAddressInput"
+        />
       </div>
       <div class="form-group">
         <label for="host-port">端口</label>

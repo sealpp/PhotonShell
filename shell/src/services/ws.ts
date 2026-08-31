@@ -141,7 +141,7 @@ export function addTab(host: HostProfile, password: string, insertAfterTabId?: s
   const tab: Tab = {
     id: tabId,
     hostId: host.id,
-    label: host.address,
+    label: host.name ?? '',
     state: 'connecting',
     error: '',
     streamId: 0,

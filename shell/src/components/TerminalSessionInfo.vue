@@ -28,8 +28,8 @@ function close() {
   >
     <template v-if="tab">
       <div class="info-row">
-        <span class="info-label">地址</span>
-        <span class="info-value">{{ host?.address ?? '-' }}</span>
+        <span class="info-label">名称</span>
+        <span class="info-value">{{ host?.name }}</span>
       </div>
       <div class="info-row">
         <span class="info-label">端口</span>

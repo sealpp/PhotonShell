@@ -6,6 +6,7 @@ export type ShellState = 'idle' | 'connecting' | 'online' | 'error'
 
 export interface HostProfile {
   id: string
+  name?: string
   address: string
   port: number
   username: string

@@ -51,7 +51,7 @@ function addPanel(tab: Tab) {
   if (!api.value) return
   if (api.value.getPanel(tab.id)) return
   const host = store.hosts.find((h) => h.id === tab.hostId)
-  const title = host ? `${host.address}:${host.port}` : tab.label || tab.id
+  const title = host ? (host.name ?? '') : tab.label || tab.id
   api.value.addPanel({
     id: tab.id,
     title,
