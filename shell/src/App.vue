@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { store } from './stores/app'
 import { connect, initializePwa, setNodeDisconnectedHandler } from './services/ws'
+import { commandRegistry } from './services/commands'
 import { startTelemetryService } from './services/telemetry'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
@@ -196,6 +197,21 @@ function endResize(event?: PointerEvent) {
 
 let reconnectTimer: number | null = null
 
+function onGlobalKeydown(event: KeyboardEvent) {
+  if (!event.ctrlKey || event.repeat) return
+  if (event.key !== '`' && event.code !== 'Backquote') return
+  const target = event.target
+  if (
+    target instanceof HTMLInputElement ||
+    (target instanceof HTMLTextAreaElement && !target.closest('.shell-terminal'))
+  ) {
+    return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+  void commandRegistry.execute('terminal.newTab', { area: 'global', tabId: store.activeTabId })
+}
+
 function scheduleReconnect() {
   if (!store.paired || reconnectTimer !== null) return
   reconnectTimer = window.setTimeout(() => {
@@ -227,11 +243,13 @@ onMounted(async () => {
     store.error = error instanceof Error ? error.message : String(error)
   }
   startTelemetryService()
+  window.addEventListener('keydown', onGlobalKeydown, true)
 })
 
 onBeforeUnmount(() => {
   endResize()
   setNodeDisconnectedHandler(undefined)
+  window.removeEventListener('keydown', onGlobalKeydown, true)
   if (reconnectTimer !== null) {
     window.clearTimeout(reconnectTimer)
     reconnectTimer = null

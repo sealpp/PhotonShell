@@ -2,7 +2,7 @@ import type { Terminal } from '@xterm/xterm'
 import { commandRegistry, menuRegistry, type MenuEntry } from './commands'
 import type { CommandContext } from './context'
 import { store } from '../stores/app'
-import { closeTab } from './ws'
+import { closeTab, connectHost } from './ws'
 import { writeToClipboard, readFromClipboard } from '../utils/clipboard'
 import { getBufferText, getScreenText, getSelectedText } from '../utils/terminalText'
 
@@ -61,9 +61,9 @@ commandRegistry.register({
   execute: (ctx) => {
     const tab = getTab(ctx)
     if (!tab) return
-    store.editingHostId = tab.hostId
-    store.insertAfterTabId = tab.id
-    store.connectionModalOpen = true
+    const host = store.hosts.find((h) => h.id === tab.hostId)
+    if (!host) return
+    void connectHost(host, tab.id)
   },
 })
 
