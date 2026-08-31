@@ -6,6 +6,7 @@ import { addTab, reconnectTab } from '../services/ws'
 import UiDialog from './UiDialog.vue'
 
 const password = ref('')
+const rememberPassword = ref(false)
 const localError = ref('')
 const saving = ref(false)
 
@@ -13,6 +14,7 @@ const host = () => store.hosts.find((h) => h.id === store.loginDialogHostId)
 
 onMounted(() => {
   password.value = ''
+  rememberPassword.value = false
   localError.value = store.loginDialogError
   saving.value = false
 })
@@ -22,34 +24,35 @@ watch(
   (open) => {
     if (!open) return
     password.value = ''
+    rememberPassword.value = false
     localError.value = store.loginDialogError
     saving.value = false
   },
 )
 
-async function save() {
+async function login() {
   const h = host()
   if (!h) return
   if (!password.value) {
-    localError.value = '请输入要保存的密码'
+    localError.value = '请输入 SSH 密码'
     return
   }
-  saving.value = true
+
   localError.value = ''
+  store.loginDialogError = ''
+  saving.value = true
+
   try {
-    await saveCredentialRecord(h.id, { password: password.value })
+    if (rememberPassword.value) {
+      await saveCredentialRecord(h.id, { password: password.value })
+    }
     saving.value = false
   } catch (reason) {
     saving.value = false
     const message = reason instanceof Error ? reason.message : String(reason)
     localError.value = message
+    return
   }
-}
-
-function login() {
-  const h = host()
-  if (!h) return
-  localError.value = ''
 
   if (store.loginDialogTabId) {
     const tab = store.tabs.find((t) => t.id === store.loginDialogTabId)
@@ -70,7 +73,9 @@ function close() {
   store.loginDialogError = ''
   store.loginDialogInsertAfterTabId = ''
   password.value = ''
+  rememberPassword.value = false
   localError.value = ''
+  saving.value = false
 }
 </script>
 
@@ -109,6 +114,13 @@ function close() {
       />
     </div>
 
+    <div class="form-group remember">
+      <label class="checkbox">
+        <input v-model="rememberPassword" type="checkbox" />
+        <span>记住密码</span>
+      </label>
+    </div>
+
     <p v-if="localError || store.loginDialogError" class="error">
       {{ localError || store.loginDialogError }}
     </p>
@@ -123,18 +135,11 @@ function close() {
       </button>
       <button
         type="button"
-        class="workbench-dialog-button"
-        :disabled="saving"
-        @click="save"
-      >
-        {{ saving ? '保存中…' : '保存' }}
-      </button>
-      <button
-        type="button"
         class="workbench-dialog-button workbench-dialog-button--primary"
+        :disabled="saving"
         @click="login"
       >
-        登录
+        {{ saving ? '保存中…' : '登录' }}
       </button>
     </template>
   </UiDialog>
@@ -174,6 +179,24 @@ function close() {
   margin-bottom: var(--workbench-space-1);
   color: var(--workbench-text-muted);
   font-size: 12px;
+}
+
+.remember {
+  margin-bottom: 0;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--workbench-space-1);
+  color: var(--workbench-text, #cccccc);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.checkbox input {
+  width: auto;
+  margin: 0;
 }
 
 input {

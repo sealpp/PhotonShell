@@ -174,7 +174,7 @@ async function connectSshOnce(
         host: info.host,
         port: info.port,
         user: info.username,
-        password: info.password,
+        ...(info.password ? { password: info.password } : {}),
       },
       transport,
       {

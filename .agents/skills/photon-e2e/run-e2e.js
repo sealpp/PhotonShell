@@ -114,8 +114,6 @@ async function main() {
       await page.getByPlaceholder('username').fill('root');
       await page.locator('input[type="password"]').fill('test');
       const dialog = page.locator('.workbench-dialog-content');
-      await dialog.getByRole('button', { name: '保存', exact: true }).click();
-      await page.waitForFunction(() => document.querySelectorAll('.conn-item').length > 0);
       await dialog.getByRole('button', { name: '登录', exact: true }).click();
       try {
         const hostKeyAccept = page.locator('#host-key-accept');

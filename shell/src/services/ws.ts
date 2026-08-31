@@ -184,7 +184,7 @@ export function reconnectTab(tab: Tab, host: HostProfile, password: string, opti
   return reactiveTab
 }
 
-const AUTH_ERROR_PATTERN = /authentication|permission\s*denied|too\s*many\s*authentication|invalid\s*credentials/i
+const AUTH_ERROR_PATTERN = /authentication|authenticate|permission\s*denied|too\s*many\s*authentication|invalid\s*credentials|no\s+supported\s+methods\s+remain|no\s+remaining\s+authentication\s+methods/i
 
 function isAuthError(message: string): boolean {
   return AUTH_ERROR_PATTERN.test(message)
@@ -242,16 +242,12 @@ async function startTab(tab: Tab, host: HostProfile, password: string, options?:
   const { allowLoginDialog = true } = options ?? {}
   try {
     let credential = password
-    let loaded = false
     if (!credential) {
       const saved = await loadCredentialRecord(host.id)
       if (saved) {
         credential = saved.password ?? ''
-        loaded = true
       }
     }
-    if (!credential && !loaded) throw new Error('请输入 SSH 密码，或先保存凭据')
-
     const reactiveTab = store.tabs.find((item) => item.id === tab.id)
     if (!reactiveTab) throw new Error('tab not found in reactive store')
 

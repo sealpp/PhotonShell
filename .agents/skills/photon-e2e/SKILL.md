@@ -77,6 +77,8 @@ Node generic exec。
 - 取消按钮：`.workbench-dialog-button--default`
 - 新建连接：`.new-btn`
 - 登录按钮：`page.getByRole('button', { name: '登录' })`
+- 确认按钮（新建/编辑主机弹窗）：`page.getByRole('button', { name: '确认' })`
+- 记住密码勾选框：`input[type="checkbox"]`
 - 密码输入：`input[type="password"]`
 - 主机指纹接受：`#host-key-accept`
 
