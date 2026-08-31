@@ -151,12 +151,6 @@ function flushPendingResize() {
   resize(resizingSide.value, deltaX)
 }
 
-function scheduleFinalTerminalFit() {
-  requestAnimationFrame(() => {
-    window.dispatchEvent(new Event('photon:layout-resize-end'))
-  })
-}
-
 function startResize(side: ResizeSide, event: PointerEvent) {
   if (event.button !== 0 || resizingSide.value) return
 
@@ -198,8 +192,6 @@ function endResize(event?: PointerEvent) {
   if (target?.hasPointerCapture(pointerId)) {
     target.releasePointerCapture(pointerId)
   }
-
-  scheduleFinalTerminalFit()
 }
 
 let reconnectTimer: number | null = null

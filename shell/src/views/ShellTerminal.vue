@@ -15,14 +15,14 @@ import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps<{ tabId: string }>()
 
-const LAYOUT_RESIZE_END_EVENT = 'photon:layout-resize-end'
+const FIT_DEBOUNCE_MS = 100
 const BACKEND_RESIZE_DEBOUNCE_MS = 80
 
 const termEl = ref<HTMLDivElement | null>(null)
 let terminal: Terminal | null = null
 let fitAddon: FitAddon | null = null
 let resizeObserver: ResizeObserver | null = null
-let fitFrame: number | null = null
+let fitTimer: number | null = null
 let backendResizeTimer: number | null = null
 let pendingBackendResize: { terminalId: string; columns: number; rows: number } | null = null
 let decoder = new TextDecoder('utf-8', { fatal: false })
@@ -53,12 +53,14 @@ function fitAndResize() {
 }
 
 function scheduleFit() {
-  if (fitFrame !== null) return
+  if (fitTimer !== null) {
+    window.clearTimeout(fitTimer)
+  }
 
-  fitFrame = requestAnimationFrame(() => {
-    fitFrame = null
+  fitTimer = window.setTimeout(() => {
+    fitTimer = null
     fitAndResize()
-  })
+  }, FIT_DEBOUNCE_MS)
 }
 
 function flushBackendResize() {
@@ -83,12 +85,6 @@ function scheduleBackendResize(columns: number, rows: number) {
     window.clearTimeout(backendResizeTimer)
   }
   backendResizeTimer = window.setTimeout(flushBackendResize, BACKEND_RESIZE_DEBOUNCE_MS)
-}
-
-function onLayoutResizeEnd() {
-  if (isActive.value) {
-    scheduleFit()
-  }
 }
 
 function resetDecoder(encoding: string) {
@@ -162,7 +158,6 @@ function initTerminal() {
   fitAddon = new FitAddon()
   terminal.loadAddon(fitAddon)
   terminal.open(termEl.value)
-  window.addEventListener(LAYOUT_RESIZE_END_EVENT, onLayoutResizeEnd)
 
   terminal.onData((data: string) => {
     if (tab.value?.streamId) {
@@ -174,8 +169,9 @@ function initTerminal() {
     scheduleBackendResize(cols, rows)
   })
 
-  resizeObserver = new ResizeObserver(() => {
-    if (isActive.value) {
+  resizeObserver = new ResizeObserver((entries) => {
+    const rect = entries[0]?.contentRect
+    if (rect && rect.width > 0 && rect.height > 0) {
       scheduleFit()
     }
   })
@@ -234,14 +230,13 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
-  window.removeEventListener(LAYOUT_RESIZE_END_EVENT, onLayoutResizeEnd)
-  if (fitFrame !== null) {
-    cancelAnimationFrame(fitFrame)
+  if (fitTimer !== null) {
+    window.clearTimeout(fitTimer)
   }
   if (backendResizeTimer !== null) {
     window.clearTimeout(backendResizeTimer)
   }
-  fitFrame = null
+  fitTimer = null
   backendResizeTimer = null
   pendingBackendResize = null
   unwatchState.value?.()
