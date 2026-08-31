@@ -185,18 +185,41 @@ function close() {
   margin-bottom: 0;
 }
 
-.checkbox {
+.form-group label.checkbox {
   display: inline-flex;
   align-items: center;
-  gap: var(--workbench-space-1);
+  gap: var(--workbench-space-2);
   color: var(--workbench-text, #cccccc);
   font-size: 13px;
+  line-height: 1.25;
   cursor: pointer;
 }
 
 .checkbox input {
-  width: auto;
+  appearance: none;
+  width: 14px;
+  height: 14px;
   margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid var(--workbench-border, #555);
+  border-radius: 3px;
+  background: var(--workbench-input-bg, #1e1e1e);
+  cursor: pointer;
+}
+
+.checkbox input:checked {
+  background: var(--workbench-accent, #4aaaff) url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%20fill%3D%27none%27%20stroke%3D%27%23ffffff%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpolyline%20points%3D%273%208%206%2011%2013%204%27%2F%3E%3C%2Fsvg%3E") center/9px no-repeat;
+  border-color: var(--workbench-accent, #4aaaff);
+}
+
+.checkbox input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--workbench-accent, #4aaaff);
+}
+
+.checkbox span {
+  line-height: inherit;
 }
 
 input {
