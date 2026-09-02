@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Workbench Menu Harness</title>
+    <style>
+      html, body, #app { width: 100%; height: 100%; margin: 0; background: #111; }
+      .harness { min-height: 100%; display: flex; flex-direction: column; }
+      .harness-main { flex: 1; display: flex; min-height: 0; }
+      .activity { width: 48px; display: flex; flex-direction: column; background: #333; }
+      .activity-spacer { flex: 1; }
+      .statusbar { height: 24px; display: flex; align-items: center; background: #1e1e1e; }
+      .statusbar-left { color: #888; padding-left: 8px; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import { createApp, h } from 'vue'
+      import '/src/styles/workbench.css'
+      import WorkbenchMenu from '/src/components/WorkbenchMenu.vue'
+      import SettingsDialog from '/src/components/SettingsDialog.vue'
+      import AboutDialog from '/src/components/AboutDialog.vue'
+      import { store } from '/src/stores/app'
+
+      store.settingsModalOpen = false
+      store.aboutModalOpen = false
+
+      createApp({
+        render() {
+          return h('div', { class: 'harness' }, [
+            h('main', { class: 'harness-main' }, [
+              h('div', { class: 'activity' }, [
+                h('div', { class: 'activity-spacer' }),
+                h(WorkbenchMenu),
+              ]),
+            ]),
+            h('div', { class: 'statusbar' }, [
+              h('span', { class: 'statusbar-left' }, 'Node'),
+            ]),
+            h(SettingsDialog),
+            h(AboutDialog),
+          ])
+        },
+      }).mount('#app')
+    </script>
+  </body>
+</html>

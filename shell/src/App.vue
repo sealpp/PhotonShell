@@ -17,6 +17,9 @@ import ManualPasteDialog from './components/ManualPasteDialog.vue'
 import HostKeyPrompt from './components/HostKeyPrompt.vue'
 import { IconList } from '@tabler/icons-vue'
 import NodeStatusMenu from './components/NodeStatusMenu.vue'
+import WorkbenchMenu from './components/WorkbenchMenu.vue'
+import SettingsDialog from './components/SettingsDialog.vue'
+import AboutDialog from './components/AboutDialog.vue'
 
 type ResizeSide = 'left' | 'right'
 
@@ -278,6 +281,9 @@ onBeforeUnmount(() => {
           </div>
 
         </div>
+        <div class="activity-bottom">
+          <WorkbenchMenu />
+        </div>
       </div>
       <aside ref="sidebarEl" class="sidebar primary-sidebar" :class="{ collapsed: !sidebarVisible }">
         <PrimarySidebar />
@@ -335,6 +341,8 @@ onBeforeUnmount(() => {
     <ManualPasteDialog v-if="store.manualPaste?.open" />
     <HostKeyPrompt />
     <DeleteConfirm v-if="store.deleteConfirmOpen" />
+    <SettingsDialog v-if="store.settingsModalOpen" />
+    <AboutDialog v-if="store.aboutModalOpen" />
   </div>
 </template>
 
@@ -428,6 +436,13 @@ button, input {
   gap: 0;
   width: 100%;
   align-items: center;
+}
+
+.activity-bottom {
+  width: 100%;
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
 }
 
 .activity .icon {

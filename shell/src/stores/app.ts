@@ -60,6 +60,8 @@ export interface AppState {
   pairingModalOpen: boolean
   connectionModalOpen: boolean
   loginDialogOpen: boolean
+  settingsModalOpen: boolean
+  aboutModalOpen: boolean
   loginDialogHostId: string
   loginDialogTabId: string
   loginDialogError: string
@@ -106,6 +108,8 @@ export const store = reactive<AppState>({
   pairingModalOpen: false,
   connectionModalOpen: false,
   loginDialogOpen: false,
+  settingsModalOpen: false,
+  aboutModalOpen: false,
   loginDialogHostId: '',
   loginDialogTabId: '',
   loginDialogError: '',
