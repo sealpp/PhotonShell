@@ -4,6 +4,7 @@ import { store } from './stores/app'
 import { connect, initializePwa, setNodeDisconnectedHandler } from './services/ws'
 import { commandService, keybindingService, syncAppContext, ContextKeys } from './services/commands'
 import { startTelemetryService } from './services/telemetry'
+import { loadKeybindingPreferences } from './services/keybindingPreferences'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
 import LoginDialog from './components/LoginDialog.vue'
@@ -19,6 +20,7 @@ import { IconList } from '@tabler/icons-vue'
 import NodeStatusMenu from './components/NodeStatusMenu.vue'
 import WorkbenchMenu from './components/WorkbenchMenu.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
+import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog.vue'
 import AboutDialog from './components/AboutDialog.vue'
 
 type ResizeSide = 'left' | 'right'
@@ -208,6 +210,7 @@ const stopContextSync = watch(
     store.connectionModalOpen,
     store.loginDialogOpen,
     store.settingsModalOpen,
+    store.keyboardShortcutsModalOpen,
     store.aboutModalOpen,
   ],
   () => {
@@ -219,7 +222,7 @@ const stopContextSync = watch(
       [ContextKeys.panelOpen]: store.panelOpen,
       [ContextKeys.isPaired]: store.paired,
       [ContextKeys.nodeConnected]: store.nodeConnected,
-      [ContextKeys.modalOpen]: store.pairingModalOpen || store.connectionModalOpen || store.loginDialogOpen || store.settingsModalOpen || store.aboutModalOpen,
+      [ContextKeys.modalOpen]: store.pairingModalOpen || store.connectionModalOpen || store.loginDialogOpen || store.settingsModalOpen || store.keyboardShortcutsModalOpen || store.aboutModalOpen,
     })
   },
   { immediate: true },
@@ -247,6 +250,7 @@ onMounted(async () => {
   setNodeDisconnectedHandler(scheduleReconnect)
   try {
     await initializePwa()
+    await loadKeybindingPreferences()
     if (!store.paired) {
       store.pairingModalOpen = true
     } else {
@@ -356,6 +360,7 @@ onBeforeUnmount(() => {
     <HostKeyPrompt />
     <DeleteConfirm v-if="store.deleteConfirmOpen" />
     <SettingsDialog v-if="store.settingsModalOpen" />
+    <KeyboardShortcutsDialog v-if="store.keyboardShortcutsModalOpen" />
     <AboutDialog v-if="store.aboutModalOpen" />
   </div>
 </template>

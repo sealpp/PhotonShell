@@ -1,6 +1,6 @@
 import { CommandService, CommandRegistry } from './commandRegistry'
 import { ContextKeyService, contextKeyService } from './contextKeys'
-import { KeybindingRegistry, keybindingRegistry, parseKeyStroke, formatKeyStroke } from './keybindingRegistry'
+import { KeybindingRegistry, keybindingRegistry, parseKeyStroke, formatKeyStroke, keyStrokeFromKeyboardEvent } from './keybindingRegistry'
 import { commandRegistry, commandService, menuRegistry } from './instances'
 
 export {
@@ -12,6 +12,7 @@ export {
   commandService,
   contextKeyService,
   formatKeyStroke,
+  keyStrokeFromKeyboardEvent,
   keybindingRegistry,
   menuRegistry,
   parseKeyStroke,

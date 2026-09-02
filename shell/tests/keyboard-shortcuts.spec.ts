@@ -1,0 +1,43 @@
+import { test, expect } from '@playwright/test'
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('/tests/workbench-menu-harness.html')
+  await page.getByRole('button', { name: '设置和关于' }).click()
+  await page.getByRole('menuitem', { name: '键盘快捷键' }).click()
+})
+
+test('opens standalone keyboard shortcuts dialog with searchable command table', async ({ page }) => {
+  const dialog = page.getByRole('dialog', { name: '键盘快捷键' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('columnheader', { name: '命令 ID' })).toBeVisible()
+  await expect(dialog.getByRole('columnheader', { name: '类型' })).toBeVisible()
+  await expect(dialog.getByRole('columnheader', { name: '工作区' })).toHaveCount(0)
+  await expect(dialog.getByRole('columnheader', { name: '源' })).toHaveCount(0)
+
+  const search = dialog.getByRole('searchbox', { name: '搜索快捷键' })
+  await search.fill('新建终端')
+  await expect(dialog.locator('.keybindings-row').filter({ hasText: 'terminal.newTab' })).toHaveCount(1)
+  await expect(dialog.locator('.keybindings-row').filter({ hasText: 'host.new' })).toHaveCount(0)
+})
+
+test('records a shortcut and rejects conflicts', async ({ page }) => {
+  const dialog = page.getByRole('dialog', { name: '键盘快捷键' })
+  const row = dialog.locator('.keybindings-row').filter({ hasText: 'terminal.newTab' })
+  await row.getByRole('button', { name: /编辑 terminal.newTab 快捷键/ }).first().click()
+
+  const editor = page.getByRole('dialog', { name: '编辑快捷键组合' })
+  await expect(editor).toBeVisible()
+  await editor.locator('.keybinding-recorder').press('Control+Shift+N')
+  await expect(editor.locator('.keybinding-recorded-value')).toHaveText('Ctrl+Shift+N')
+  await editor.locator('.keybinding-recorder').press('Enter')
+  await expect(editor).toBeHidden()
+  await expect(row).toContainText('Ctrl+Shift+N')
+
+  const second = dialog.locator('.keybindings-row').filter({ hasText: 'terminal.copyScreen' })
+  await second.getByRole('button', { name: /编辑 terminal.copyScreen 快捷键/ }).first().click()
+  const secondEditor = page.getByRole('dialog', { name: '编辑快捷键组合' })
+  await secondEditor.locator('.keybinding-recorder').press('Control+Shift+N')
+  await expect(secondEditor).toContainText('请重新设置')
+  await secondEditor.locator('.keybinding-recorder').press('Enter')
+  await expect(secondEditor).toBeVisible()
+})

@@ -22,10 +22,12 @@
       import '/src/services/actions'
       import WorkbenchMenu from '/src/components/WorkbenchMenu.vue'
       import SettingsDialog from '/src/components/SettingsDialog.vue'
+      import KeyboardShortcutsDialog from '/src/components/KeyboardShortcutsDialog.vue'
       import AboutDialog from '/src/components/AboutDialog.vue'
       import { store } from '/src/stores/app'
 
       store.settingsModalOpen = false
+      store.keyboardShortcutsModalOpen = false
       store.aboutModalOpen = false
 
       createApp({
@@ -41,6 +43,7 @@
               h('span', { class: 'statusbar-left' }, 'Node'),
             ]),
             h(SettingsDialog),
+            h(KeyboardShortcutsDialog),
             h(AboutDialog),
           ])
         },
