@@ -53,6 +53,18 @@ export function parseKeyStroke(value: string | KeyStroke): KeyStroke {
   return { key: normalizeKey(key), modifiers }
 }
 
+export function keyStrokeFromKeyboardEvent(event: KeyboardEvent): KeyStroke | null {
+  if (event.isComposing || event.repeat) return null
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) return null
+  const modifiers: Array<'ctrl' | 'shift' | 'alt' | 'meta'> = []
+  if (event.ctrlKey) modifiers.push('ctrl')
+  if (event.shiftKey) modifiers.push('shift')
+  if (event.altKey) modifiers.push('alt')
+  if (event.metaKey) modifiers.push('meta')
+  if (!event.code) return null
+  return { key: normalizeKey(event.code), modifiers }
+}
+
 function effectiveModifier(modifier: 'ctrl' | 'shift' | 'alt' | 'meta' | 'mod'): 'ctrl' | 'shift' | 'alt' | 'meta' {
   if (modifier === 'mod') return isMac ? 'meta' : 'ctrl'
   return modifier
@@ -115,6 +127,7 @@ export class KeybindingRegistry {
   private readonly defaults: StoredBinding[] = []
   private overrides: StoredBinding[] = []
   private readonly overriddenCommands = new Set<string>()
+  private readonly disabledCommands = new Set<string>()
   private sequence = 0
   private readonly revision = ref(0)
   private readonly listeners = new Set<() => void>()
@@ -172,10 +185,70 @@ export class KeybindingRegistry {
   }
 
   resetOverrides(): void {
-    if (!this.overrides.length && !this.overriddenCommands.size) return
+    if (!this.overrides.length && !this.overriddenCommands.size && !this.disabledCommands.size) return
     this.overrides = []
     this.overriddenCommands.clear()
+    this.disabledCommands.clear()
     this.touch()
+  }
+
+  setDisabledCommands(commandIds: string[]): void {
+    const next = new Set(commandIds)
+    if (next.size === this.disabledCommands.size && [...next].every((id) => this.disabledCommands.has(id))) return
+    this.disabledCommands.clear()
+    next.forEach((id) => this.disabledCommands.add(id))
+    this.touch()
+  }
+
+  isDisabled(commandId: string): boolean {
+    void this.revision.value
+    return this.disabledCommands.has(commandId)
+  }
+
+  getDisabledCommands(): string[] {
+    void this.revision.value
+    return [...this.disabledCommands]
+  }
+
+  getDefaultBinding(commandId: string): ResolvedKeybinding | undefined {
+    void this.revision.value
+    return this.defaults.slice()
+      .filter((binding) => binding.commandId === commandId)
+      .sort((left, right) => right.weight - left.weight || left.sequence - right.sequence)
+      .map((binding) => this.toResolved(binding))[0]
+  }
+
+  getCurrentBinding(commandId: string): ResolvedKeybinding | undefined {
+    void this.revision.value
+    return this.effectiveBindings(commandId)
+      .sort((left, right) => right.weight - left.weight || right.sequence - left.sequence)
+      .map((binding) => this.toResolved(binding))[0]
+  }
+
+  getCurrentBindings(): ResolvedKeybinding[] {
+    void this.revision.value
+    const ids = new Set(this.defaults.map((binding) => binding.commandId))
+    this.overrides.forEach((binding) => ids.add(binding.commandId))
+    return [...ids].map((id) => this.getCurrentBinding(id)).filter((binding): binding is ResolvedKeybinding => !!binding)
+  }
+
+  getOverrideRules(): KeybindingOverrideRule[] {
+    void this.revision.value
+    const rules: KeybindingOverrideRule[] = []
+    for (const commandId of this.overriddenCommands) {
+      const binding = this.overrides.find((item) => item.commandId === commandId)
+      rules.push({ commandId, key: binding ? binding.stroke : null, when: binding?.when, weight: binding?.weight, args: binding?.args })
+    }
+    return rules
+  }
+
+  findConflicts(value: string | KeyStroke, commandId: string, includeDisabled = false): ResolvedKeybinding[] {
+    const stroke = parseKeyStroke(value)
+    return this.getCurrentBindings().filter((binding) =>
+      binding.commandId !== commandId
+      && (includeDisabled || !this.disabledCommands.has(binding.commandId))
+      && sameStroke(binding.stroke, stroke),
+    )
   }
 
   getBindings(commandId: string, ctx?: CommandContext): ResolvedKeybinding[] {
@@ -205,6 +278,7 @@ export class KeybindingRegistry {
 
   resolve(event: KeyboardEvent, ctx: CommandContext, contexts: ContextKeyService = contextKeyService): KeybindingMatch | null {
     const candidates = this.effectiveBindings()
+      .filter((binding) => !this.disabledCommands.has(binding.commandId))
       .filter((binding) => matchesStroke(event, binding.stroke))
       .filter((binding) => !binding.when || contexts.evaluate(binding.when, ctx))
       .sort((left, right) => right.weight - left.weight || right.sequence - left.sequence)
@@ -222,6 +296,18 @@ export class KeybindingRegistry {
   private touch(): void {
     this.revision.value++
     this.listeners.forEach((listener) => listener())
+  }
+
+  private toResolved(binding: StoredBinding): ResolvedKeybinding {
+    return {
+      commandId: binding.commandId,
+      stroke: binding.stroke,
+      label: formatKeyStroke(binding.stroke),
+      args: binding.args,
+      when: binding.when,
+      weight: binding.weight,
+      source: binding.source,
+    }
   }
 
   private warnConflicts(): void {

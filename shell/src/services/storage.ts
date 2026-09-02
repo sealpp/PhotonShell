@@ -30,6 +30,13 @@ export interface KnownHostRecord {
   fingerprint: string
 }
 
+export interface KeybindingPreferences {
+  key: 'keybindingPreferences'
+  version: 1
+  overrides: Array<{ commandId: string; key: string | null }>
+  disabled: string[]
+}
+
 let database: Promise<IDBDatabase> | undefined
 
 function openDatabase(): Promise<IDBDatabase> {

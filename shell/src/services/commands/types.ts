@@ -6,6 +6,7 @@ export type CommandPredicate = (ctx: CommandContext) => boolean
 export type CommandHandler = (ctx: CommandContext, ...args: unknown[]) => void | Promise<void>
 export type WhenClause = string
 export type Condition = WhenClause | CommandPredicate
+export type CommandCategory = 'terminal' | 'workbench'
 
 export interface KeyStroke {
   key: string
@@ -52,6 +53,8 @@ export interface SubmenuContribution {
 export interface ActionDescriptor {
   id: string
   title: CommandLabel
+  description?: string
+  category?: CommandCategory
   icon?: Component
   when?: Condition
   enablement?: Condition
