@@ -13,6 +13,8 @@ test('opens standalone keyboard shortcuts dialog with searchable command table',
   await expect(dialog.getByRole('columnheader', { name: '类型' })).toBeVisible()
   await expect(dialog.getByRole('columnheader', { name: '工作区' })).toHaveCount(0)
   await expect(dialog.getByRole('columnheader', { name: '源' })).toHaveCount(0)
+  await expect(dialog.locator('.keybindings-info')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '全部恢复系统默认' })).toBeVisible()
 
   const search = dialog.getByRole('searchbox', { name: '搜索快捷键' })
   await search.fill('新建终端')

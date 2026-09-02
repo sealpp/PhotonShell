@@ -150,13 +150,20 @@ function bindingLabel(binding: ResolvedKeybinding | undefined): string {
     content-class="keybindings-dialog-content"
     @close="close"
   >
+    <div class="keybindings-info" role="note">
+      <p>1. 建议使用 Chrome 浏览器，以更流畅地使用快捷键功能。</p>
+      <p>2. 当前显示的快捷键为 PhotonShell 内置功能快捷键，可能会被浏览器、系统应用或其他组件占用。</p>
+      <p>3. 快捷键只在对应功能上下文中生效，例如终端命令需要终端处于可用状态。</p>
+      <p>4. 如果某个快捷键不生效但不影响正常使用，可暂时忽略；也可以重新设置或关闭它。</p>
+    </div>
     <div class="keybindings-toolbar">
       <label class="keybindings-search">
         <IconSearch :size="16" aria-hidden="true" />
         <input v-model="search" type="search" placeholder="按关键词搜索快捷键，如 AI命令助手、ctrl、关闭、toggle" aria-label="搜索快捷键" />
       </label>
-      <button type="button" class="keybindings-icon-button" aria-label="全部恢复系统默认" title="全部恢复系统默认" @click="resetAllOpen = true">
+      <button type="button" class="keybindings-reset-button" aria-label="全部恢复系统默认" title="全部恢复系统默认" @click="resetAllOpen = true">
         <IconRefresh :size="18" aria-hidden="true" />
+        <span>重置</span>
       </button>
     </div>
 
