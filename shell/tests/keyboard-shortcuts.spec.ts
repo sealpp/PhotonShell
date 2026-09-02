@@ -41,3 +41,16 @@ test('records a shortcut and rejects conflicts', async ({ page }) => {
   await secondEditor.locator('.keybinding-recorder').press('Enter')
   await expect(secondEditor).toBeVisible()
 })
+
+test('keeps the floating editor within a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 })
+  await page.goto('/tests/workbench-menu-harness.html')
+  await page.getByRole('button', { name: '设置和关于' }).click()
+  await page.getByRole('menuitem', { name: '键盘快捷键' }).click()
+  const dialog = page.getByRole('dialog', { name: '键盘快捷键' })
+  const box = await dialog.boundingBox()
+  expect(box).not.toBeNull()
+  expect(box!.width).toBeLessThanOrEqual(375 * 0.9)
+  expect(box!.height).toBeLessThanOrEqual(667 * 0.9)
+  await expect(dialog.locator('.keybindings-table-wrap')).toHaveCSS('overflow', 'auto')
+})
