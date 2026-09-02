@@ -41,6 +41,8 @@ registerSubmenu({ id: MenuId.TerminalCharset, title: '字符集', parentMenuId: 
 registerAction({
   id: 'terminal.newTab',
   title: '新建终端',
+  description: '为当前主机新建终端标签',
+  category: 'terminal',
   when: 'tabExists',
   run: (ctx) => {
     const tab = getTab(ctx)
@@ -55,6 +57,8 @@ registerAction({
 registerAction({
   id: 'terminal.copySelected',
   title: '复制选中文本',
+  description: '复制终端中选中的文本',
+  category: 'terminal',
   when: 'area == "terminal"',
   enablement: 'hasSelection == true',
   run: async (ctx) => {
@@ -69,6 +73,8 @@ registerAction({
 registerAction({
   id: 'terminal.copyScreen',
   title: '复制当前屏幕',
+  description: '复制终端当前屏幕文本',
+  category: 'terminal',
   when: 'area == "terminal"',
   run: async (ctx) => {
     const terminal = getTerminal(ctx)
@@ -82,6 +88,8 @@ registerAction({
 registerAction({
   id: 'terminal.copyBuffer',
   title: '复制屏幕缓冲区',
+  description: '复制终端屏幕缓冲区文本',
+  category: 'terminal',
   when: 'area == "terminal"',
   run: async (ctx) => {
     const terminal = getTerminal(ctx)
@@ -95,6 +103,8 @@ registerAction({
 registerAction({
   id: 'terminal.pasteFromClipboard',
   title: '粘贴',
+  description: '将剪贴板文本粘贴到终端',
+  category: 'terminal',
   when: 'area == "terminal"',
   enablement: 'isOnline == true',
   run: async (ctx) => {
@@ -110,6 +120,8 @@ registerAction({
 registerAction({
   id: 'terminal.pasteManual',
   title: '手动粘贴...',
+  description: '手动编辑后粘贴文本到终端',
+  category: 'terminal',
   when: 'area == "terminal"',
   enablement: 'isOnline == true',
   run: (ctx) => {
@@ -125,6 +137,8 @@ for (const locale of encodingLocales) {
     registerAction({
       id: `terminal.charset.${locale.id}.${enc}`,
       title: encodingLabels[enc] ?? enc,
+      description: `将终端字符集切换为 ${encodingLabels[enc] ?? enc}`,
+      category: 'terminal',
       when: 'area == "terminal"',
       enablement: 'tabExists',
       checked: (ctx) => ctx.tabEncoding === enc,
@@ -140,6 +154,8 @@ for (const locale of encodingLocales) {
 registerAction({
   id: 'terminal.sessionInfo',
   title: '终端会话信息',
+  description: '查看当前终端会话信息',
+  category: 'terminal',
   when: 'area == "terminal"',
   enablement: 'tabExists',
   run: (ctx) => {
@@ -151,6 +167,8 @@ registerAction({
 registerAction({
   id: 'terminal.disconnect',
   title: '断开连接',
+  description: '断开当前终端连接',
+  category: 'terminal',
   when: 'area == "terminal"',
   enablement: 'tabExists',
   run: (ctx) => {

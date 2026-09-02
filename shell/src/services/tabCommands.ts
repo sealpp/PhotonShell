@@ -20,6 +20,8 @@ function getTargetIndex(ctx: CommandContext, ids: string[]): number {
 registerAction({
   id: 'tab.close',
   title: '关闭',
+  description: '关闭当前终端标签',
+  category: 'workbench',
   when: 'area == "tab"',
   enablement: (ctx) => !!getTab(ctx),
   run: (ctx) => {
@@ -31,6 +33,8 @@ registerAction({
 registerAction({
   id: 'tab.closeOthers',
   title: '关闭其他',
+  description: '关闭当前标签组中的其他标签',
+  category: 'workbench',
   when: 'area == "tab"',
   enablement: (ctx) => {
     const ids = getGroupTabIds(ctx)
@@ -46,6 +50,8 @@ registerAction({
 registerAction({
   id: 'tab.closeToRight',
   title: '关闭右侧',
+  description: '关闭当前标签右侧的标签',
+  category: 'workbench',
   when: 'area == "tab"',
   enablement: (ctx) => {
     const ids = getGroupTabIds(ctx)
@@ -63,6 +69,8 @@ registerAction({
 registerAction({
   id: 'tab.closeAll',
   title: '关闭全部',
+  description: '关闭当前标签组的全部标签',
+  category: 'workbench',
   when: 'area == "tab"',
   enablement: (ctx) => getGroupTabIds(ctx).length > 0 && !!getTab(ctx),
   run: (ctx) => closeTabs(getGroupTabIds(ctx)),
@@ -72,6 +80,8 @@ registerAction({
 registerAction({
   id: 'tab.editHost',
   title: '编辑主机',
+  description: '编辑当前标签对应的主机配置',
+  category: 'workbench',
   when: (ctx) => {
     const tab = getTab(ctx)
     return !!tab && store.hosts.some((host) => host.id === tab.hostId)

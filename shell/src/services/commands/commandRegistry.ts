@@ -20,7 +20,7 @@ function normalizeCommand(command: Command): RegisteredCommand {
   return {
     id: legacy.id,
     title: legacy.label,
-    description: typeof legacy.label === 'string' ? legacy.label : undefined,
+    description: typeof legacy.label === 'string' ? legacy.label : legacy.id,
     category: 'workbench',
     icon: legacy.icon,
     legacyShortcut: legacy.shortcut,

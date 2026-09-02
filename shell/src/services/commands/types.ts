@@ -53,8 +53,8 @@ export interface SubmenuContribution {
 export interface ActionDescriptor {
   id: string
   title: CommandLabel
-  description?: string
-  category?: CommandCategory
+  description: string
+  category: CommandCategory
   icon?: Component
   when?: Condition
   enablement?: Condition

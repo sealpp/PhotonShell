@@ -5,6 +5,8 @@ import { MenuId } from './actions/menuIds'
 registerAction({
   id: 'workbench.openSettings',
   title: '设置',
+  description: '打开设置',
+  category: 'workbench',
   run: () => {
     store.aboutModalOpen = false
     store.settingsModalOpen = true
@@ -15,6 +17,8 @@ registerAction({
 registerAction({
   id: 'workbench.openAbout',
   title: '关于',
+  description: '查看 PhotonShell 信息',
+  category: 'workbench',
   run: () => {
     store.settingsModalOpen = false
     store.aboutModalOpen = true
@@ -27,6 +31,8 @@ menuRegistry.appendSeparator(MenuId.Workbench, 'workbench.settings-separator', '
 registerAction({
   id: 'workbench.toggleConnections',
   title: '当前连接',
+  description: '显示或隐藏当前连接侧栏',
+  category: 'workbench',
   checked: 'sidebarOpen',
   run: () => {
     if (store.sidebarOpen && store.sidebarView === 'connections') store.sidebarOpen = false
@@ -40,6 +46,8 @@ registerAction({
 registerAction({
   id: 'workbench.togglePanel',
   title: '系统监控',
+  description: '显示或隐藏系统监控面板',
+  category: 'workbench',
   checked: 'panelOpen',
   run: () => {
     store.panelOpen = !store.panelOpen
