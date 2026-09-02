@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { DropdownMenuItem, DropdownMenuLabel } from 'reka-ui'
-import UiDropdownMenu from './UiDropdownMenu.vue'
+import { DropdownMenuLabel } from 'reka-ui'
+import CommandDropdownMenu from './CommandDropdownMenu.vue'
 import { store } from '../stores/app'
-import { menuRegistry } from '../services/commands'
-import { NODE_MENU_ID } from '../services/nodeCommands'
+import { MenuId } from '../services/actions/menuIds'
+import type { CommandContext } from '../services/context'
 import { wsUrl } from '../services/ws'
 
 const nodeHost = computed(() => {
@@ -23,19 +23,21 @@ const nodeStatus = computed(() => {
   return store.nodeConnected ? 'connected' : 'disconnected'
 })
 
-const items = computed(() => menuRegistry.resolve(NODE_MENU_ID, {
+const nodeContext = computed<CommandContext>(() => ({
   area: 'node',
   isPaired: store.paired,
 }))
-
-function execute(item: typeof items.value[number]) {
-  if (item.disabled || !item.action) return
-  void item.action()
-}
 </script>
 
 <template>
-  <UiDropdownMenu content-class="node-menu" side="top" align="start">
+  <CommandDropdownMenu
+    :menu-id="MenuId.NodeStatus"
+    :context="nodeContext"
+    content-class="node-menu"
+    side="top"
+    align="start"
+    item-class="menu-item"
+  >
     <template #trigger>
       <button
         type="button"
@@ -49,19 +51,9 @@ function execute(item: typeof items.value[number]) {
       </button>
     </template>
 
-    <DropdownMenuLabel class="menu-header">Node 操作</DropdownMenuLabel>
-    <DropdownMenuItem
-      v-for="item in items"
-      :key="item.id"
-      class="menu-item"
-      :disabled="item.disabled"
-      @select="execute(item)"
-    >
-      <component :is="item.icon" v-if="item.icon" :size="16" />
-      <span class="label">{{ item.label }}</span>
-    </DropdownMenuItem>
-    <DropdownMenuLabel class="menu-footer">{{ wsUrl() }}</DropdownMenuLabel>
-  </UiDropdownMenu>
+    <template #before><DropdownMenuLabel class="menu-header">Node 操作</DropdownMenuLabel></template>
+    <template #after><DropdownMenuLabel class="menu-footer">{{ wsUrl() }}</DropdownMenuLabel></template>
+  </CommandDropdownMenu>
 </template>
 
 <style scoped>

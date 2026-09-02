@@ -1,37 +1,18 @@
 import type { Terminal } from '@xterm/xterm'
-import { commandRegistry, menuRegistry, type MenuEntry } from './commands'
-import type { CommandContext } from './context'
 import { store } from '../stores/app'
 import { closeTab, connectHost } from './ws'
 import { writeToClipboard, readFromClipboard } from '../utils/clipboard'
 import { getBufferText, getScreenText, getSelectedText } from '../utils/terminalText'
+import type { CommandContext } from './context'
+import { registerAction, registerSubmenu } from './commands'
+import { MenuId } from './actions/menuIds'
 
 const encodingLocales = [
-  {
-    id: 'en_US',
-    label: 'English(en_US)',
-    encodings: ['utf-8', 'us-ascii', 'iso-8859-15', 'iso-8859-1'],
-  },
-  {
-    id: 'zh_CN',
-    label: '简体中文(zh_CN)',
-    encodings: ['utf-8', 'gb18030', 'gbk', 'gb2312'],
-  },
-  {
-    id: 'zh_TW',
-    label: '繁體中文(zh_TW)',
-    encodings: ['utf-8', 'big5'],
-  },
-  {
-    id: 'c',
-    label: 'C',
-    encodings: ['us-ascii'],
-  },
-  {
-    id: 'posix',
-    label: 'POSIX',
-    encodings: ['us-ascii'],
-  },
+  { id: 'en_US', label: 'English(en_US)', encodings: ['utf-8', 'us-ascii', 'iso-8859-15', 'iso-8859-1'] },
+  { id: 'zh_CN', label: '简体中文(zh_CN)', encodings: ['utf-8', 'gb18030', 'gbk', 'gb2312'] },
+  { id: 'zh_TW', label: '繁體中文(zh_TW)', encodings: ['utf-8', 'big5'] },
+  { id: 'c', label: 'C', encodings: ['us-ascii'] },
+  { id: 'posix', label: 'POSIX', encodings: ['us-ascii'] },
 ]
 
 const encodingLabels: Record<string, string> = {
@@ -39,174 +20,143 @@ const encodingLabels: Record<string, string> = {
   'us-ascii': 'US-ASCII',
   'iso-8859-15': 'ISO-8859-15',
   'iso-8859-1': 'ISO-8859-1',
-  'gb18030': 'GB18030',
-  'gbk': 'GBK',
-  'gb2312': 'GB2312',
-  'big5': 'Big5',
+  gb18030: 'GB18030',
+  gbk: 'GBK',
+  gb2312: 'GB2312',
+  big5: 'Big5',
 }
 
 function getTab(ctx: CommandContext) {
-  return store.tabs.find((t) => t.id === ctx.tabId)
+  return store.tabs.find((tab) => tab.id === ctx.tabId)
 }
 
 function getTerminal(ctx: CommandContext): Terminal | undefined {
   return ctx.terminal
 }
 
-commandRegistry.register({
+registerSubmenu({ id: MenuId.TerminalCopy, title: '复制', parentMenuId: MenuId.TerminalContext, order: 20 })
+registerSubmenu({ id: MenuId.TerminalPaste, title: '粘贴', parentMenuId: MenuId.TerminalContext, order: 30 })
+registerSubmenu({ id: MenuId.TerminalCharset, title: '字符集', parentMenuId: MenuId.TerminalContext, order: 40 })
+
+registerAction({
   id: 'terminal.newTab',
-  label: '新建终端',
-  shortcut: 'Ctrl+`',
-  enabled: (ctx) => !!getTab(ctx),
-  execute: (ctx) => {
+  title: '新建终端',
+  when: 'tabExists',
+  run: (ctx) => {
     const tab = getTab(ctx)
     if (!tab) return
-    const host = store.hosts.find((h) => h.id === tab.hostId)
-    if (!host) return
-    void connectHost(host, tab.id)
+    const host = store.hosts.find((item) => item.id === tab.hostId)
+    if (host) void connectHost(host, tab.id)
   },
+  keybindings: [{ key: 'Mod+Backquote' }],
+  menus: [{ menuId: MenuId.TerminalContext, order: 10 }],
 })
 
-commandRegistry.register({
+registerAction({
   id: 'terminal.copySelected',
-  label: '复制选中文本',
-  enabled: (ctx) => ctx.hasSelection === true,
-  execute: async (ctx) => {
+  title: '复制选中文本',
+  when: 'area == "terminal"',
+  enablement: 'hasSelection == true',
+  run: async (ctx) => {
     const terminal = getTerminal(ctx)
     if (!terminal) return
     const text = getSelectedText(terminal)
     if (text) await writeToClipboard(text)
   },
+  menus: [{ menuId: MenuId.TerminalCopy, order: 10 }],
 })
 
-commandRegistry.register({
+registerAction({
   id: 'terminal.copyScreen',
-  label: '复制当前屏幕',
-  execute: async (ctx) => {
+  title: '复制当前屏幕',
+  when: 'area == "terminal"',
+  run: async (ctx) => {
     const terminal = getTerminal(ctx)
     if (!terminal) return
     const text = getScreenText(terminal)
     if (text) await writeToClipboard(text)
   },
+  menus: [{ menuId: MenuId.TerminalCopy, order: 20 }],
 })
 
-commandRegistry.register({
+registerAction({
   id: 'terminal.copyBuffer',
-  label: '复制屏幕缓冲区',
-  execute: async (ctx) => {
+  title: '复制屏幕缓冲区',
+  when: 'area == "terminal"',
+  run: async (ctx) => {
     const terminal = getTerminal(ctx)
     if (!terminal) return
     const text = getBufferText(terminal)
     if (text) await writeToClipboard(text)
   },
+  menus: [{ menuId: MenuId.TerminalCopy, order: 30 }],
 })
 
-commandRegistry.register({
+registerAction({
   id: 'terminal.pasteFromClipboard',
-  label: '粘贴',
-  enabled: (ctx) => ctx.isOnline === true,
-  execute: async (ctx) => {
+  title: '粘贴',
+  when: 'area == "terminal"',
+  enablement: 'isOnline == true',
+  run: async (ctx) => {
     const terminal = getTerminal(ctx)
     if (!terminal) return
     const text = await readFromClipboard()
-    if (text !== null) {
-      terminal.paste(text)
-    } else {
-      store.manualPaste = {
-        open: true,
-        tabId: ctx.tabId ?? '',
-        context: { ...ctx },
-      }
-    }
+    if (text !== null) terminal.paste(text)
+    else store.manualPaste = { open: true, tabId: ctx.tabId ?? '', context: { ...ctx } }
   },
+  menus: [{ menuId: MenuId.TerminalPaste, order: 10 }],
 })
 
-commandRegistry.register({
+registerAction({
   id: 'terminal.pasteManual',
-  label: '手动粘贴...',
-  enabled: (ctx) => ctx.isOnline === true,
-  execute: (ctx) => {
-    store.manualPaste = {
-      open: true,
-      tabId: ctx.tabId ?? '',
-      context: { ...ctx },
-    }
+  title: '手动粘贴...',
+  when: 'area == "terminal"',
+  enablement: 'isOnline == true',
+  run: (ctx) => {
+    store.manualPaste = { open: true, tabId: ctx.tabId ?? '', context: { ...ctx } }
   },
+  menus: [{ menuId: MenuId.TerminalPaste, order: 20 }],
 })
 
 for (const locale of encodingLocales) {
+  const submenuId = `terminal.charset.${locale.id}`
+  registerSubmenu({ id: submenuId, title: locale.label, parentMenuId: MenuId.TerminalCharset, order: encodingLocales.indexOf(locale) })
   for (const enc of locale.encodings) {
-    commandRegistry.register({
+    registerAction({
       id: `terminal.charset.${locale.id}.${enc}`,
-      label: encodingLabels[enc] ?? enc,
+      title: encodingLabels[enc] ?? enc,
+      when: 'area == "terminal"',
+      enablement: 'tabExists',
       checked: (ctx) => ctx.tabEncoding === enc,
-      enabled: (ctx) => !!getTab(ctx),
-      execute: (ctx) => {
+      run: (ctx) => {
         const tab = getTab(ctx)
         if (tab) tab.encoding = enc
       },
+      menus: [{ menuId: submenuId, order: locale.encodings.indexOf(enc) }],
     })
   }
 }
 
-commandRegistry.register({
+registerAction({
   id: 'terminal.sessionInfo',
-  label: '终端会话信息',
-  enabled: (ctx) => !!getTab(ctx),
-  execute: (ctx) => {
-    if (!ctx.tabId) return
-    store.terminalSessionInfo = { open: true, tabId: ctx.tabId }
+  title: '终端会话信息',
+  when: 'area == "terminal"',
+  enablement: 'tabExists',
+  run: (ctx) => {
+    if (ctx.tabId) store.terminalSessionInfo = { open: true, tabId: ctx.tabId }
   },
+  menus: [{ menuId: MenuId.TerminalContext, order: 50 }],
 })
 
-commandRegistry.register({
+registerAction({
   id: 'terminal.disconnect',
-  label: '断开连接',
-  enabled: (ctx) => !!getTab(ctx),
-  execute: (ctx) => {
+  title: '断开连接',
+  when: 'area == "terminal"',
+  enablement: 'tabExists',
+  run: (ctx) => {
     if (ctx.tabId) closeTab(ctx.tabId)
   },
+  menus: [{ menuId: MenuId.TerminalContext, order: 60 }],
 })
 
-const charsetEntries: MenuEntry[] = encodingLocales.map((locale) => ({
-  kind: 'submenu',
-  id: `terminal.charset.${locale.id}`,
-  label: locale.label,
-  items: locale.encodings.map((enc) => ({
-    kind: 'command',
-    commandId: `terminal.charset.${locale.id}.${enc}`,
-  })),
-}))
-
-export const TERMINAL_MENU_ID = 'terminal.context'
-
-menuRegistry.register(TERMINAL_MENU_ID, [
-  { kind: 'command', commandId: 'terminal.newTab' },
-  {
-    kind: 'submenu',
-    id: 'terminal.copy',
-    label: '复制',
-    items: [
-      { kind: 'command', commandId: 'terminal.copySelected' },
-      { kind: 'command', commandId: 'terminal.copyScreen' },
-      { kind: 'command', commandId: 'terminal.copyBuffer' },
-    ],
-  },
-  {
-    kind: 'submenu',
-    id: 'terminal.paste',
-    label: '粘贴',
-    items: [
-      { kind: 'command', commandId: 'terminal.pasteFromClipboard' },
-      { kind: 'command', commandId: 'terminal.pasteManual' },
-    ],
-  },
-  {
-    kind: 'submenu',
-    id: 'terminal.charset',
-    label: '字符集',
-    items: charsetEntries,
-  },
-  { kind: 'command', commandId: 'terminal.sessionInfo' },
-  { kind: 'command', commandId: 'terminal.disconnect' },
-])
+export { TERMINAL_MENU_ID } from './actions/menuIds'

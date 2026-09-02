@@ -1,41 +1,37 @@
 import { IconCopy, IconLinkOff, IconPlug } from '@tabler/icons-vue'
-import { commandRegistry, menuRegistry } from './commands'
-import { disconnectNode, wsUrl } from './ws'
 import { store } from '../stores/app'
+import { disconnectNode, wsUrl } from './ws'
 import { writeToClipboard } from '../utils/clipboard'
+import { registerAction } from './commands'
+import { MenuId } from './actions/menuIds'
 
-commandRegistry.register({
+registerAction({
   id: 'node.pair',
-  label: (ctx) => ctx.isPaired ? '重新配对' : '配对',
+  title: (ctx) => ctx.isPaired ? '重新配对' : '配对',
   icon: IconPlug,
-  execute: () => {
+  run: () => {
     store.pairingModalOpen = true
   },
+  menus: [{ menuId: MenuId.NodeStatus, order: 10 }],
 })
 
-commandRegistry.register({
+registerAction({
   id: 'node.disconnect',
-  label: '断开当前 Node 连接',
+  title: '断开当前 Node 连接',
   icon: IconLinkOff,
-  when: (ctx) => ctx.isPaired === true,
-  execute: () => {
-    disconnectNode()
-  },
+  when: 'isPaired == true',
+  run: () => disconnectNode(),
+  menus: [{ menuId: MenuId.NodeStatus, order: 20 }],
 })
 
-commandRegistry.register({
+registerAction({
   id: 'node.copyAddress',
-  label: '复制 Node 地址',
+  title: '复制 Node 地址',
   icon: IconCopy,
-  execute: async () => {
+  run: async () => {
     await writeToClipboard(wsUrl())
   },
+  menus: [{ menuId: MenuId.NodeStatus, order: 30 }],
 })
 
-export const NODE_MENU_ID = 'node.status'
-
-menuRegistry.register(NODE_MENU_ID, [
-  { kind: 'command', commandId: 'node.pair' },
-  { kind: 'command', commandId: 'node.disconnect' },
-  { kind: 'command', commandId: 'node.copyAddress' },
-])
+export { NODE_MENU_ID } from './actions/menuIds'

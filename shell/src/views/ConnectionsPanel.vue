@@ -2,8 +2,8 @@
 import { store } from '../stores/app'
 import CommandContextMenu from '../components/CommandContextMenu.vue'
 import type { CommandContext } from '../services/context'
-import { HOST_MENU_ID } from '../services/hostCommands'
-import { connectHost } from '../services/ws'
+import { HOST_MENU_ID } from '../services/actions/menuIds'
+import { commandService } from '../services/commands'
 import { IconPlus, IconPlug } from '@tabler/icons-vue'
 
 function isSelected(hostId: string): boolean {
@@ -64,12 +64,15 @@ function hostContext(host: typeof store.hosts[0]): CommandContext {
 }
 
 function openNewConnection() {
-  store.editingHostId = ''
-  store.connectionModalOpen = true
+  void commandService.execute('host.new', { area: 'host' })
 }
 
 function openConnect(host: typeof store.hosts[0]) {
-  void connectHost(host)
+  void commandService.execute('host.connect', {
+    area: 'host',
+    selectedIds: [host.id],
+    selectedCount: 1,
+  })
 }
 </script>
 

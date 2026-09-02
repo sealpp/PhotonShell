@@ -9,7 +9,7 @@ import {
   setTerminalOutputHandler,
 } from '../services/ws'
 import CommandContextMenu from '../components/CommandContextMenu.vue'
-import { TERMINAL_MENU_ID } from '../services/terminalCommands'
+import { TERMINAL_MENU_ID } from '../services/actions/menuIds'
 import type { CommandContext } from '../services/context'
 import '@xterm/xterm/css/xterm.css'
 

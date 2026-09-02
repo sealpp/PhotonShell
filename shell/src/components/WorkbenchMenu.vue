@@ -1,26 +1,18 @@
 <script setup lang="ts">
-import { DropdownMenuItem, DropdownMenuSeparator } from 'reka-ui'
 import { IconSettings } from '@tabler/icons-vue'
-import { store } from '../stores/app'
-import UiDropdownMenu from './UiDropdownMenu.vue'
-
-function openSettings() {
-  store.aboutModalOpen = false
-  store.settingsModalOpen = true
-}
-
-function openAbout() {
-  store.settingsModalOpen = false
-  store.aboutModalOpen = true
-}
+import CommandDropdownMenu from './CommandDropdownMenu.vue'
+import { MenuId } from '../services/actions/menuIds'
 </script>
 
 <template>
-  <UiDropdownMenu
+  <CommandDropdownMenu
+    :menu-id="MenuId.Workbench"
+    :context="{ area: 'global' }"
     content-class="workbench-menu"
     side="top"
     align="end"
     :side-offset="4"
+    item-class="workbench-menu-item"
   >
     <template #trigger>
       <button
@@ -33,12 +25,5 @@ function openAbout() {
       </button>
     </template>
 
-    <DropdownMenuItem class="workbench-menu-item" @select="openSettings">
-      设置
-    </DropdownMenuItem>
-    <DropdownMenuSeparator class="workbench-menu-separator" />
-    <DropdownMenuItem class="workbench-menu-item" @select="openAbout">
-      关于
-    </DropdownMenuItem>
-  </UiDropdownMenu>
+  </CommandDropdownMenu>
 </template>

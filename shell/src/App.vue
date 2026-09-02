@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { store } from './stores/app'
 import { connect, initializePwa, setNodeDisconnectedHandler } from './services/ws'
-import { commandRegistry } from './services/commands'
+import { commandService, keybindingService, syncAppContext, ContextKeys } from './services/commands'
 import { startTelemetryService } from './services/telemetry'
 import PairingView from './views/PairingView.vue'
 import HostFormView from './views/HostFormView.vue'
@@ -47,12 +47,7 @@ const layoutStyle = computed(() => ({
 }))
 
 function toggleConnections() {
-  if (store.sidebarOpen && store.sidebarView === 'connections') {
-    store.sidebarOpen = false
-  } else {
-    store.sidebarOpen = true
-    store.sidebarView = 'connections'
-  }
+  void commandService.execute('workbench.toggleConnections', { area: 'global' })
 }
 
 function getTerminalWidth(): number {
@@ -200,20 +195,35 @@ function endResize(event?: PointerEvent) {
 
 let reconnectTimer: number | null = null
 
-function onGlobalKeydown(event: KeyboardEvent) {
-  if (!event.ctrlKey || event.repeat) return
-  if (event.key !== '`' && event.code !== 'Backquote') return
-  const target = event.target
-  if (
-    target instanceof HTMLInputElement ||
-    (target instanceof HTMLTextAreaElement && !target.closest('.shell-terminal'))
-  ) {
-    return
-  }
-  event.preventDefault()
-  event.stopPropagation()
-  void commandRegistry.execute('terminal.newTab', { area: 'global', tabId: store.activeTabId })
-}
+const stopContextSync = watch(
+  () => [
+    store.view,
+    store.activeTabId,
+    store.tabs.map((tab) => `${tab.id}:${tab.state}`).join(','),
+    store.sidebarOpen,
+    store.panelOpen,
+    store.paired,
+    store.nodeConnected,
+    store.pairingModalOpen,
+    store.connectionModalOpen,
+    store.loginDialogOpen,
+    store.settingsModalOpen,
+    store.aboutModalOpen,
+  ],
+  () => {
+    syncAppContext({
+      [ContextKeys.view]: store.view,
+      [ContextKeys.activeTabId]: store.activeTabId,
+      [ContextKeys.activeTabExists]: store.tabs.some((tab) => tab.id === store.activeTabId),
+      [ContextKeys.sidebarOpen]: store.sidebarOpen,
+      [ContextKeys.panelOpen]: store.panelOpen,
+      [ContextKeys.isPaired]: store.paired,
+      [ContextKeys.nodeConnected]: store.nodeConnected,
+      [ContextKeys.modalOpen]: store.pairingModalOpen || store.connectionModalOpen || store.loginDialogOpen || store.settingsModalOpen || store.aboutModalOpen,
+    })
+  },
+  { immediate: true },
+)
 
 function scheduleReconnect() {
   if (!store.paired || reconnectTimer !== null) return
@@ -246,13 +256,17 @@ onMounted(async () => {
     store.error = error instanceof Error ? error.message : String(error)
   }
   startTelemetryService()
-  window.addEventListener('keydown', onGlobalKeydown, true)
+  keybindingService.attach(window, () => ({
+    area: 'global',
+    tabId: store.activeTabId,
+  }))
 })
 
 onBeforeUnmount(() => {
   endResize()
   setNodeDisconnectedHandler(undefined)
-  window.removeEventListener('keydown', onGlobalKeydown, true)
+  keybindingService.dispose()
+  stopContextSync()
   if (reconnectTimer !== null) {
     window.clearTimeout(reconnectTimer)
     reconnectTimer = null

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { store } from '../stores/app'
-import { closeTab, connectHost } from '../services/ws'
+import { commandService } from '../services/commands'
 import CommandContextMenu from '../components/CommandContextMenu.vue'
 import type { CommandContext } from '../services/context'
-import { TAB_MENU_ID } from '../services/tabCommands'
+import { TAB_MENU_ID } from '../services/actions/menuIds'
 import { IconX } from '@tabler/icons-vue'
 
 const props = defineProps<{
@@ -33,7 +33,7 @@ const dotClass = computed(() => {
 
 function onClose() {
   if (tabId.value) {
-    closeTab(tabId.value)
+    void commandService.execute('tab.close', tabContext())
   } else {
     props.params.api.close()
   }
@@ -55,11 +55,7 @@ function tabContext(): CommandContext {
 
 function onDoubleClick() {
   if (!tabId.value) return
-  const sourceTab = store.tabs.find((t) => t.id === tabId.value)
-  if (!sourceTab) return
-  const host = store.hosts.find((h) => h.id === sourceTab.hostId)
-  if (!host) return
-  void connectHost(host, sourceTab.id)
+  void commandService.execute('terminal.newTab', tabContext())
 }
 </script>
 

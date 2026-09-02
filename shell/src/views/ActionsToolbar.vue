@@ -1,6 +1,14 @@
 <script setup lang="ts">
-import { store } from '../stores/app'
+import { computed } from 'vue'
 import { IconChartLine } from '@tabler/icons-vue'
+import { commandService } from '../services/commands'
+import { store } from '../stores/app'
+
+const panelOpen = computed(() => store.panelOpen)
+
+function togglePanel() {
+  void commandService.execute('workbench.togglePanel', { area: 'global' })
+}
 </script>
 
 <template>
@@ -8,11 +16,11 @@ import { IconChartLine } from '@tabler/icons-vue'
     <button
       type="button"
       class="tool-icon"
-      :class="{ active: store.panelOpen }"
-      :aria-pressed="store.panelOpen"
+      :class="{ active: panelOpen }"
+      :aria-pressed="panelOpen"
       aria-label="系统监控"
       title="系统监控"
-      @click="store.panelOpen = !store.panelOpen"
+      @click="togglePanel"
     >
       <IconChartLine :size="16" />
     </button>
