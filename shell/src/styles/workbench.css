@@ -304,6 +304,7 @@
 
 .keybindings-dialog-content .workbench-dialog-body {
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   padding: 0 var(--workbench-space-4) var(--workbench-space-4);
@@ -326,6 +327,7 @@
 .keybindings-toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--workbench-space-3);
   padding: var(--workbench-space-3) var(--workbench-space-4);
 }
@@ -333,7 +335,8 @@
 .keybindings-search {
   display: flex;
   align-items: center;
-  flex: 1;
+  flex: 0 1 55%;
+  width: 55%;
   min-width: 0;
   gap: var(--workbench-space-2);
   box-sizing: border-box;
