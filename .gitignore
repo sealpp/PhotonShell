@@ -1,5 +1,6 @@
 # Private subrepo
 /me_PhotonShell/
+/refs/
 
 # Python
 .venv/
