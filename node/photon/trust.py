@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import base64
-import ctypes
 import json
 import os
 import secrets
 import sys
+import tempfile
 from dataclasses import dataclass
-from typing import Any, Protocol
+from pathlib import Path
+from typing import Any
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -22,126 +23,16 @@ TRUST_SCHEMA_VERSION = 1
 NODE_ID_BYTES = 12
 ECDSA_RAW_SIGNATURE_BYTES = 64
 MAX_PAIRED_DEVICES = 4
-MAX_TRUST_BLOB_BYTES = 5 * 512
+TRUST_FILENAME = "photon-trust.json"
 
 
-class TrustBackend(Protocol):
-    persistent: bool
-
-    def load(self) -> bytes | None:
-        ...
-
-    def save(self, value: bytes) -> None:
-        ...
-
-
-class MemoryTrustBackend:
-    persistent = False
-
-    def __init__(self) -> None:
-        self._value: bytes | None = None
-
-    def load(self) -> bytes | None:
-        return self._value
-
-    def save(self, value: bytes) -> None:
-        self._value = value
-
-
-if sys.platform == "win32":
-
-    class _Credential(ctypes.Structure):
-        _fields_ = [
-            ("Flags", ctypes.c_uint32),
-            ("Type", ctypes.c_uint32),
-            ("TargetName", ctypes.c_wchar_p),
-            ("Comment", ctypes.c_wchar_p),
-            ("LastWritten", ctypes.c_byte * 8),
-            ("CredentialBlobSize", ctypes.c_uint32),
-            ("CredentialBlob", ctypes.POINTER(ctypes.c_ubyte)),
-            ("Persist", ctypes.c_uint32),
-            ("AttributeCount", ctypes.c_uint32),
-            ("Attributes", ctypes.c_void_p),
-            ("TargetAlias", ctypes.c_wchar_p),
-            ("UserName", ctypes.c_wchar_p),
-        ]
-
-
-    class WindowsCredentialBackend:
-        persistent = True
-        _target = "PhotonShell/PhotonNode/device-trust/v1"
-        _generic_type = 1
-        _persist_local_machine = 2
-
-        def __init__(self) -> None:
-            self._advapi32 = ctypes.WinDLL("Advapi32.dll", use_last_error=True)
-            self._advapi32.CredReadW.argtypes = [
-                ctypes.c_wchar_p,
-                ctypes.c_uint32,
-                ctypes.c_uint32,
-                ctypes.POINTER(ctypes.POINTER(_Credential)),
-            ]
-            self._advapi32.CredReadW.restype = ctypes.c_int
-            self._advapi32.CredWriteW.argtypes = [ctypes.POINTER(_Credential), ctypes.c_uint32]
-            self._advapi32.CredWriteW.restype = ctypes.c_int
-            self._advapi32.CredFree.argtypes = [ctypes.c_void_p]
-            self._advapi32.CredFree.restype = None
-
-        def load(self) -> bytes | None:
-            credential = ctypes.POINTER(_Credential)()
-            if not self._advapi32.CredReadW(
-                self._target,
-                self._generic_type,
-                0,
-                ctypes.byref(credential),
-            ):
-                error = ctypes.get_last_error()
-                if error == 1168:
-                    return None
-                raise OSError(error, "CredReadW failed")
-
-            try:
-                value = credential.contents
-                if not value.CredentialBlob or value.CredentialBlobSize == 0:
-                    return None
-                return ctypes.string_at(value.CredentialBlob, value.CredentialBlobSize)
-            finally:
-                self._advapi32.CredFree(credential)
-
-        def save(self, value: bytes) -> None:
-            if len(value) > MAX_TRUST_BLOB_BYTES:
-                raise ValueError("device trust state exceeds Windows Credential Manager limit")
-            blob = (ctypes.c_ubyte * len(value)).from_buffer_copy(value)
-            credential = _Credential()
-            credential.Type = self._generic_type
-            credential.TargetName = self._target
-            credential.CredentialBlobSize = len(value)
-            credential.CredentialBlob = ctypes.cast(blob, ctypes.POINTER(ctypes.c_ubyte))
-            credential.Persist = self._persist_local_machine
-            if not self._advapi32.CredWriteW(ctypes.byref(credential), 0):
-                error = ctypes.get_last_error()
-                raise OSError(error, "CredWriteW failed")
-
-
-else:
-
-    class WindowsCredentialBackend:
-        persistent = False
-
-        def __init__(self) -> None:
-            raise RuntimeError("Windows Credential Manager is only available on Windows")
-
-        def load(self) -> bytes | None:
-            raise RuntimeError("Windows Credential Manager is only available on Windows")
-
-        def save(self, _value: bytes) -> None:
-            raise RuntimeError("Windows Credential Manager is only available on Windows")
-
-
-def default_trust_backend() -> TrustBackend:
-    if os.name == "nt":
-        return WindowsCredentialBackend()
-    return MemoryTrustBackend()
+def default_trust_path() -> Path:
+    configured = os.environ.get("PHOTON_TRUST_PATH")
+    if configured:
+        return Path(configured)
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / TRUST_FILENAME
+    return Path(__file__).resolve().parents[1] / TRUST_FILENAME
 
 
 def _b64(value: bytes) -> str:
@@ -181,15 +72,11 @@ class PairedDevice:
 
 
 class TrustRepository:
-    def __init__(self, backend: TrustBackend | None = None) -> None:
-        self.backend = backend or default_trust_backend()
-        raw = self.backend.load()
+    def __init__(self, path: Path | str | None = None) -> None:
+        self.path = Path(path) if path is not None else default_trust_path()
+        raw = self.path.read_bytes() if self.path.exists() else None
         self._state = self._decode(raw) if raw else self._new_state()
         self._save()
-
-    @property
-    def persistent(self) -> bool:
-        return self.backend.persistent
 
     @property
     def node_id(self) -> str:
@@ -264,7 +151,20 @@ class TrustRepository:
             raise RuntimeError("invalid PhotonNode trust state") from exc
 
     def _save(self) -> None:
-        self.backend.save(json.dumps(self._state, separators=(",", ":")).encode("utf-8"))
+        value = json.dumps(self._state, separators=(",", ":")).encode("utf-8")
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=self.path.parent,
+            prefix=f".{self.path.name}.",
+            delete=False,
+        ) as temporary:
+            temporary.write(value)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            temporary_path = Path(temporary.name)
+        os.replace(temporary_path, self.path)
+        if os.name != "nt":
+            os.chmod(self.path, 0o600)
 
 
 def verify_device_signature(public_key: bytes, payload: bytes, signature: bytes) -> bool:

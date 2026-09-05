@@ -22,6 +22,7 @@ shell/src/proto/
 
 # Runtime state and data
 node/data/
+node/photon-trust.json
 *.db
 *.enc
 

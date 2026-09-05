@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import os
 import re
-import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
 
 from photon.photon_pb2 import PhotonMessage
-from photon.trust import MemoryTrustBackend, TrustRepository, load_p256_public_key
+from photon.trust import TrustRepository, load_p256_public_key
 
 PROTOCOL_VERSION = 1
 
@@ -209,15 +209,16 @@ async def round_trip(
 
 async def run() -> int:
     root = Path(__file__).resolve().parents[2]
-    trust_backend = MemoryTrustBackend()
-    first_trust = TrustRepository(trust_backend)
+    trust_dir = tempfile.TemporaryDirectory()
+    trust_path = Path(trust_dir.name) / "photon-trust.json"
+    first_trust = TrustRepository(trust_path)
     trust_key = ec.generate_private_key(ec.SECP256R1())
     trust_public = trust_key.public_key().public_bytes(
         serialization.Encoding.DER,
         serialization.PublicFormat.SubjectPublicKeyInfo,
     )
     first_trust.upsert_device('trust-device', 'trust', trust_public, time.time())
-    second_trust = TrustRepository(trust_backend)
+    second_trust = TrustRepository(trust_path)
     assert second_trust.node_id == first_trust.node_id
     assert second_trust.get_device('trust-device') is not None
 
@@ -232,17 +233,19 @@ async def run() -> int:
     node_port = os.environ.get("PHOTON_TEST_NODE_PORT", "17374")
     env = os.environ.copy()
     env["PHOTON_PORT"] = node_port
+    env["PHOTON_TRUST_PATH"] = str(trust_path)
     env["PYTHONPATH"] = str(root / "node")
-    process = await asyncio.create_subprocess_exec(
-        sys.executable,
-        "-m",
-        "photon.main",
-        cwd=root / "node",
-        env=env,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
+    process: asyncio.subprocess.Process | None = None
     try:
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-m",
+            "photon.main",
+            cwd=root / "node",
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
         pin = await read_pin(process)
         async with websockets.connect(
             f"ws://127.0.0.1:{node_port}",
@@ -269,15 +272,34 @@ async def run() -> int:
             f"ws://127.0.0.1:{node_port}",
         ) as ws:
             await authenticate(ws, key, "smoke-device", node_id, node_key)
+
+        process.terminate()
+        await process.wait()
+        process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-m",
+            "photon.main",
+            cwd=root / "node",
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        await read_pin(process)
+        async with websockets.connect(
+            f"ws://127.0.0.1:{node_port}",
+        ) as ws:
+            await authenticate(ws, key, "smoke-device", node_id, node_key)
         print("transport smoke test passed")
         return 0
     finally:
         tcp_server.close()
         await tcp_server.wait_closed()
         udp_transport.close()
-        if process.returncode is None:
+        if process is not None and process.returncode is None:
             process.terminate()
-        await process.wait()
+        if process is not None:
+            await process.wait()
+        trust_dir.cleanup()
 
 
 async def echo_tcp(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
