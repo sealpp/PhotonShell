@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { IconX } from '@tabler/icons-vue'
+import { commandService } from '../services/commands'
 import { store } from '../stores/app'
 import MetricGauge from '../components/MetricGauge.vue'
 
@@ -87,6 +89,29 @@ const metrics = computed<MetricCard[]>(() => {
   ]
 })
 
+const activeTab = computed(() => store.tabs.find((tab) => tab.id === store.activeTabId))
+const activeHost = computed(() => {
+  const tab = activeTab.value
+  return tab ? store.hosts.find((host) => host.id === tab.hostId) : undefined
+})
+const hostLabel = computed(() => {
+  const host = activeHost.value
+  if (!host) return '选择终端后显示'
+  return `${host.address}:${host.port}`
+})
+const connectionLabel = computed(() => {
+  const tab = activeTab.value
+  if (!tab) return '未选择终端'
+  if (tab.state === 'online') return '在线'
+  if (tab.state === 'connecting') return '连接中'
+  if (tab.state === 'error') return '连接失败'
+  return '未连接'
+})
+
+function closePanel() {
+  void commandService.execute('workbench.togglePanel', { area: 'global' })
+}
+
 function statusKey(metric: MetricCard): string {
   return store.telemetry ? metric.status : 'waiting'
 }
@@ -104,10 +129,29 @@ function statusText(metric: MetricCard): string {
 <template>
   <div class="metrics-panel">
     <div class="metrics-header">
-      <span class="title">系统监控</span>
+      <div class="metrics-heading">
+        <span class="title">系统监控</span>
+        <span class="host-label" :title="hostLabel">{{ hostLabel }}</span>
+      </div>
+      <div class="metrics-actions">
+        <span class="connection-status" :data-state="activeTab?.state ?? 'idle'">
+          <span class="status-dot" aria-hidden="true"></span>
+          {{ connectionLabel }}
+        </span>
+        <button type="button" class="panel-close" aria-label="关闭系统监控" title="关闭系统监控" @click="closePanel">
+          <IconX :size="15" aria-hidden="true" />
+        </button>
+      </div>
     </div>
     <div class="metrics-content">
-      <div v-if="store.view !== 'shell'" class="panel-empty">未连接</div>
+      <div v-if="!activeTab" class="panel-empty">
+        <strong>选择一个终端</strong>
+        <span>连接后显示实时系统状态</span>
+      </div>
+      <div v-else-if="activeTab.state !== 'online'" class="panel-empty">
+        <strong>{{ connectionLabel }}</strong>
+        <span>终端连接后显示实时系统状态</span>
+      </div>
       <div v-else class="dashboard">
         <article
           v-for="metric in metrics"
@@ -149,10 +193,12 @@ function statusText(metric: MetricCard): string {
 }
 
 .metrics-header {
-  height: 32px;
+  min-height: 48px;
   display: flex;
   align-items: center;
-  padding: 0 0.75rem;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem 0.45rem 0.75rem;
   background: var(--workbench-surface-raised, #2d2d2d);
   border-bottom: 1px solid var(--workbench-border-muted, #1f1f1f);
   white-space: nowrap;
@@ -165,6 +211,71 @@ function statusText(metric: MetricCard): string {
   color: var(--workbench-text-strong, #fff);
 }
 
+.metrics-heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.host-label {
+  max-width: 142px;
+  overflow: hidden;
+  color: var(--workbench-text-muted, #888);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--workbench-text-muted, #888);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--workbench-text-disabled, #666);
+}
+
+.connection-status[data-state='online'] { color: #4ec9b0; }
+.connection-status[data-state='online'] .status-dot { background: #4ec9b0; }
+.connection-status[data-state='connecting'] { color: #dcdcaa; }
+.connection-status[data-state='connecting'] .status-dot { background: #dcdcaa; }
+.connection-status[data-state='error'] { color: #f14c4c; }
+.connection-status[data-state='error'] .status-dot { background: #f14c4c; }
+
+.panel-close {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--workbench-text-muted, #888);
+  cursor: pointer;
+}
+
+.panel-close:hover {
+  background: var(--workbench-surface, #252526);
+  color: var(--workbench-text-strong, #fff);
+}
+
 .metrics-content {
   flex: 1;
   min-height: 0;
@@ -173,21 +284,37 @@ function statusText(metric: MetricCard): string {
 }
 
 .panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
   color: var(--workbench-text-muted, #888);
   font-size: 12px;
   text-align: center;
-  padding: 1rem 0;
+  padding: 2.25rem 0.5rem;
+}
+
+.panel-empty strong {
+  color: var(--workbench-text, #ccc);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.panel-empty span {
+  color: var(--workbench-text-disabled, #666);
+  font-size: 11px;
 }
 
 .dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 .metric {
   background: var(--workbench-bg, #1e1e1e);
-  padding: 0.6rem;
+  min-width: 0;
+  padding: 0.5rem;
   border-radius: 4px;
   border: 1px solid var(--workbench-border, #333);
 }
@@ -197,7 +324,7 @@ function statusText(metric: MetricCard): string {
   justify-content: space-between;
   align-items: baseline;
   gap: 0.5rem;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.1rem;
 }
 
 .metric-header h3 {
@@ -215,9 +342,19 @@ function statusText(metric: MetricCard): string {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 118px;
+  height: 78px;
   background: #151515;
   border-radius: 4px;
+}
+
+.metric[data-metric-kind='stat'] {
+  grid-column: 1 / -1;
+}
+
+.metric[data-metric-kind='gauge'] .metric-gauge {
+  --metric-gauge-size: 76px;
+  --metric-gauge-inset: 11px;
+  --metric-gauge-font-size: 15px;
 }
 
 .metric-stat-value {

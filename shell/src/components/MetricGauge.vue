@@ -53,7 +53,7 @@ const style = computed(() => ({
 <style scoped>
 .metric-gauge {
   width: 100%;
-  height: 118px;
+  height: var(--metric-gauge-size, 118px);
   min-width: 0;
   display: flex;
   align-items: center;
@@ -61,8 +61,8 @@ const style = computed(() => ({
 }
 
 .metric-gauge-chart {
-  width: 96px;
-  height: 96px;
+  width: var(--metric-gauge-size, 96px);
+  height: var(--metric-gauge-size, 96px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -77,7 +77,7 @@ const style = computed(() => ({
 .metric-gauge-chart::after {
   content: '';
   position: absolute;
-  inset: 14px;
+  inset: var(--metric-gauge-inset, 14px);
   border-radius: 50%;
   background: var(--workbench-bg, #1e1e1e);
 }
@@ -86,7 +86,7 @@ const style = computed(() => ({
   position: relative;
   z-index: 1;
   color: var(--workbench-text-strong, #fff);
-  font-size: 18px;
+  font-size: var(--metric-gauge-font-size, 18px);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }

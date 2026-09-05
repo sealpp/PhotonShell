@@ -42,7 +42,7 @@ let resizeFrame: number | null = null
 let pendingResizeDelta = 0
 
 const sidebarVisible = computed(() => store.sidebarOpen && store.sidebarView === 'connections')
-const panelVisible = computed(() => store.panelOpen)
+const panelVisible = computed(() => store.view === 'shell' && store.panelOpen)
 const layoutStyle = computed(() => ({
   '--sidebar-width': `${store.sidebarWidth}px`,
   '--panel-width': `${store.panelWidth}px`,

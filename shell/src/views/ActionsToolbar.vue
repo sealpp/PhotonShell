@@ -19,7 +19,7 @@ function togglePanel() {
       :class="{ active: panelOpen }"
       :aria-pressed="panelOpen"
       aria-label="系统监控"
-      title="系统监控"
+      :title="panelOpen ? '隐藏系统监控' : '显示系统监控'"
       @click="togglePanel"
     >
       <IconChartLine :size="16" />

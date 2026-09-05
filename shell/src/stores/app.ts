@@ -104,7 +104,7 @@ export const store = reactive<AppState>({
   sidebarOpen: true,
   sidebarView: 'connections',
   sidebarWidth: 220,
-  panelOpen: true,
+  panelOpen: false,
   panelWidth: 280,
   pairingModalOpen: false,
   connectionModalOpen: false,
