@@ -6,8 +6,7 @@ import asyncio
 import ipaddress
 import secrets
 import time
-from collections import deque
-from typing import Any, Optional
+from typing import Any
 
 import websockets
 
@@ -78,8 +77,8 @@ def _validate_loopback_bind(host: str) -> bool:
 class _DatagramReceiver(asyncio.DatagramProtocol):
     def __init__(self, queue: asyncio.Queue[bytes]):
         self.queue = queue
-        self.transport: Optional[asyncio.DatagramTransport] = None
-        self.error: Optional[Exception] = None
+        self.transport: asyncio.DatagramTransport | None = None
+        self.error: Exception | None = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport  # type: ignore[assignment]
@@ -94,13 +93,13 @@ class _DatagramReceiver(asyncio.DatagramProtocol):
     def error_received(self, exc: Exception) -> None:
         self.error = exc
 
-    def connection_lost(self, exc: Optional[Exception]) -> None:
+    def connection_lost(self, exc: Exception | None) -> None:
         if exc:
             self.error = exc
 
 
 class TransportStream:
-    def __init__(self, client: "ClientConnection", stream_id: int, transport_kind: str):
+    def __init__(self, client: ClientConnection, stream_id: int, transport_kind: str):
         self.client = client
         self.stream_id = stream_id
         self.transport_kind = transport_kind
@@ -110,7 +109,7 @@ class TransportStream:
         self.output_sequence = 0
         self.closed = False
         self._credit_condition = asyncio.Condition()
-        self._pump_task: Optional[asyncio.Task[None]] = None
+        self._pump_task: asyncio.Task[None] | None = None
         self._closed_event_sent = False
 
     async def start(self) -> None:
@@ -188,7 +187,7 @@ class TransportStream:
 class TcpStream(TransportStream):
     def __init__(
         self,
-        client: "ClientConnection",
+        client: ClientConnection,
         stream_id: int,
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
@@ -244,7 +243,7 @@ class TcpStream(TransportStream):
 class UdpStream(TransportStream):
     def __init__(
         self,
-        client: "ClientConnection",
+        client: ClientConnection,
         stream_id: int,
         transport: asyncio.DatagramTransport,
         queue: asyncio.Queue[bytes],
@@ -291,13 +290,13 @@ class UdpStream(TransportStream):
 
 
 class ClientConnection:
-    def __init__(self, server: "PhotonServer", websocket: Any):
+    def __init__(self, server: PhotonServer, websocket: Any):
         self.server = server
         self.websocket = websocket
         self.authenticated = False
         self.device_id = ""
-        self.pending_pair: Optional[dict[str, Any]] = None
-        self.pending_auth: Optional[dict[str, Any]] = None
+        self.pending_pair: dict[str, Any] | None = None
+        self.pending_auth: dict[str, Any] | None = None
         self.streams: dict[int, TransportStream] = {}
         self._send_lock = asyncio.Lock()
         self._tasks: set[asyncio.Task[Any]] = set()

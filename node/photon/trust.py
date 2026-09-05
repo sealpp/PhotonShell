@@ -9,11 +9,14 @@ import os
 import secrets
 import sys
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
+from cryptography.hazmat.primitives.asymmetric.utils import (
+    decode_dss_signature,
+    encode_dss_signature,
+)
 
 TRUST_SCHEMA_VERSION = 1
 NODE_ID_BYTES = 12
@@ -25,7 +28,7 @@ MAX_TRUST_BLOB_BYTES = 5 * 512
 class TrustBackend(Protocol):
     persistent: bool
 
-    def load(self) -> Optional[bytes]:
+    def load(self) -> bytes | None:
         ...
 
     def save(self, value: bytes) -> None:
@@ -36,9 +39,9 @@ class MemoryTrustBackend:
     persistent = False
 
     def __init__(self) -> None:
-        self._value: Optional[bytes] = None
+        self._value: bytes | None = None
 
-    def load(self) -> Optional[bytes]:
+    def load(self) -> bytes | None:
         return self._value
 
     def save(self, value: bytes) -> None:
@@ -84,7 +87,7 @@ if sys.platform == "win32":
             self._advapi32.CredFree.argtypes = [ctypes.c_void_p]
             self._advapi32.CredFree.restype = None
 
-        def load(self) -> Optional[bytes]:
+        def load(self) -> bytes | None:
             credential = ctypes.POINTER(_Credential)()
             if not self._advapi32.CredReadW(
                 self._target,
@@ -128,7 +131,7 @@ else:
         def __init__(self) -> None:
             raise RuntimeError("Windows Credential Manager is only available on Windows")
 
-        def load(self) -> Optional[bytes]:
+        def load(self) -> bytes | None:
             raise RuntimeError("Windows Credential Manager is only available on Windows")
 
         def save(self, _value: bytes) -> None:
@@ -178,7 +181,7 @@ class PairedDevice:
 
 
 class TrustRepository:
-    def __init__(self, backend: Optional[TrustBackend] = None) -> None:
+    def __init__(self, backend: TrustBackend | None = None) -> None:
         self.backend = backend or default_trust_backend()
         raw = self.backend.load()
         self._state = self._decode(raw) if raw else self._new_state()
@@ -213,7 +216,7 @@ class TrustRepository:
         signature = self.node_private_key.sign(payload, ec.ECDSA(hashes.SHA256()))
         return _raw_signature(signature)
 
-    def get_device(self, device_id: str) -> Optional[PairedDevice]:
+    def get_device(self, device_id: str) -> PairedDevice | None:
         raw = self._state["devices"].get(device_id)
         if raw is None:
             return None
