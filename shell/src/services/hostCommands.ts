@@ -8,10 +8,15 @@ registerAction({
   title: '新建连接',
   description: '新建主机连接配置',
   category: 'workbench',
-  run: () => {
+  run: (ctx) => {
     store.editingHostId = ''
+    store.newHostFolderId = ctx.targetFolderId ?? null
     store.connectionModalOpen = true
   },
+  menus: [
+    { menuId: MenuId.FolderContext, group: '1_create', order: 20 },
+    { menuId: MenuId.RootContext, group: '1_create', order: 20 },
+  ],
 })
 
 registerAction({

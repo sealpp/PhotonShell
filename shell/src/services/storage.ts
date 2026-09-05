@@ -1,9 +1,10 @@
-import type { HostProfile } from '../stores/app'
+import type { FolderProfile, HostProfile } from '../stores/app'
 
 const DB_NAME = 'photon-shell'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 export type { HostProfile } from '../stores/app'
+export type { FolderProfile } from '../stores/app'
 
 export interface StoredIdentity {
   key: 'identity'
@@ -52,6 +53,9 @@ function openDatabase(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains('hosts')) {
         db.createObjectStore('hosts', { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains('folders')) {
+        db.createObjectStore('folders', { keyPath: 'id' })
       }
       if (!db.objectStoreNames.contains('credentials')) {
         db.createObjectStore('credentials', { keyPath: 'id' })
@@ -108,11 +112,91 @@ export async function saveMeta<T extends { key: string }>(value: T): Promise<voi
 
 export async function listHosts(): Promise<HostProfile[]> {
   const db = await openDatabase()
-  return requestResult(db.transaction('hosts', 'readonly').objectStore('hosts').getAll())
+  const hosts = await requestResult<HostProfile[]>(db.transaction('hosts', 'readonly').objectStore('hosts').getAll())
+  return hosts.map((host) => ({ ...host, folderId: host.folderId ?? null }))
+}
+
+export async function listFolders(): Promise<FolderProfile[]> {
+  const db = await openDatabase()
+  return requestResult<FolderProfile[]>(db.transaction('folders', 'readonly').objectStore('folders').getAll())
 }
 
 export async function saveHost(host: HostProfile): Promise<void> {
   await putInStore('hosts', host)
+}
+
+export async function saveFolder(folder: FolderProfile): Promise<void> {
+  await putInStore('folders', folder)
+}
+
+export async function deleteFolderTree(rootFolderIds: string[]): Promise<{ folderIds: string[]; hostIds: string[] }> {
+  if (!rootFolderIds.length) return { folderIds: [], hostIds: [] }
+  const db = await openDatabase()
+  const readTransaction = db.transaction(['folders', 'hosts'], 'readonly')
+  const foldersRequest = readTransaction.objectStore('folders').getAll()
+  const hostsRequest = readTransaction.objectStore('hosts').getAll()
+  const [allFolders, allHosts] = await Promise.all([
+    requestResult<FolderProfile[]>(foldersRequest),
+    requestResult<HostProfile[]>(hostsRequest),
+  ])
+  const roots = new Set(rootFolderIds)
+  const folderIds = new Set<string>()
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const folder of allFolders) {
+      if (roots.has(folder.id) || (folder.parentId !== null && folderIds.has(folder.parentId))) {
+        if (!folderIds.has(folder.id)) {
+          folderIds.add(folder.id)
+          changed = true
+        }
+      }
+    }
+  }
+  const hostIds = allHosts
+    .filter((host) => host.folderId !== null && folderIds.has(host.folderId))
+    .map((host) => host.id)
+  const transaction = db.transaction(['folders', 'hosts', 'credentials'], 'readwrite')
+  const folders = transaction.objectStore('folders')
+  const hosts = transaction.objectStore('hosts')
+  const credentials = transaction.objectStore('credentials')
+  folderIds.forEach((id) => folders.delete(id))
+  hostIds.forEach((id) => {
+    hosts.delete(id)
+    credentials.delete(id)
+  })
+  await new Promise<void>((resolve, reject) => {
+    transaction.onerror = () => reject(transaction.error ?? new Error('failed to delete folder tree'))
+    transaction.oncomplete = () => resolve()
+  })
+  return { folderIds: Array.from(folderIds), hostIds }
+}
+
+export async function moveTreeNodes(
+  folderIds: string[],
+  hostIds: string[],
+  parentId: string | null,
+): Promise<void> {
+  const db = await openDatabase()
+  const transaction = db.transaction(['folders', 'hosts'], 'readwrite')
+  const folders = transaction.objectStore('folders')
+  const hosts = transaction.objectStore('hosts')
+  folderIds.forEach((id) => {
+    const request = folders.get(id)
+    request.onsuccess = () => {
+      if (request.result) folders.put({ ...request.result, parentId })
+    }
+  })
+  hostIds.forEach((id) => {
+    const request = hosts.get(id)
+    request.onsuccess = () => {
+      if (request.result) hosts.put({ ...request.result, folderId: parentId })
+    }
+  })
+  await new Promise<void>((resolve, reject) => {
+    transaction.onerror = () => reject(transaction.error ?? new Error('failed to move tree nodes'))
+    transaction.oncomplete = () => resolve()
+  })
 }
 
 export async function deleteHost(id: string): Promise<void> {

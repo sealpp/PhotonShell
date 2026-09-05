@@ -1,5 +1,6 @@
 import '../workbenchActions'
 import '../hostCommands'
+import '../folderCommands'
 import '../nodeCommands'
 import '../tabCommands'
 import '../terminalCommands'

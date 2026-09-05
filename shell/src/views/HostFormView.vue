@@ -81,6 +81,9 @@ function hostFromForm(): HostProfile {
     address: address.value,
     port: port.value,
     username: username.value,
+    folderId: store.editingHostId
+      ? (store.hosts.find((item) => item.id === store.editingHostId)?.folderId ?? null)
+      : store.newHostFolderId,
   }
 }
 
@@ -141,6 +144,7 @@ async function login() {
 function close() {
   store.connectionModalOpen = false
   store.editingHostId = ''
+  store.newHostFolderId = null
   store.insertAfterTabId = ''
   localError.value = ''
   saving.value = false

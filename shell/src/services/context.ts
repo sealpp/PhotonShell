@@ -13,5 +13,8 @@ export interface CommandContext {
   tabEncoding?: string
   selectedIds?: string[]
   selectedCount?: number
+  selectedNodeIds?: string[]
+  nodeKind?: 'host' | 'folder' | 'mixed' | 'root'
+  targetFolderId?: string | null
   isPaired?: boolean
 }

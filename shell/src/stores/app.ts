@@ -10,6 +10,13 @@ export interface HostProfile {
   address: string
   port: number
   username: string
+  folderId: string | null
+}
+
+export interface FolderProfile {
+  id: string
+  name: string
+  parentId: string | null
 }
 
 export type MetricQuality = 'valid' | 'missing'
@@ -47,10 +54,14 @@ export interface AppState {
   deviceName: string
   error: string
   hosts: HostProfile[]
+  folders: FolderProfile[]
   tabs: Tab[]
   activeTabId: string
   selectedHostIds: Set<string>
   selectionAnchor: string
+  selectedNodeIds: Set<string>
+  selectionAnchorNodeId: string
+  expandedFolderIds: Set<string>
   telemetry: Telemetry | null
   sidebarOpen: boolean
   sidebarView: 'connections'
@@ -74,6 +85,12 @@ export interface AppState {
   } | null
   editingHostId: string
   insertAfterTabId: string
+  newHostFolderId: string | null
+  folderModalOpen: boolean
+  editingFolderId: string
+  folderParentId: string | null
+  deleteFolderIds: string[]
+  deleteFolderConfirmOpen: boolean
   deleteConfirmOpen: boolean
   deleteConfirmIds: string[]
   terminalSessionInfo: {
@@ -96,10 +113,14 @@ export const store = reactive<AppState>({
   deviceName: 'PhotonShell PWA',
   error: '',
   hosts: [],
+  folders: [],
   tabs: [],
   activeTabId: '',
   selectedHostIds: new Set(),
   selectionAnchor: '',
+  selectedNodeIds: new Set(),
+  selectionAnchorNodeId: '',
+  expandedFolderIds: new Set(),
   telemetry: null,
   sidebarOpen: true,
   sidebarView: 'connections',
@@ -119,6 +140,12 @@ export const store = reactive<AppState>({
   hostKeyPrompt: null,
   editingHostId: '',
   insertAfterTabId: '',
+  newHostFolderId: null,
+  folderModalOpen: false,
+  editingFolderId: '',
+  folderParentId: null,
+  deleteFolderIds: [],
+  deleteFolderConfirmOpen: false,
   deleteConfirmOpen: false,
   deleteConfirmIds: [],
   terminalSessionInfo: null,

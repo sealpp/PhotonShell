@@ -1,113 +1,234 @@
 <script setup lang="ts">
+import { computed, onBeforeUnmount, ref } from 'vue'
+import { IconChevronDown, IconChevronRight, IconFolder, IconFolderOpen, IconPlus, IconPlug } from '@tabler/icons-vue'
 import { store } from '../stores/app'
 import CommandContextMenu from '../components/CommandContextMenu.vue'
 import type { CommandContext } from '../services/context'
-import { HOST_MENU_ID } from '../services/actions/menuIds'
 import { commandService } from '../services/commands'
-import { IconPlus, IconPlug } from '@tabler/icons-vue'
+import { FOLDER_MENU_ID, HOST_MENU_ID, ROOT_MENU_ID } from '../services/actions/menuIds'
+import {
+  buildVisibleNodes,
+  canMoveToFolder,
+  nodeKey,
+  normalizeMoveSelection,
+  type TreeNode,
+} from '../services/connectionTree'
+import { moveConnectionNodes } from '../services/ws'
 
-function isSelected(hostId: string): boolean {
-  return store.selectedHostIds.has(hostId)
+const draggingKeys = ref<string[]>([])
+const visibleNodes = computed(() => buildVisibleNodes(store.folders, store.hosts, store.expandedFolderIds))
+
+function isSelected(node: TreeNode): boolean {
+  return store.selectedNodeIds.has(nodeKey(node.kind, node.id))
 }
 
-function toggleSelection(hostId: string) {
-  const next = new Set(store.selectedHostIds)
-  if (next.has(hostId)) {
-    next.delete(hostId)
-  } else {
-    next.add(hostId)
+function syncHostSelection() {
+  const hostIds = new Set<string>()
+  for (const key of store.selectedNodeIds) {
+    if (key.startsWith('host:')) hostIds.add(key.slice('host:'.length))
   }
-  store.selectedHostIds = next
+  store.selectedHostIds = hostIds
 }
 
-function rangeSelection(targetId: string) {
-  const ids = store.hosts.map((h) => h.id)
-  const anchor = store.selectionAnchor
-  const anchorIndex = anchor ? ids.indexOf(anchor) : -1
-  const targetIndex = ids.indexOf(targetId)
+function setSelection(keys: Set<string>, anchor?: string) {
+  store.selectedNodeIds = keys
+  syncHostSelection()
+  if (anchor !== undefined) store.selectionAnchorNodeId = anchor
+}
+
+function toggleFolder(folderId: string) {
+  const next = new Set(store.expandedFolderIds)
+  if (next.has(folderId)) next.delete(folderId)
+  else next.add(folderId)
+  store.expandedFolderIds = next
+}
+
+function rangeSelection(targetKey: string) {
+  const ids = visibleNodes.value.map((node) => nodeKey(node.kind, node.id))
+  const anchorIndex = ids.indexOf(store.selectionAnchorNodeId)
+  const targetIndex = ids.indexOf(targetKey)
   if (anchorIndex === -1 || targetIndex === -1) {
-    store.selectedHostIds = new Set([targetId])
-    store.selectionAnchor = targetId
+    setSelection(new Set([targetKey]), targetKey)
     return
   }
   const start = Math.min(anchorIndex, targetIndex)
   const end = Math.max(anchorIndex, targetIndex)
-  const next = new Set<string>()
-  for (let i = start; i <= end; i++) {
-    next.add(ids[i])
-  }
-  store.selectedHostIds = next
+  setSelection(new Set(ids.slice(start, end + 1)), targetKey)
 }
 
-function onItemClick(host: typeof store.hosts[0], event: MouseEvent) {
+function onNodeClick(node: TreeNode, event: MouseEvent) {
+  const key = nodeKey(node.kind, node.id)
   if (event.ctrlKey || event.metaKey) {
-    toggleSelection(host.id)
-    store.selectionAnchor = host.id
+    const next = new Set(store.selectedNodeIds)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    setSelection(next, key)
   } else if (event.shiftKey) {
-    rangeSelection(host.id)
+    rangeSelection(key)
   } else {
-    store.selectedHostIds = new Set([host.id])
-    store.selectionAnchor = host.id
+    setSelection(new Set([key]), key)
   }
 }
 
-function hostContext(host: typeof store.hosts[0]): CommandContext {
-  if (!store.selectedHostIds.has(host.id)) {
-    store.selectedHostIds = new Set([host.id])
-    store.selectionAnchor = host.id
-  }
+function nodeContext(node: TreeNode): CommandContext {
+  const key = nodeKey(node.kind, node.id)
+  if (!store.selectedNodeIds.has(key)) setSelection(new Set([key]), key)
+  const selected = Array.from(store.selectedNodeIds)
+    .map((item) => item.split(':'))
+    .filter((parts) => parts.length === 2)
+  const kinds = new Set(selected.map(([kind]) => kind))
+  const selectedIds = selected.filter(([kind]) => kind === node.kind).map(([, id]) => id)
   return {
     area: 'host',
-    selectedIds: Array.from(store.selectedHostIds),
-    selectedCount: store.selectedHostIds.size,
+    selectedIds,
+    selectedNodeIds: Array.from(store.selectedNodeIds),
+    selectedCount: selectedIds.length,
+    nodeKind: kinds.size > 1 ? 'mixed' : node.kind,
+    targetFolderId: node.kind === 'folder' ? node.id : null,
   }
+}
+
+function rootContext(): CommandContext {
+  setSelection(new Set())
+  return { area: 'host', selectedIds: [], selectedCount: 0, nodeKind: 'root', targetFolderId: null }
 }
 
 function openNewConnection() {
-  void commandService.execute('host.new', { area: 'host' })
+  void commandService.execute('host.new', { area: 'host', targetFolderId: null })
 }
 
-function openConnect(host: typeof store.hosts[0]) {
+function openConnect(hostId: string) {
   void commandService.execute('host.connect', {
     area: 'host',
-    selectedIds: [host.id],
+    selectedIds: [hostId],
     selectedCount: 1,
+    nodeKind: 'host',
   })
 }
+
+function onDragStart(node: TreeNode, event: DragEvent) {
+  const key = nodeKey(node.kind, node.id)
+  if (!store.selectedNodeIds.has(key)) setSelection(new Set([key]), key)
+  const normalized = normalizeMoveSelection(store.selectedNodeIds, store.folders, store.hosts)
+  draggingKeys.value = Array.from(normalized)
+  event.dataTransfer?.setData('text/plain', draggingKeys.value.join(','))
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function onDragEnd() {
+  draggingKeys.value = []
+}
+
+function canDrop(targetFolderId: string | null): boolean {
+  return draggingKeys.value.length > 0 && canMoveToFolder(new Set(draggingKeys.value), targetFolderId, store.folders)
+}
+
+function onDragOverFolder(node: TreeNode, event: DragEvent) {
+  if (node.kind !== 'folder' || !canDrop(node.id)) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+}
+
+async function onDropFolder(node: TreeNode, event: DragEvent) {
+  event.preventDefault()
+  if (node.kind !== 'folder' || !canDrop(node.id)) return
+  await moveConnectionNodes(new Set(draggingKeys.value), node.id)
+  const expanded = new Set(store.expandedFolderIds)
+  expanded.add(node.id)
+  store.expandedFolderIds = expanded
+  onDragEnd()
+}
+
+function onDragOverRoot(event: DragEvent) {
+  if ((event.target as HTMLElement | null)?.closest('.conn-item')) return
+  if (!canDrop(null)) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+}
+
+async function onDropRoot(event: DragEvent) {
+  if ((event.target as HTMLElement | null)?.closest('.conn-item')) return
+  event.preventDefault()
+  if (!canDrop(null)) return
+  await moveConnectionNodes(new Set(draggingKeys.value), null)
+  onDragEnd()
+}
+
+onBeforeUnmount(() => {
+  draggingKeys.value = []
+})
 </script>
 
 <template>
   <div class="connections-panel">
     <div class="connections-header">
       <span>当前连接</span>
-      <button type="button" class="new-btn" @click="openNewConnection">
+      <button type="button" class="new-btn" title="新建连接" @click="openNewConnection">
         <IconPlus :size="12" />
         新建连接
       </button>
     </div>
-    <div class="conn-list">
-      <CommandContextMenu
-        v-for="h in store.hosts"
-        :key="h.id"
-        :menu-id="HOST_MENU_ID"
-        :context="() => hostContext(h)"
-      >
-        <div
-          class="conn-item"
-          :class="{ selected: isSelected(h.id) }"
-          @click="onItemClick(h, $event)"
+    <CommandContextMenu
+      :menu-id="ROOT_MENU_ID"
+      :context="rootContext"
+      :can-open="(event) => event.target === event.currentTarget"
+    >
+      <div class="conn-list" @dragover="onDragOverRoot" @drop="onDropRoot">
+        <CommandContextMenu
+          v-for="node in visibleNodes"
+          :key="nodeKey(node.kind, node.id)"
+          :menu-id="node.kind === 'folder' ? FOLDER_MENU_ID : HOST_MENU_ID"
+          :context="() => nodeContext(node)"
         >
-          <div class="conn-info">
-            <div class="name">{{ h.name }}</div>
-            <div class="meta">{{ h.username }} · {{ h.port }}</div>
+          <div
+            class="conn-item"
+            :class="{ selected: isSelected(node), dragging: draggingKeys.includes(nodeKey(node.kind, node.id)), folder: node.kind === 'folder', 'root-host': node.kind === 'host' && node.depth === 0 }"
+            :style="{ paddingLeft: `${8 + node.depth * 16}px` }"
+            :draggable="true"
+            :title="node.kind === 'host' ? node.host?.address : node.folder?.name"
+            @click="onNodeClick(node, $event)"
+            @dblclick="node.kind === 'host' && node.host ? openConnect(node.host.id) : toggleFolder(node.id)"
+            @dragstart="onDragStart(node, $event)"
+            @dragend="onDragEnd"
+            @dragover="onDragOverFolder(node, $event)"
+            @drop="onDropFolder(node, $event)"
+          >
+            <button
+              v-if="node.kind === 'folder'"
+              type="button"
+              class="tree-toggle"
+              :aria-label="store.expandedFolderIds.has(node.id) ? '收起文件夹' : '展开文件夹'"
+              @click.stop="toggleFolder(node.id)"
+            >
+              <IconChevronDown v-if="store.expandedFolderIds.has(node.id)" :size="14" />
+              <IconChevronRight v-else :size="14" />
+            </button>
+            <span v-else class="tree-toggle-spacer" aria-hidden="true"></span>
+            <span v-if="node.kind === 'folder'" class="node-icon" aria-hidden="true">
+              <IconFolderOpen v-if="store.expandedFolderIds.has(node.id)" :size="15" />
+              <IconFolder v-else :size="15" />
+            </span>
+            <span class="conn-label">{{ node.label }}</span>
+            <span
+              v-if="node.kind === 'host'"
+              class="conn-meta"
+              :title="`${node.host?.username} · ${node.host?.port}`"
+            >{{ node.host?.username }} · {{ node.host?.port }}</span>
+            <button
+              v-if="node.kind === 'host' && node.host"
+              type="button"
+              class="conn-btn"
+              title="连接"
+              @click.stop="openConnect(node.host.id)"
+            >
+              <IconPlug :size="14" />
+            </button>
           </div>
-          <button type="button" class="conn-btn" title="连接" @click.stop="openConnect(h)">
-            <IconPlug :size="14" />
-          </button>
-        </div>
-      </CommandContextMenu>
-      <p v-if="!store.hosts.length" class="empty">暂无保存的主机</p>
-    </div>
+        </CommandContextMenu>
+        <p v-if="!visibleNodes.length" class="empty">暂无保存的主机或文件夹</p>
+        <div class="root-drop-zone" aria-hidden="true"></div>
+      </div>
+    </CommandContextMenu>
   </div>
 </template>
 
@@ -150,6 +271,7 @@ function openConnect(host: typeof store.hosts[0]) {
 
 .conn-list {
   flex: 1;
+  min-height: 24px;
   overflow-y: auto;
   padding: 0;
 }
@@ -157,9 +279,13 @@ function openConnect(host: typeof store.hosts[0]) {
 .conn-item {
   display: flex;
   align-items: center;
-  padding: 0.5rem 0.75rem;
-  background: transparent;
+  min-height: 30px;
+  box-sizing: border-box;
+  padding-top: 0;
+  padding-right: 8px;
+  padding-bottom: 0;
   border-left: 2px solid transparent;
+  background: transparent;
   cursor: pointer;
   user-select: none;
 }
@@ -173,31 +299,78 @@ function openConnect(host: typeof store.hosts[0]) {
   border-left-color: #fff;
 }
 
-.conn-info {
-  flex: 1;
-  min-width: 0;
+.conn-item.dragging {
+  opacity: 0.5;
 }
 
-.conn-info .name {
+.tree-toggle,
+.tree-toggle-spacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 24px;
+  flex: 0 0 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #858585;
+}
+
+.tree-toggle {
+  cursor: pointer;
+}
+
+.conn-item.root-host .tree-toggle-spacer {
+  display: none;
+}
+
+.node-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  flex: 0 0 20px;
+  color: #c5c5c5;
+}
+
+.conn-label {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
   color: #fff;
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.conn-info .meta {
+.conn-meta {
+  min-width: 0;
+  flex: 0 100 auto;
+  overflow: hidden;
+  margin-left: 8px;
   color: #858585;
   font-size: 11px;
-  margin-top: 0.1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .conn-btn {
-  background: transparent;
-  border: none;
-  color: #858585;
-  padding: 0.2rem;
-  cursor: pointer;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
+  flex: 0 0 24px;
+  margin-left: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #858585;
+  cursor: pointer;
+}
+
+.conn-item:hover .conn-btn,
+.conn-item.selected .conn-btn {
+  display: inline-flex;
 }
 
 .conn-btn:hover {
@@ -210,5 +383,10 @@ function openConnect(host: typeof store.hosts[0]) {
   text-align: center;
   padding: 1rem 0;
   margin: 0;
+}
+
+.root-drop-zone {
+  min-height: 24px;
+  pointer-events: none;
 }
 </style>

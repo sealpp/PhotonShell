@@ -1,10 +1,14 @@
 import { randomId } from '../utils/id'
-import { store, type HostProfile, type ShellState, type Tab } from '../stores/app'
+import { store, type FolderProfile, type HostProfile, type ShellState, type Tab } from '../stores/app'
 import {
   deleteHosts as deleteStoredHosts,
+  deleteFolderTree as deleteStoredFolderTree,
   listHosts as listStoredHosts,
+  listFolders as listStoredFolders,
   saveHost,
+  saveFolder,
 } from './storage'
+import { moveNodes } from './connectionTree'
 import {
   initializeVault,
   loadCredentialRecord,
@@ -33,6 +37,7 @@ export async function initializePwa(): Promise<void> {
   await nodeClient.initializeIdentity()
   await initializeVault()
   store.hosts = await listStoredHosts()
+  store.folders = await listStoredFolders()
 }
 
 export function wsUrl(): string {
@@ -82,13 +87,54 @@ export async function connect(callbacks: NodeCallbacks = {}): Promise<void> {
 
 export async function listHosts(): Promise<void> {
   store.hosts = await listStoredHosts()
+  store.folders = await listStoredFolders()
 }
 
 export async function createHost(host: HostProfile): Promise<void> {
-  await saveHost(host)
-  const current = store.hosts.findIndex((item) => item.id === host.id)
-  if (current === -1) store.hosts.push(host)
-  else store.hosts[current] = host
+  const normalized = { ...host, folderId: host.folderId ?? null }
+  await saveHost(normalized)
+  const current = store.hosts.findIndex((item) => item.id === normalized.id)
+  if (current === -1) store.hosts.push(normalized)
+  else store.hosts[current] = normalized
+}
+
+export async function createFolder(folder: FolderProfile): Promise<void> {
+  await saveFolder(folder)
+  const current = store.folders.findIndex((item) => item.id === folder.id)
+  if (current === -1) store.folders.push(folder)
+  else store.folders[current] = folder
+}
+
+export async function moveConnectionNodes(nodeIds: Set<string>, targetFolderId: string | null): Promise<void> {
+  await moveNodes(nodeIds, targetFolderId, store.folders, store.hosts)
+  const selectedFolders = new Set<string>()
+  const selectedHosts = new Set<string>()
+  for (const key of nodeIds) {
+    const separator = key.indexOf(':')
+    if (separator <= 0) continue
+    const kind = key.slice(0, separator)
+    const id = key.slice(separator + 1)
+    if (kind === 'folder') selectedFolders.add(id)
+    if (kind === 'host') selectedHosts.add(id)
+  }
+  store.folders = store.folders.map((folder) => selectedFolders.has(folder.id) ? { ...folder, parentId: targetFolderId } : folder)
+  store.hosts = store.hosts.map((host) => selectedHosts.has(host.id) ? { ...host, folderId: targetFolderId } : host)
+}
+
+export async function deleteFolders(folderIds: string[]): Promise<{ folderIds: string[]; hostIds: string[] }> {
+  const deleted = await deleteStoredFolderTree(folderIds)
+  const folderSet = new Set(deleted.folderIds)
+  const hostSet = new Set(deleted.hostIds)
+  store.folders = store.folders.filter((folder) => !folderSet.has(folder.id))
+  store.hosts = store.hosts.filter((host) => !hostSet.has(host.id))
+  store.selectedNodeIds = new Set(Array.from(store.selectedNodeIds).filter((key) => {
+    const separator = key.indexOf(':')
+    if (separator <= 0) return false
+    const id = key.slice(separator + 1)
+    return !folderSet.has(id) && !hostSet.has(id)
+  }))
+  store.selectedHostIds = new Set(Array.from(store.selectedHostIds).filter((id) => !hostSet.has(id)))
+  return deleted
 }
 
 export async function deleteHosts(hostIds: string[]): Promise<void> {
@@ -96,6 +142,9 @@ export async function deleteHosts(hostIds: string[]): Promise<void> {
   await deleteStoredHosts(hostIds)
   const deleted = new Set(hostIds)
   store.hosts = store.hosts.filter((host) => !deleted.has(host.id))
+  store.selectedNodeIds = new Set(
+    Array.from(store.selectedNodeIds).filter((key) => !key.startsWith('host:') || !deleted.has(key.slice('host:'.length))),
+  )
   store.selectedHostIds = new Set(
     Array.from(store.selectedHostIds).filter((id) => !deleted.has(id)),
   )

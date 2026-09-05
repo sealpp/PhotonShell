@@ -62,7 +62,7 @@ function onOpenChange(open: boolean) {
             <button
               type="button"
               class="workbench-dialog-button workbench-dialog-button--danger"
-              @click="emit('confirm')"
+              @click.capture="emit('confirm')"
             >
               {{ props.actionLabel }}
             </button>
