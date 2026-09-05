@@ -22,7 +22,7 @@ uv pip install -e ".[dev]"
 uv run python -m photon.main
 ```
 
-The Node prints a six-digit pairing code and listens on `127.0.0.1:17373`. On Windows, device trust is kept in the current user's Credential Manager. Non-Windows development uses an in-memory trust backend.
+The Node prints a six-digit pairing code and listens on `127.0.0.1:17373`. Device trust is kept in `photon-trust.json` beside the packaged executable (or beside `node/` in source mode). Set `PHOTON_TRUST_PATH` to override the file path.
 
 ### PWA
 
@@ -43,6 +43,7 @@ Then open `http://127.0.0.1:8080`, enter the pairing code, and add a host. The P
 | --- | --- | --- |
 | `PHOTON_HOST` | `127.0.0.1` | WebSocket listen host; only loopback addresses are accepted. |
 | `PHOTON_PORT` | `17373` | WebSocket listen port. |
+| `PHOTON_TRUST_PATH` | application directory + `photon-trust.json` | Node identity and paired device trust file. |
 
 ## Protocol generation
 
