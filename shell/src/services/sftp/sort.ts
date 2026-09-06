@@ -21,5 +21,6 @@ export function sortFileEntries(entries: readonly FileEntry[], key: FileSortKey,
 }
 
 export function isVisibleFileEntry(entry: FileEntry, showHidden: boolean): boolean {
-  return showHidden || !entry.hidden && !entry.name.startsWith('.') && !entry.temporary
+  if (entry.temporary) return false
+  return showHidden || !entry.hidden && !entry.name.startsWith('.')
 }

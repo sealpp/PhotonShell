@@ -14,6 +14,7 @@ function copyRuntimeAssets() {
       const assets = [
         ['sshclient-wasm/dist/sshclient.wasm', 'sshclient.wasm'],
         ['sshclient-wasm/dist/wasm_exec.js', 'wasm_exec.js'],
+        ['@verdigris/libssh2.js/dist/libssh2.wasm', 'libssh2.wasm'],
       ]
       mkdirSync(config.publicDir, { recursive: true })
       for (const [source, target] of assets) {

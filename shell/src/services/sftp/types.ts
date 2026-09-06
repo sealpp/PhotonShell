@@ -58,7 +58,7 @@ export type SftpRequestInput = SftpRequest extends infer Request
   : never
 
 export type SftpResponse =
-  | { version: SftpRpcVersion; id: string; ok: true; type: 'connected' | 'disconnected' | 'mkdir' | 'remove' | 'rename'; result?: unknown }
+  | { version: SftpRpcVersion; id: string; ok: true; type: 'connected' | 'disconnected' | 'cancelled' | 'mkdir' | 'remove' | 'rename'; result?: unknown }
   | { version: SftpRpcVersion; id: string; ok: true; type: 'list'; result: SftpDirectoryPage }
   | { version: SftpRpcVersion; id: string; ok: true; type: 'stat'; result: SftpStat }
   | { version: SftpRpcVersion; id: string; ok: true; type: 'read'; result: ArrayBuffer }

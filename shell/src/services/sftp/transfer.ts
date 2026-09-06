@@ -95,6 +95,7 @@ export async function transferFile(
   const temporary = joinRemotePath(normalizedTarget.slice(0, normalizedTarget.lastIndexOf('/')) || '/', `.${basenameRemotePath(normalizedTarget)}.photonshell-${randomId()}.tmp`)
   let bytes = 0
   try {
+    if (sourceStat.size === 0) await target.write(temporary, new ArrayBuffer(0), 0)
     for (let offset = 0; offset < sourceStat.size;) {
       assertNotCancelled(options.signal)
       const chunk = await source.read(normalizedSource, offset, Math.min(CHUNK_SIZE, sourceStat.size - offset))
@@ -133,12 +134,13 @@ export interface TransferTaskSnapshot {
   progress: number
   error?: string
   result?: TransferResult
+  orphanPath?: string
 }
 
 export class TransferQueue {
   private concurrency = 2
   private running = 0
-  private readonly queue: Array<{ snapshot: TransferTaskSnapshot; run: () => Promise<TransferResult>; resolve: (result: TransferResult) => void; reject: (error: unknown) => void }> = []
+  private readonly queue: Array<{ snapshot: TransferTaskSnapshot; run: (signal: AbortSignal) => Promise<TransferResult>; controller: AbortController; resolve: (result: TransferResult) => void; reject: (error: unknown) => void }> = []
   private readonly snapshots = new Map<string, TransferTaskSnapshot>()
   private readonly listeners = new Set<(snapshot: TransferTaskSnapshot) => void>()
 
@@ -156,13 +158,13 @@ export class TransferQueue {
   list(): TransferTaskSnapshot[] { return Array.from(this.snapshots.values()) }
   subscribe(listener: (snapshot: TransferTaskSnapshot) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener) }
 
-  enqueue(label: string, run: () => Promise<TransferResult>): { id: string; promise: Promise<TransferResult> } {
+  enqueue(label: string, run: (signal: AbortSignal) => Promise<TransferResult>): { id: string; promise: Promise<TransferResult> } {
     const snapshot: TransferTaskSnapshot = { id: randomId(), label, state: 'queued', progress: 0 }
     this.snapshots.set(snapshot.id, snapshot)
     let resolve!: (result: TransferResult) => void
     let reject!: (error: unknown) => void
     const promise = new Promise<TransferResult>((res, rej) => { resolve = res; reject = rej })
-    this.queue.push({ snapshot, run, resolve, reject })
+    this.queue.push({ snapshot, run, controller: new AbortController(), resolve, reject })
     this.emit(snapshot)
     this.pump()
     return { id: snapshot.id, promise }
@@ -170,10 +172,25 @@ export class TransferQueue {
 
   cancel(id: string): boolean {
     const item = this.queue.find((candidate) => candidate.snapshot.id === id)
-    if (!item || item.snapshot.state !== 'queued') return false
-    item.snapshot.state = 'cancelled'
-    item.reject(new TransferCancelledError())
+    if (!item || !['queued', 'running'].includes(item.snapshot.state)) return false
+    item.controller.abort()
+    if (item.snapshot.state === 'queued') {
+      item.snapshot.state = 'cancelled'
+      item.reject(new TransferCancelledError())
+      this.emit(item.snapshot)
+    }
+    return true
+  }
+
+  retry(id: string): boolean {
+    const item = this.queue.find((candidate) => candidate.snapshot.id === id)
+    if (!item || !['failed', 'cancelled'].includes(item.snapshot.state)) return false
+      item.snapshot.state = 'queued'
+      item.snapshot.error = undefined
+      item.controller = new AbortController()
+    item.snapshot.progress = 0
     this.emit(item.snapshot)
+    this.pump()
     return true
   }
 
@@ -188,7 +205,7 @@ export class TransferQueue {
       this.running += 1
       item.snapshot.state = 'running'
       this.emit(item.snapshot)
-      void item.run().then((result) => {
+      void item.run(item.controller.signal).then((result) => {
         item.snapshot.state = 'completed'
         item.snapshot.progress = 1
         item.snapshot.result = result
@@ -196,6 +213,7 @@ export class TransferQueue {
       }, (error: unknown) => {
         item.snapshot.state = error instanceof TransferCancelledError ? 'cancelled' : 'failed'
         item.snapshot.error = error instanceof Error ? error.message : String(error)
+        if (error instanceof TransferOrphanError) item.snapshot.orphanPath = error.orphanPath
         item.reject(error)
       }).finally(() => {
         this.running -= 1

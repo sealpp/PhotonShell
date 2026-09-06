@@ -14,9 +14,18 @@ const tabId = computed(() => String(props.params?.params?.tabId ?? ''))
 const tab = computed(() => store.tabs.find((candidate) => candidate.id === tabId.value && candidate.kind === 'file') as FileTab | undefined)
 const pathInput = ref('')
 const dropTarget = ref<string | null>(null)
+const listEl = ref<HTMLElement | null>(null)
+const scrollTop = ref(0)
+const viewportHeight = ref(600)
+const ROW_HEIGHT = 32
 let activateTimer: number | undefined
 
 const sortedEntries = computed(() => tab.value?.file.entries ?? [])
+const renderStart = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - 8))
+const renderEnd = computed(() => Math.min(sortedEntries.value.length, renderStart.value + Math.ceil(viewportHeight.value / ROW_HEIGHT) + 16))
+const renderedEntries = computed(() => sortedEntries.value.slice(renderStart.value, renderEnd.value))
+const topSpacer = computed(() => renderStart.value * ROW_HEIGHT)
+const bottomSpacer = computed(() => Math.max(0, (sortedEntries.value.length - renderEnd.value) * ROW_HEIGHT))
 
 function fileContext(): CommandContext {
   const current = tab.value
@@ -33,6 +42,11 @@ function fileContext(): CommandContext {
 }
 
 function syncPath(): void { pathInput.value = tab.value?.file.cwd ?? '' }
+function onListScroll(event: Event): void {
+  const element = event.currentTarget as HTMLElement
+  scrollTop.value = element.scrollTop
+  viewportHeight.value = element.clientHeight
+}
 
 function select(entry: FileEntry, event: MouseEvent): void {
   const current = tab.value
@@ -120,7 +134,8 @@ async function onDrop(event: DragEvent, entry?: FileEntry): Promise<void> {
   dropTarget.value = null
   const raw = event.dataTransfer?.getData('application/x-photonshell-sftp')
   if (!raw) return
-  const payload = JSON.parse(raw) as { sourceTabId: string; paths: string[] }
+  let payload: { sourceTabId: string; paths: string[] }
+  try { payload = JSON.parse(raw) as { sourceTabId: string; paths: string[] } } catch { return }
   const targetBackend = getSftpBackend(tabId.value)
   const sourceBackend = getSftpBackend(payload.sourceTabId)
   const current = tab.value
@@ -159,10 +174,11 @@ onBeforeUnmount(onDragLeave)
         <button type="button" title="平铺视图" :class="{ active: tab.file.view === 'tiles' }" @click="tab.file.view = 'tiles'"><IconLayoutGrid :size="16" /></button>
       </header>
       <div v-if="tab.file.error" class="file-error">{{ tab.file.error }}</div>
-      <div class="file-list" :class="`view-${tab.file.view}`">
+      <div ref="listEl" class="file-list" :class="`view-${tab.file.view}`" @scroll="onListScroll">
         <div class="file-list-head"><span>名称</span><span>大小</span><span>修改时间</span><span>类型</span></div>
+        <div class="virtual-spacer" :style="{ height: `${topSpacer}px` }" aria-hidden="true" />
         <div
-          v-for="entry in sortedEntries"
+          v-for="entry in renderedEntries"
           :key="entry.path"
           class="file-row"
           :class="{ selected: isSelected(entry), drop: dropTarget === entry.path }"
@@ -180,6 +196,7 @@ onBeforeUnmount(onDragLeave)
           <span>{{ entry.modifiedAt ? new Date(entry.modifiedAt).toLocaleString() : '—' }}</span>
           <span>{{ entry.kind }}</span>
         </div>
+        <div class="virtual-spacer" :style="{ height: `${bottomSpacer}px` }" aria-hidden="true" />
         <div v-if="tab.file.loading" class="file-empty">正在加载...</div>
         <div v-else-if="!sortedEntries.length && !tab.file.error" class="file-empty">目录为空</div>
       </div>
@@ -189,5 +206,5 @@ onBeforeUnmount(onDragLeave)
 </template>
 
 <style scoped>
-.file-panel{width:100%;height:100%;display:flex;flex-direction:column;background:#1e1e1e;color:#ccc;outline:none}.file-toolbar{height:40px;display:flex;align-items:center;gap:5px;padding:0 8px;background:#252526;border-bottom:1px solid #333}.file-toolbar button{width:27px;height:27px;display:inline-flex;align-items:center;justify-content:center;background:#333;border:1px solid #444;color:#ccc;cursor:pointer}.file-toolbar button:hover,.file-toolbar button.active{background:#0e639c;color:#fff}.file-toolbar button:disabled{opacity:.4;cursor:default}.file-toolbar input{min-width:140px;flex:1;height:27px;background:#1e1e1e;border:1px solid #555;color:#eee;padding:0 8px}.file-toolbar select{height:27px;max-width:160px;background:#1e1e1e;border:1px solid #555;color:#ddd}.file-error{padding:8px 12px;color:#f48771;background:#3a1d1d;border-bottom:1px solid #633}.file-list{min-height:0;flex:1;overflow:auto}.file-list-head,.file-row{display:grid;grid-template-columns:minmax(200px,2fr) 100px 170px 100px;gap:10px;align-items:center;padding:0 12px;min-height:32px;border-bottom:1px solid #2a2a2a}.file-list-head{position:sticky;top:0;background:#2d2d2d;color:#aaa;font-size:12px;z-index:1}.file-row{cursor:default}.file-row:hover{background:#2a2d2e}.file-row.selected{background:#094771;color:#fff}.file-row.drop{outline:1px solid #3794ff}.file-name{display:flex;align-items:center;gap:8px;min-width:0}.file-name span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.file-kind{color:#dcdcaa}.file-empty{padding:28px;color:#777;text-align:center}.file-status{height:24px;display:flex;align-items:center;gap:14px;padding:0 10px;background:#007acc;color:#fff;font-size:11px}.file-status span:first-child{margin-right:auto}.file-status button{display:inline-flex;align-items:center;border:0;background:transparent;color:#fff;padding:1px;cursor:pointer}.view-tiles .file-list-head,.view-tiles .file-row{grid-template-columns:repeat(3,minmax(130px,1fr));min-height:70px}.view-tiles .file-list-head span:not(:first-child),.view-tiles .file-row>span:not(:first-child){display:none}.view-tiles .file-name{flex-direction:column;align-items:flex-start}
+.file-panel{width:100%;height:100%;display:flex;flex-direction:column;background:#1e1e1e;color:#ccc;outline:none}.file-toolbar{height:40px;display:flex;align-items:center;gap:5px;padding:0 8px;background:#252526;border-bottom:1px solid #333}.file-toolbar button{width:27px;height:27px;display:inline-flex;align-items:center;justify-content:center;background:#333;border:1px solid #444;color:#ccc;cursor:pointer}.file-toolbar button:hover,.file-toolbar button.active{background:#0e639c;color:#fff}.file-toolbar button:disabled{opacity:.4;cursor:default}.file-toolbar input{min-width:140px;flex:1;height:27px;background:#1e1e1e;border:1px solid #555;color:#eee;padding:0 8px}.file-toolbar select{height:27px;max-width:160px;background:#1e1e1e;border:1px solid #555;color:#ddd}.file-error{padding:8px 12px;color:#f48771;background:#3a1d1d;border-bottom:1px solid #633}.file-list{min-height:0;flex:1;overflow:auto}.file-list-head,.file-row{display:grid;grid-template-columns:minmax(200px,2fr) 100px 170px 100px;gap:10px;align-items:center;padding:0 12px;min-height:32px;height:32px;border-bottom:1px solid #2a2a2a}.virtual-spacer{pointer-events:none}.file-list-head{position:sticky;top:0;background:#2d2d2d;color:#aaa;font-size:12px;z-index:1}.file-row{cursor:default}.file-row:hover{background:#2a2d2e}.file-row.selected{background:#094771;color:#fff}.file-row.drop{outline:1px solid #3794ff}.file-name{display:flex;align-items:center;gap:8px;min-width:0}.file-name span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.file-kind{color:#dcdcaa}.file-empty{padding:28px;color:#777;text-align:center}.file-status{height:24px;display:flex;align-items:center;gap:14px;padding:0 10px;background:#007acc;color:#fff;font-size:11px}.file-status span:first-child{margin-right:auto}.file-status button{display:inline-flex;align-items:center;border:0;background:transparent;color:#fff;padding:1px;cursor:pointer}.view-tiles .file-list-head,.view-tiles .file-row{grid-template-columns:repeat(3,minmax(130px,1fr));min-height:70px;height:70px}.view-tiles .file-list-head span:not(:first-child),.view-tiles .file-row>span:not(:first-child){display:none}.view-tiles .file-name{flex-direction:column;align-items:flex-start}
 </style>

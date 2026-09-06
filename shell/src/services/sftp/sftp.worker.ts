@@ -13,7 +13,7 @@ async function handle(request: SftpRequest): Promise<SftpResponse> {
   try {
     if (request.type === 'cancel') {
       cancelled.add(request.requestId)
-      return { version: 1, id: request.id, ok: true, type: 'disconnected' }
+      return { version: 1, id: request.id, ok: true, type: 'cancelled' }
     }
     if (cancelled.has(request.id)) throw new Error('request cancelled')
     switch (request.type) {

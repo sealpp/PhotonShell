@@ -24,6 +24,8 @@ import WorkbenchMenu from './components/WorkbenchMenu.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog.vue'
 import AboutDialog from './components/AboutDialog.vue'
+import TransferPanel from './views/TransferPanel.vue'
+import { loadTransferConcurrency } from './services/sftp/transfer-runtime'
 
 type ResizeSide = 'left' | 'right'
 
@@ -252,6 +254,7 @@ onMounted(async () => {
   setNodeDisconnectedHandler(scheduleReconnect)
   try {
     await initializePwa()
+    await loadTransferConcurrency()
     await loadKeybindingPreferences()
     if (!store.paired) {
       store.pairingModalOpen = true
@@ -263,8 +266,14 @@ onMounted(async () => {
   }
   startTelemetryService()
   keybindingService.attach(window, () => ({
-    area: 'global',
+    area: store.tabs.find((tab) => tab.id === store.activeTabId)?.kind === 'file'
+      ? 'file'
+      : store.tabs.find((tab) => tab.id === store.activeTabId)?.kind === 'editor'
+        ? 'editor'
+        : 'global',
     tabId: store.activeTabId,
+    selectedPaths: store.tabs.find((tab) => tab.id === store.activeTabId && tab.kind === 'file')?.file?.selectedPaths,
+    canPasteFiles: !!store.sftpClipboard?.entries.length,
   }))
 })
 
@@ -366,6 +375,7 @@ onBeforeUnmount(() => {
     <SettingsDialog v-if="store.settingsModalOpen" />
     <KeyboardShortcutsDialog v-if="store.keyboardShortcutsModalOpen" />
     <AboutDialog v-if="store.aboutModalOpen" />
+    <TransferPanel />
   </div>
 </template>
 

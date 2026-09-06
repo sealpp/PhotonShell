@@ -40,4 +40,6 @@ export class SftpWorkerClient implements SftpBackend {
   async mkdir(path: string): Promise<void> { await this.request({ type: 'mkdir', path }) }
   async remove(path: string, recursive?: boolean): Promise<void> { await this.request({ type: 'remove', path, recursive }) }
   async rename(source: string, target: string, overwrite?: boolean): Promise<{ atomic: boolean }> { return (await this.request<{ result: { atomic: boolean } }>({ type: 'rename', source, target, overwrite })).result }
+
+  async cancel(requestId: string): Promise<void> { await this.request({ type: 'cancel', requestId }) }
 }

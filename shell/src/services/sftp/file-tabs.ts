@@ -1,18 +1,26 @@
 import { randomId } from '../../utils/id'
 import { loadCredentialRecord } from '../vault'
 import { store, type FileEntry, type FileTab, type HostProfile } from '../../stores/app'
-import { normalizeRemotePath, parentRemotePath } from './path'
+import { normalizeRemotePath, parentRemotePath, joinRemotePath } from './path'
 import { listDirectory } from './operations'
 import { copyEntry, moveEntry, targetNameForEntry } from './operations'
 import { canPasteSftpClipboard, clearSftpClipboardAfterPaste, createSftpClipboardPayload } from './clipboard'
+import { enqueueTransfer } from './transfer-runtime'
+import { TransferCancelledError } from './transfer'
 import { SftpWorkerClient } from './worker-client'
 import type { SftpBackend, SftpConnectionOptions } from './types'
+import { createPinnedLibssh2Backend, type PinnedLibssh2Loader } from './libssh2-fallback'
 
 const sessions = new Map<string, SftpBackend>()
 let backendFactory: () => SftpBackend = () => new SftpWorkerClient()
+let fallbackLoader: PinnedLibssh2Loader | undefined
 
 export function setSftpBackendFactory(factory: () => SftpBackend): void {
   backendFactory = factory
+}
+
+export function setLibssh2FallbackLoader(loader: PinnedLibssh2Loader | undefined): void {
+  fallbackLoader = loader
 }
 
 export function getSftpBackend(tabId: string): SftpBackend | undefined {
@@ -79,7 +87,7 @@ async function startFileTab(tab: FileTab, host: HostProfile): Promise<void> {
       password: credential?.password,
       defaultPath: reactiveTab.file.defaultPath,
     }
-    const backend = backendFactory()
+    const backend = fallbackLoader ? await createPinnedLibssh2Backend(fallbackLoader) : backendFactory()
     await backend.connect(options)
     sessions.set(reactiveTab.id, backend)
     reactiveTab.state = 'online'
@@ -168,11 +176,22 @@ export async function pasteFileTab(tabId: string): Promise<void> {
   const sourceBackend = sessions.get(clipboard.sourceTabId)
   if (!targetBackend || !sourceBackend) throw new Error('SFTP source or target session is unavailable')
   const sameSession = clipboard.sourceSessionId === targetTab.sessionId
-  for (const entry of clipboard.entries) {
-    const destination = targetNameForEntry(entry.path, targetTab.file.cwd)
-    if (clipboard.mode === 'cut' && sameSession) await moveEntry(targetBackend, entry.path, destination)
-    else await copyEntry(sourceBackend, targetBackend, entry.path, destination)
-  }
+  const task = enqueueTransfer(`粘贴到 ${targetTab.file.cwd}`, async (signal) => {
+    let lastResult = { sourcePath: clipboard.entries[0]?.path ?? '', targetPath: targetTab.file.cwd, bytes: 0, atomic: sameSession, metadataApplied: false }
+    for (const entry of clipboard.entries) {
+      if (signal.aborted) throw new TransferCancelledError()
+      const destination = targetNameForEntry(entry.path, targetTab.file.cwd)
+      if (clipboard.mode === 'cut' && sameSession) {
+        const moved = await moveEntry(targetBackend, entry.path, destination)
+        lastResult = { ...lastResult, sourcePath: entry.path, targetPath: destination, atomic: moved.atomic }
+      } else {
+        const results = await copyEntry(sourceBackend, targetBackend, entry.path, destination, signal)
+        lastResult = results[results.length - 1] ?? lastResult
+      }
+    }
+    return lastResult
+  })
+  await task.promise
   store.sftpClipboard = clearSftpClipboardAfterPaste(clipboard, targetTab.sessionId)
   await refreshFileTab(targetTab.id)
 }
@@ -192,6 +211,6 @@ export async function renameFileEntry(tabId: string, path: string, name: string)
   if (!backend || !tab) throw new Error('SFTP session is unavailable')
   const trimmed = name.trim()
   if (!trimmed || trimmed === '.' || trimmed === '..' || /[\\/\u0000]/.test(trimmed)) throw new Error('Invalid remote file name')
-  await moveEntry(backend, path, targetNameForEntry(path, tab.file.cwd).replace(/[^/]+$/, trimmed))
+  await moveEntry(backend, path, joinRemotePath(parentRemotePath(path), trimmed))
   await refreshFileTab(tabId)
 }

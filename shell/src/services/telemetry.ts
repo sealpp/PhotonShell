@@ -139,7 +139,7 @@ function activeTab(): Tab | undefined {
 
 function canPoll(sessionId: string): boolean {
   const tab = activeTab()
-  return store.nodeConnected && store.view === 'shell' && store.panelOpen && tab?.state === 'online' && tab.sessionId === sessionId
+  return store.nodeConnected && store.view === 'shell' && store.panelOpen && tab?.kind === 'terminal' && tab.state === 'online' && tab.sessionId === sessionId
 }
 
 function stopPolling(): void {

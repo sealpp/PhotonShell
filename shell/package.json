@@ -11,10 +11,12 @@
     "preview:lan": "vite preview --port 18080 --host 0.0.0.0",
     "gen:proto": "node -e \"require('fs').mkdirSync('./src/proto', { recursive: true })\" && protoc --plugin=protoc-gen-es=./node_modules/.bin/protoc-gen-es --es_out=./src/proto --es_opt=target=ts --proto_path=../contracts photon.proto",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:unit": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.0",
+    "@verdigris/libssh2.js": "0.1.9",
     "@codemirror/commands": "^6.11.0",
     "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
@@ -40,6 +42,7 @@
     "typescript": "^5.5.0",
     "vite": "^5.4.0",
     "vite-plugin-pwa": "^0.20.0",
+    "vitest": "^1.6.0",
     "vue-tsc": "^2.0.0"
   }
 }
