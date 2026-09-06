@@ -1,0 +1,75 @@
+import type { FileEntry } from '../../stores/app'
+
+export const SFTP_RPC_VERSION = 1 as const
+export type SftpRpcVersion = typeof SFTP_RPC_VERSION
+
+export interface SftpConnectionOptions {
+  sessionId: string
+  host: string
+  port: number
+  username: string
+  password?: string
+  defaultPath?: string
+}
+
+export interface SftpStat extends FileEntry {
+  kind: FileEntry['kind']
+}
+
+export interface SftpDirectoryPage {
+  path: string
+  entries: FileEntry[]
+  nextCursor?: string
+}
+
+export interface SftpBackend {
+  connect(options: SftpConnectionOptions): Promise<void>
+  disconnect(): Promise<void>
+  list(path: string, cursor?: string): Promise<SftpDirectoryPage>
+  stat(path: string): Promise<SftpStat>
+  read(path: string, offset?: number, length?: number): Promise<ArrayBuffer>
+  write(path: string, data: ArrayBuffer, offset?: number): Promise<void>
+  mkdir(path: string): Promise<void>
+  remove(path: string, recursive?: boolean): Promise<void>
+  rename(source: string, target: string, overwrite?: boolean): Promise<{ atomic: boolean }>
+  chmod?(path: string, mode: number): Promise<void>
+  utimes?(path: string, modifiedAt: number): Promise<void>
+  readlink?(path: string): Promise<string>
+  symlink?(target: string, path: string): Promise<void>
+  supports?(extension: string): boolean
+}
+
+export type SftpRequest =
+  | { version: SftpRpcVersion; id: string; type: 'connect'; options: SftpConnectionOptions }
+  | { version: SftpRpcVersion; id: string; type: 'disconnect' }
+  | { version: SftpRpcVersion; id: string; type: 'list'; path: string; cursor?: string }
+  | { version: SftpRpcVersion; id: string; type: 'stat'; path: string }
+  | { version: SftpRpcVersion; id: string; type: 'read'; path: string; offset?: number; length?: number }
+  | { version: SftpRpcVersion; id: string; type: 'write'; path: string; payload: ArrayBuffer; offset?: number }
+  | { version: SftpRpcVersion; id: string; type: 'mkdir'; path: string }
+  | { version: SftpRpcVersion; id: string; type: 'remove'; path: string; recursive?: boolean }
+  | { version: SftpRpcVersion; id: string; type: 'rename'; source: string; target: string; overwrite?: boolean }
+  | { version: SftpRpcVersion; id: string; type: 'cancel'; requestId: string }
+
+export type SftpRequestInput = SftpRequest extends infer Request
+  ? Request extends SftpRequest
+    ? Omit<Request, 'version' | 'id'>
+    : never
+  : never
+
+export type SftpResponse =
+  | { version: SftpRpcVersion; id: string; ok: true; type: 'connected' | 'disconnected' | 'mkdir' | 'remove' | 'rename'; result?: unknown }
+  | { version: SftpRpcVersion; id: string; ok: true; type: 'list'; result: SftpDirectoryPage }
+  | { version: SftpRpcVersion; id: string; ok: true; type: 'stat'; result: SftpStat }
+  | { version: SftpRpcVersion; id: string; ok: true; type: 'read'; result: ArrayBuffer }
+  | { version: SftpRpcVersion; id: string; ok: true; type: 'write'; result?: unknown }
+  | { version: SftpRpcVersion; id: string; ok: false; error: { code: string; message: string } }
+
+export class SftpCapabilityError extends Error {
+  readonly code = 'SFTP_UNAVAILABLE'
+
+  constructor(message = 'The configured SSH WASM client does not expose an SFTP subsystem') {
+    super(message)
+    this.name = 'SftpCapabilityError'
+  }
+}
