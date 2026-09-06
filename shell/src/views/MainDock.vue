@@ -7,13 +7,14 @@ import { store } from '../stores/app'
 import TerminalPanel from './TerminalPanel.vue'
 import TerminalTab from './TerminalTab.vue'
 import FilePanel from './FilePanel.vue'
+import EditorPanel from './EditorPanel.vue'
 
 const api = ref<DockviewApi | null>(null)
 let unsubs: (() => void)[] = []
 let ignoreStoreActive = false
 let ignoreDockviewActive = false
 
-const components = { terminal: TerminalPanel, file: FilePanel }
+const components = { terminal: TerminalPanel, file: FilePanel, editor: EditorPanel }
 const tabComponents = { terminalTab: TerminalTab }
 
 function onReady(event: DockviewReadyEvent) {

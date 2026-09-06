@@ -3,6 +3,7 @@ import { store, type FileTab } from '../../stores/app'
 import { registerAction } from '../commands'
 import { MenuId } from '../actions/menuIds'
 import { copySelectedFileEntries, deleteFileEntries, navigateFileTab, navigateParentFileTab, pasteFileTab, refreshFileTab, renameFileEntry } from './file-tabs'
+import { openEditorTab } from './editor-tabs'
 
 function getFileTab(tabId?: string): FileTab | undefined {
   const tab = tabId ? store.tabs.find((candidate) => candidate.id === tabId) : undefined
@@ -26,6 +27,7 @@ registerAction({
     const entry = tab.file.entries.find((candidate) => candidate.path === ctx.filePath)
     if (!entry) return
     if (entry.kind === 'directory') await navigateFileTab(tab.id, entry.path)
+    else if (entry.kind === 'file' || entry.kind === 'symlink') await openEditorTab(tab.id, entry)
   },
   menus: [{ menuId: MenuId.FileContext, order: 10 }],
 })

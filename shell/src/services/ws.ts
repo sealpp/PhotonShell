@@ -337,7 +337,13 @@ export function closeTab(tabId: string): void {
 
 export function closeTabs(tabIds: string[]): void {
   const closing = new Set(tabIds)
-  const tabsToClose = store.tabs.filter((tab) => closing.has(tab.id))
+  const tabsToClose = store.tabs.filter((tab) => closing.has(tab.id)).filter((tab) => {
+    if (tab.kind === 'editor' && tab.editor?.dirty && !window.confirm(`文件 ${tab.editor.path} 有未保存修改，仍要关闭吗？`)) {
+      closing.delete(tab.id)
+      return false
+    }
+    return true
+  })
   if (!tabsToClose.length) return
 
   const activeTabId = store.activeTabId
