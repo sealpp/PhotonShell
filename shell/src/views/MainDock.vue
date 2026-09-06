@@ -6,13 +6,14 @@ import type { Tab } from '../stores/app'
 import { store } from '../stores/app'
 import TerminalPanel from './TerminalPanel.vue'
 import TerminalTab from './TerminalTab.vue'
+import FilePanel from './FilePanel.vue'
 
 const api = ref<DockviewApi | null>(null)
 let unsubs: (() => void)[] = []
 let ignoreStoreActive = false
 let ignoreDockviewActive = false
 
-const components = { terminal: TerminalPanel }
+const components = { terminal: TerminalPanel, file: FilePanel }
 const tabComponents = { terminalTab: TerminalTab }
 
 function onReady(event: DockviewReadyEvent) {
@@ -52,7 +53,7 @@ function addPanel(tab: Tab) {
   if (!dockviewApi) return
   if (dockviewApi.getPanel(tab.id)) return
   const host = store.hosts.find((h) => h.id === tab.hostId)
-  const title = host ? (host.name ?? '') : tab.label || tab.id
+  const title = tab.label || (host ? (host.name ?? '') : tab.id)
 
   const position = (() => {
     if (!tab.afterTabId) return undefined
@@ -66,7 +67,7 @@ function addPanel(tab: Tab) {
   dockviewApi.addPanel({
     id: tab.id,
     title,
-    component: 'terminal',
+    component: tab.kind === 'file' || tab.kind === 'editor' ? tab.kind : 'terminal',
     tabComponent: 'terminalTab',
     params: { tabId: tab.id },
     renderer: 'always',

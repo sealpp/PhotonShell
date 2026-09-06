@@ -6,6 +6,8 @@ import { getBufferText, getScreenText, getSelectedText } from '../utils/terminal
 import type { CommandContext } from './context'
 import { registerAction, registerSubmenu } from './commands'
 import { MenuId } from './actions/menuIds'
+import { createFileTab } from './sftp/file-tabs'
+import { normalizeRemotePath } from './sftp/path'
 
 const encodingLocales = [
   { id: 'en_US', label: 'English(en_US)', encodings: ['utf-8', 'us-ascii', 'iso-8859-15', 'iso-8859-1'] },
@@ -52,6 +54,22 @@ registerAction({
   },
   keybindings: [{ key: 'Mod+Backquote' }],
   menus: [{ menuId: MenuId.TerminalContext, order: 10 }],
+})
+
+registerAction({
+  id: 'terminal.openFiles',
+  title: '打开文件列表',
+  description: '在当前终端右侧打开 SFTP 文件列表',
+  category: 'terminal',
+  when: 'tabExists',
+  enablement: (ctx) => !!getTab(ctx) && getTab(ctx)?.kind === 'terminal',
+  run: (ctx) => {
+    const tab = getTab(ctx)
+    if (!tab || tab.kind !== 'terminal') return
+    const host = store.hosts.find((item) => item.id === tab.hostId)
+    if (host) createFileTab(host, tab.id, normalizeRemotePath(tab.cwd ?? '/'))
+  },
+  menus: [{ menuId: MenuId.TerminalContext, order: 15 }],
 })
 
 registerAction({

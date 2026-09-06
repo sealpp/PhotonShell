@@ -1,6 +1,6 @@
 import type { Terminal } from '@xterm/xterm'
 
-export type CommandArea = 'global' | 'host' | 'node' | 'terminal' | 'tab'
+export type CommandArea = 'global' | 'host' | 'node' | 'terminal' | 'file' | 'editor' | 'tab'
 
 export interface CommandContext {
   area: CommandArea
@@ -17,4 +17,8 @@ export interface CommandContext {
   nodeKind?: 'host' | 'folder' | 'mixed' | 'root'
   targetFolderId?: string | null
   isPaired?: boolean
+  selectedPaths?: string[]
+  filePath?: string
+  fileKind?: 'file' | 'directory' | 'symlink' | 'unknown'
+  canPasteFiles?: boolean
 }

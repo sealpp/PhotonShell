@@ -5,7 +5,7 @@ import { commandService } from '../services/commands'
 import CommandContextMenu from '../components/CommandContextMenu.vue'
 import type { CommandContext } from '../services/context'
 import { TAB_MENU_ID } from '../services/actions/menuIds'
-import { IconX } from '@tabler/icons-vue'
+import { IconFileText, IconFolder, IconTerminal2, IconX } from '@tabler/icons-vue'
 
 const props = defineProps<{
   params: {
@@ -22,7 +22,12 @@ const props = defineProps<{
 
 const tabId = computed(() => props.params?.params?.tabId ?? '')
 const tab = computed(() => store.tabs.find((t) => t.id === tabId.value))
-const title = computed(() => props.params?.api?.title || tab.value?.label || tabId.value)
+const title = computed(() => tab.value?.label || props.params?.api?.title || tabId.value)
+const icon = computed(() => {
+  if (tab.value?.kind === 'file') return IconFolder
+  if (tab.value?.kind === 'editor') return IconFileText
+  return IconTerminal2
+})
 
 const dotClass = computed(() => {
   const state = tab.value?.state
@@ -54,7 +59,7 @@ function tabContext(): CommandContext {
 }
 
 function onDoubleClick() {
-  if (!tabId.value) return
+  if (!tabId.value || tab.value?.kind !== 'terminal') return
   void commandService.execute('terminal.newTab', tabContext())
 }
 </script>
@@ -66,6 +71,7 @@ function onDoubleClick() {
     :context="tabContext"
   >
     <div class="terminal-tab" @dblclick="onDoubleClick">
+      <component :is="icon" :size="14" class="terminal-tab-icon" />
       <span :class="dotClass" />
       <span class="terminal-tab-label" :title="title">{{ title }}</span>
       <button

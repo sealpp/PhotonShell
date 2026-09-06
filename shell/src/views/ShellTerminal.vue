@@ -159,6 +159,19 @@ function initTerminal() {
   terminal.loadAddon(fitAddon)
   terminal.open(termEl.value)
 
+  terminal.parser.registerOscHandler(7, (value) => {
+    const currentTab = tab.value
+    if (!currentTab) return true
+    try {
+      const uri = value.includes('://') ? new URL(value) : undefined
+      const cwd = uri?.pathname || value
+      if (cwd.startsWith('/')) currentTab.cwd = cwd
+    } catch {
+      if (value.startsWith('/')) currentTab.cwd = value
+    }
+    return true
+  })
+
   terminal.onData((data: string) => {
     if (tab.value?.streamId) {
       sendTerminalInput(tab.value.streamId, encoder.encode(data))

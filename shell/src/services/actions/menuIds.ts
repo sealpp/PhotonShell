@@ -8,6 +8,7 @@ export const MenuId = {
   TerminalCopy: 'terminal.copy',
   TerminalPaste: 'terminal.paste',
   TerminalCharset: 'terminal.charset',
+  FileContext: 'file.context',
   NodeStatus: 'node.status',
 } as const
 
@@ -16,4 +17,5 @@ export const FOLDER_MENU_ID = MenuId.FolderContext
 export const ROOT_MENU_ID = MenuId.RootContext
 export const TAB_MENU_ID = MenuId.TabContext
 export const TERMINAL_MENU_ID = MenuId.TerminalContext
+export const FILE_MENU_ID = MenuId.FileContext
 export const NODE_MENU_ID = MenuId.NodeStatus
