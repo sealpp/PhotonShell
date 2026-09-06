@@ -23,6 +23,7 @@ import {
   sendInput,
 } from './ssh'
 import { nodeClient, type NodeCallbacks } from './nodeClient'
+import { closeFileTabSession } from './sftp/file-tabs'
 
 const outputHandlers = new Map<number, (data: Uint8Array) => void>()
 const pendingOutput = new Map<number, Uint8Array[]>()
@@ -189,6 +190,7 @@ export function addTab(host: HostProfile, password: string, insertAfterTabId?: s
   const terminalId = randomId()
   const tab: Tab = {
     id: tabId,
+    kind: 'terminal',
     hostId: host.id,
     label: host.name ?? '',
     state: 'connecting',
@@ -347,6 +349,7 @@ export function closeTabs(tabIds: string[]): void {
       pendingOutput.delete(tab.streamId)
     }
     void closeSsh(tab.sessionId)
+    if (tab.kind === 'file' || tab.kind === 'editor') void closeFileTabSession(tab.id)
   }
 
   if (activeTabId && !closing.has(activeTabId) && store.tabs.some((tab) => tab.id === activeTabId)) return

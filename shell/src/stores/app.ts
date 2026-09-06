@@ -3,6 +3,50 @@ import type { CommandContext } from '../services/context'
 
 export type View = 'welcome' | 'shell'
 export type ShellState = 'idle' | 'connecting' | 'online' | 'error'
+export type TabKind = 'terminal' | 'file' | 'editor'
+
+export type FileViewMode = 'list' | 'compact' | 'tiles'
+export type FileSortKey = 'name' | 'modified' | 'size' | 'type'
+export type FileSortDirection = 'asc' | 'desc'
+
+export interface FileWorkspaceState {
+  cwd: string
+  defaultPath: string
+  history: string[]
+  historyIndex: number
+  entries: FileEntry[]
+  selectedPaths: string[]
+  view: FileViewMode
+  sortKey: FileSortKey
+  sortDirection: FileSortDirection
+  showHidden: boolean
+  loading: boolean
+  error: string
+}
+
+export interface EditorState {
+  path: string
+  language: string
+  dirty: boolean
+  encoding: 'utf-8' | 'utf-16le' | 'utf-16be'
+  bom: boolean
+  lineEnding: '\n' | '\r\n' | '\r'
+  content: string
+  size: number
+  largeFileConfirmed: boolean
+}
+
+export interface FileEntry {
+  name: string
+  path: string
+  kind: 'file' | 'directory' | 'symlink' | 'unknown'
+  size: number
+  modifiedAt: number
+  mode?: number
+  target?: string
+  hidden?: boolean
+  temporary?: boolean
+}
 
 export interface HostProfile {
   id: string
@@ -34,6 +78,7 @@ export interface Telemetry {
 
 export interface Tab {
   id: string
+  kind: TabKind
   hostId: string
   label: string
   state: ShellState
@@ -43,7 +88,35 @@ export interface Tab {
   terminalId: string
   telemetry: Telemetry | null
   encoding: string
+  cwd?: string
   afterTabId?: string
+  file?: FileWorkspaceState
+  editor?: EditorState
+}
+
+export interface TerminalTab extends Tab {
+  kind: 'terminal'
+  streamId: number
+  terminalId: string
+}
+
+export interface FileTab extends Tab {
+  kind: 'file'
+  file: FileWorkspaceState
+}
+
+export interface EditorTab extends Tab {
+  kind: 'editor'
+  editor: EditorState
+}
+
+export interface SftpClipboardState {
+  version: 1
+  mode: 'copy' | 'cut'
+  sourceTabId: string
+  sourceSessionId: string
+  entries: Pick<FileEntry, 'path' | 'name' | 'kind' | 'size'>[]
+  createdAt: number
 }
 
 export interface AppState {
@@ -103,6 +176,7 @@ export interface AppState {
     context?: CommandContext
   } | null
   nodeConnected: boolean
+  sftpClipboard: SftpClipboardState | null
 }
 
 export const store = reactive<AppState>({
@@ -151,4 +225,5 @@ export const store = reactive<AppState>({
   terminalSessionInfo: null,
   manualPaste: null,
   nodeConnected: false,
+  sftpClipboard: null,
 })
