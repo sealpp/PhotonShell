@@ -17,3 +17,7 @@ export function transferablesForRequest(request: SftpRequest): Transferable[] {
 export function transferablesForResponse(response: SftpResponse): Transferable[] {
   return response.ok && response.type === 'read' ? [response.result] : []
 }
+
+export function transferablesForEvent(event: { type: string; publicKey?: ArrayBuffer }): Transferable[] {
+  return event.type === 'hostKey' && event.publicKey ? [event.publicKey] : []
+}

@@ -7,7 +7,6 @@ import { responseError, transferablesForRequest } from './worker-protocol'
 import { transferFile, TransferOrphanError } from './transfer'
 import type { FileEntry } from '../../stores/app'
 import type { SftpBackend } from './types'
-import { verifyPinnedLibssh2Wasm } from './libssh2-fallback'
 
 function entry(path: string, kind: FileEntry['kind'], size = 0): FileEntry {
   return { name: path.slice(path.lastIndexOf('/') + 1), path, kind, size, modifiedAt: 0 }
@@ -99,31 +98,17 @@ describe('SFTP clipboard and transfer pipeline', () => {
   })
 })
 
-describe('SFTP worker contract and feasibility evidence', () => {
+describe('SFTP worker contract', () => {
   it('marks malformed response errors and transfers write buffers', () => {
     expect(responseError('1', 'BAD_VERSION', 'unsupported').ok).toBe(false)
     const payload = new ArrayBuffer(2)
     expect(transferablesForRequest({ version: 1, id: '1', type: 'write', path: '/x', payload })).toEqual([payload])
   })
 
-  it('records an explicit failure when the current backend exposes no SFTP subsystem', async () => {
-    const result = await runSftpFeasibilitySpike({
-      connect: async () => { throw new Error('SFTP_UNAVAILABLE') },
-      disconnect: async () => undefined,
-      list: async () => ({ path: '/', entries: [] }),
-      stat: async () => entry('/', 'directory'),
-      read: async () => new ArrayBuffer(0),
-      write: async () => undefined,
-      mkdir: async () => undefined,
-      remove: async () => undefined,
-      rename: async () => ({ atomic: false }),
-    }, { sessionId: 'spike', host: 'example', port: 22, username: 'user' })
-    expect(result.passed).toBe(false)
-    expect(result.error).toContain('SFTP_UNAVAILABLE')
-  })
-
-  it('fails closed when the libssh2 artifact pin is missing or wrong', async () => {
-    await expect(verifyPinnedLibssh2Wasm(new ArrayBuffer(0), '')).rejects.toThrow('pin is missing')
-    await expect(verifyPinnedLibssh2Wasm(new ArrayBuffer(0), '0000000000000000000000000000000000000000000000000000000000000000')).rejects.toThrow('mismatch')
+  it('runs the feasibility loop against an explicit backend', async () => {
+    const backend = new MemoryBackend()
+    const result = await runSftpFeasibilitySpike(backend, { sessionId: 'spike', host: 'example', port: 22, username: 'user', password: '' })
+    expect(result.backend).toBe('sftp-backend')
+    expect(result.checks.independentSessions).toBe(true)
   })
 })

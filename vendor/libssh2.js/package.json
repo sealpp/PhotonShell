@@ -36,6 +36,7 @@
   "types": "dist/libssh2.d.ts",
   "files": [
     "dist/libssh2.js",
+    "dist/libssh2-core.js",
     "dist/libssh2.wasm",
     "dist/libssh2.d.ts"
   ],

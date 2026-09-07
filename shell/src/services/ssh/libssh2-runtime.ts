@@ -86,6 +86,7 @@ export class Libssh2Session {
     if (handshake !== 0) throw errorFor(this.module, this.session, 'SSH handshake failed')
     if (options.onHostKey) {
       const hostKey = this.readHostKey()
+      if (!hostKey) throw new Libssh2Error(-10, 'SSH host key was not exposed by libssh2')
       if (hostKey && !await options.onHostKey(hostKey)) throw new Error('remote host key was rejected')
     }
     const auth = await this.withStrings([options.username, options.password], ([username, password]) => this.pump(() => (this.module as any).ssh2_userauth_password(this.session, username, password)))
@@ -249,10 +250,13 @@ export class Libssh2Session {
   }
 
   async statPath(path: string): Promise<{ size: number; modifiedAt: number; mode: number; kind: 'file' | 'directory' | 'symlink' | 'unknown' }> {
-    const attrs = await this.withStrings([path], ([pathPtr]) => this.pump(() => (this.module as any).ssh2_sftp_lstat?.(this.sftp, pathPtr) ?? (this.module as any).ssh2_sftp_stat(this.sftp, pathPtr)))
-    if (!attrs) throw errorFor(this.module, this.session, 'SFTP stat failed')
-    const parsed = typeof attrs === 'object' ? attrs : this.readAttributes(attrs)
-    return { size: Number(parsed.filesize ?? 0), modifiedAt: Number(parsed.mtime ?? 0) * 1000, mode: Number(parsed.permissions ?? 0), kind: kindFromMode(Number(parsed.permissions ?? 0)) }
+    const attrsPtr = this.module._malloc(64)
+    try {
+      const result = await this.withStrings([path], ([pathPtr]) => this.pump(() => (this.module as any).ssh2_sftp_stat(this.sftp, pathPtr, attrsPtr)))
+      if (result !== 0) throw errorFor(this.module, this.session, 'SFTP stat failed')
+      const parsed = this.readAttributes(attrsPtr)
+      return { size: parsed.filesize, modifiedAt: parsed.mtime * 1000, mode: parsed.permissions, kind: kindFromMode(parsed.permissions) }
+    } finally { this.module._free(attrsPtr) }
   }
 
   async readPath(path: string, offset = 0, length = 256 * 1024): Promise<ArrayBuffer> {
@@ -309,7 +313,7 @@ export class Libssh2Session {
   async renamePath(source: string, target: string, overwrite = false): Promise<{ atomic: boolean }> {
     const extended = (this.module as any).ssh2_sftp_posix_rename_ex
     if (overwrite && extended) {
-      const result = await this.withStrings([source, target], ([sourcePtr, targetPtr]) => this.pump(() => extended(this.sftp, sourcePtr, source.length, targetPtr, target.length)))
+      const result = await this.withStrings([source, target], ([sourcePtr, targetPtr]) => this.pump(() => extended(this.sftp, sourcePtr, source.length, targetPtr, target.length, 1)))
       if (result !== 0) throw errorFor(this.module, this.session, 'SFTP atomic rename failed')
       return { atomic: true }
     }
@@ -319,8 +323,26 @@ export class Libssh2Session {
   }
 
   async chmodPath(path: string, mode: number): Promise<void> {
-    const result = await this.withStrings([path], ([pathPtr]) => this.pump(() => (this.module as any).ssh2_sftp_setstat(this.sftp, pathPtr, { permissions: mode, flags: 4 })))
-    if (result !== 0) throw errorFor(this.module, this.session, 'SFTP chmod failed')
+    const attrsPtr = this.module._malloc(64)
+    try {
+      const view = new DataView(this.module.HEAPU8.buffer)
+      view.setUint32(attrsPtr, 4, true)
+      view.setUint32(attrsPtr + 24, mode, true)
+      const result = await this.withStrings([path], ([pathPtr]) => this.pump(() => (this.module as any).ssh2_sftp_setstat(this.sftp, pathPtr, attrsPtr)))
+      if (result !== 0) throw errorFor(this.module, this.session, 'SFTP chmod failed')
+    } finally { this.module._free(attrsPtr) }
+  }
+
+  async utimesPath(path: string, modifiedAt: number): Promise<void> {
+    const attrsPtr = this.module._malloc(64)
+    try {
+      const view = new DataView(this.module.HEAPU8.buffer)
+      view.setUint32(attrsPtr, 8, true)
+      view.setUint32(attrsPtr + 32, Math.floor(modifiedAt / 1000), true)
+      view.setUint32(attrsPtr + 36, Math.floor(modifiedAt / 1000), true)
+      const result = await this.withStrings([path], ([pathPtr]) => this.pump(() => (this.module as any).ssh2_sftp_setstat(this.sftp, pathPtr, attrsPtr)))
+      if (result !== 0) throw errorFor(this.module, this.session, 'SFTP timestamp update failed')
+    } finally { this.module._free(attrsPtr) }
   }
 
   async readlinkPath(path: string): Promise<string> {
@@ -337,6 +359,10 @@ export class Libssh2Session {
     if (result !== 0) throw errorFor(this.module, this.session, 'SFTP symlink failed')
   }
 
+  supports(extension: string): boolean {
+    return extension === 'posix-rename@openssh.com' && typeof (this.module as any)?.ssh2_sftp_posix_rename_ex === 'function'
+  }
+
   private async openFile(path: string, flags: number, mode: number): Promise<number> {
     const handle = await this.withStrings([path], ([pathPtr]) => this.pump(() => (this.module as any).ssh2_sftp_open(this.sftp, pathPtr, flags, mode)))
     if (!handle) throw errorFor(this.module, this.session, 'SFTP file open failed')
@@ -350,7 +376,7 @@ export class Libssh2Session {
 
   private readAttributes(ptr: number): { filesize: number; permissions: number; mtime: number } {
     const view = new DataView(this.module.HEAPU8.buffer)
-    return { filesize: Number(view.getBigUint64(ptr + 8, true)), permissions: view.getUint32(ptr + 24, true), mtime: view.getUint32(ptr + 36, true) }
+    return { filesize: Number(view.getBigUint64(ptr + 8, true)), permissions: view.getUint32(ptr + 24, true), mtime: view.getUint32(ptr + 32, true) }
   }
 
   private async withStrings<T>(values: string[], callback: (pointers: number[]) => Promise<T>): Promise<T> {

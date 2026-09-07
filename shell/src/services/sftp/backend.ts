@@ -1,8 +1,8 @@
-import { SftpCapabilityError, type SftpBackend } from './types'
+import type { SftpBackend } from './types'
 
 export function createUnavailableSftpBackend(): SftpBackend {
   const fail = async (): Promise<never> => {
-    throw new SftpCapabilityError()
+    throw new Error('SFTP backend is not configured')
   }
   return {
     connect: fail,

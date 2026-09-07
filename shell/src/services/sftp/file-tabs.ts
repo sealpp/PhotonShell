@@ -8,19 +8,14 @@ import { canPasteSftpClipboard, clearSftpClipboardAfterPaste, createSftpClipboar
 import { enqueueTransfer } from './transfer-runtime'
 import { TransferCancelledError } from './transfer'
 import { SftpWorkerClient } from './worker-client'
+import { getRuntimePassword } from '../ssh'
 import type { SftpBackend, SftpConnectionOptions } from './types'
-import { createPinnedLibssh2Backend, type PinnedLibssh2Loader } from './libssh2-fallback'
 
 const sessions = new Map<string, SftpBackend>()
 let backendFactory: () => SftpBackend = () => new SftpWorkerClient()
-let fallbackLoader: PinnedLibssh2Loader | undefined
 
 export function setSftpBackendFactory(factory: () => SftpBackend): void {
   backendFactory = factory
-}
-
-export function setLibssh2FallbackLoader(loader: PinnedLibssh2Loader | undefined): void {
-  fallbackLoader = loader
 }
 
 export function getSftpBackend(tabId: string): SftpBackend | undefined {
@@ -58,7 +53,6 @@ export function createFileTab(host: HostProfile, sourceTabId: string, initialPat
     label: `文件: ${normalizeRemotePath(initialPath)}`,
     state: 'connecting',
     error: '',
-    streamId: 0,
     sessionId: randomId(),
     terminalId: randomId(),
     telemetry: null,
@@ -84,10 +78,10 @@ async function startFileTab(tab: FileTab, host: HostProfile): Promise<void> {
       host: host.address,
       port: host.port,
       username: host.username,
-      password: credential?.password,
+      password: credential?.password ?? getRuntimePassword(host.address) ?? (() => { throw new Error('SFTP credentials are unavailable for this host') })(),
       defaultPath: reactiveTab.file.defaultPath,
     }
-    const backend = fallbackLoader ? await createPinnedLibssh2Backend(fallbackLoader) : backendFactory()
+    const backend = backendFactory()
     await backend.connect(options)
     sessions.set(reactiveTab.id, backend)
     reactiveTab.state = 'online'

@@ -4,6 +4,7 @@ import { store, type EditorTab, type FileEntry, type FileTab } from '../../store
 import { getSftpBackend, registerSftpSession } from './file-tabs'
 import { SftpWorkerClient } from './worker-client'
 import type { SftpBackend, SftpConnectionOptions } from './types'
+import { getRuntimePassword } from '../ssh'
 import { transferFile } from './transfer'
 
 const MAX_EDIT_SIZE = 10 * 1024 * 1024
@@ -61,7 +62,6 @@ export async function openEditorTab(fileTabId: string, entry: FileEntry): Promis
     label: entry.name,
     state: 'connecting',
     error: '',
-    streamId: 0,
     sessionId: randomId(),
     terminalId: randomId(),
     telemetry: null,
@@ -87,7 +87,7 @@ export async function openEditorTab(fileTabId: string, entry: FileEntry): Promis
     if (entry.size > MAX_EDIT_SIZE && !window.confirm(`${entry.name} 大小超过 10 MiB，仍要打开吗？`)) throw new Error('Opening large file was cancelled')
     const credential = await loadCredentialRecord(host.id)
     const backend = new SftpWorkerClient()
-    const options: SftpConnectionOptions = { sessionId: editor.sessionId, host: host.address, port: host.port, username: host.username, password: credential?.password, defaultPath: source.file.cwd }
+    const options: SftpConnectionOptions = { sessionId: editor.sessionId, host: host.address, port: host.port, username: host.username, password: credential?.password ?? getRuntimePassword(host.address) ?? (() => { throw new Error('SFTP credentials are unavailable for this host') })(), defaultPath: source.file.cwd }
     await backend.connect(options)
     registerSftpSession(editor.id, backend)
     const stat = await backend.stat(entry.path)

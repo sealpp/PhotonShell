@@ -56,7 +56,8 @@ export class SshWorkerClient {
   }
 
   send(payload: Uint8Array): void {
-    this.post({ type: 'input', payload: payload.slice().buffer }, [payload.slice().buffer])
+    const copy = payload.slice()
+    this.post({ type: 'input', payload: copy.buffer }, [copy.buffer])
   }
 
   resize(columns: number, rows: number): void { this.post({ type: 'resize', columns, rows }) }
@@ -73,6 +74,7 @@ export class SshWorkerClient {
     if (this.closed) return
     this.closed = true
     this.post({ type: 'close' })
+    await new Promise((resolve) => setTimeout(resolve, 0))
     this.worker.terminate()
     for (const pending of this.execPending.values()) pending.reject(new Error('SSH worker closed'))
     this.execPending.clear()
