@@ -16,7 +16,12 @@ export function createLibssh2SftpBackend(onHostKey: (publicKey: Uint8Array) => P
         onHostKey: async (key) => {
           if (next.knownHostKey) {
             const known = new Uint8Array(next.knownHostKey)
-            return known.length === key.length && known.every((value, index) => value === key[index])
+            if (known.length !== key.length || !known.every((value, index) => value === key[index])) {
+              const error = new Error('remote host key does not match the saved fingerprint') as Error & { code?: string }
+              error.code = 'HOST_KEY_MISMATCH'
+              throw error
+            }
+            return true
           }
           return onHostKey(key)
         },

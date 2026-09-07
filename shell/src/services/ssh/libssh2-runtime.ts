@@ -23,7 +23,8 @@ export class Libssh2Error extends Error {
 
 function errorFor(module: SSH2WASMModule, session: LIBSSH2_SESSION, fallback: string): Libssh2Error {
   const code = module.ssh2_session_last_errno(session)
-  const message = module.ssh2_session_last_error(session) || fallback
+  const rawMessage = (module as any).ssh2_session_last_error(session)
+  const message = typeof rawMessage === 'number' ? module.UTF8ToString(rawMessage) || fallback : rawMessage || fallback
   return new Libssh2Error(code, message)
 }
 
@@ -53,7 +54,7 @@ export class Libssh2Session {
       customSend: (ptr, length) => {
         if (!this.module || this.closed) return -1
         const payload = this.module.HEAPU8.slice(ptr, ptr + length)
-        void this.transport.send(payload)
+        void this.transport.send(payload).catch((error) => this.transport.close(error instanceof Error ? error.message : 'transport send failed'))
         return length
       },
       customRecv: (ptr, length) => {
@@ -165,14 +166,14 @@ export class Libssh2Session {
       if (started !== 0) throw errorFor(this.module, this.session, 'SSH exec failed')
       let idle = 0
       while (idle < 2_000) {
-        const read = await this.pumpRead(channel, buffer, false)
-        const readErr = await this.pumpRead(channel, buffer, true)
+        const read = this.readChannelNow(channel, buffer, false)
+        const readErr = this.readChannelNow(channel, buffer, true)
         if (read.length) stdout.push(...read)
         if (readErr.length) stderr.push(...readErr)
         if (!read.length && !readErr.length) {
           if (this.module.ssh2_channel_eof(channel)) break
           idle += 1
-          await new Promise((resolve) => setTimeout(resolve, 1))
+          await this.transport.waitForData(25)
         } else idle = 0
       }
       const exitCode = this.module.ssh2_channel_get_exit_status(channel)
@@ -274,7 +275,7 @@ export class Libssh2Session {
   }
 
   async writePath(path: string, payload: ArrayBuffer, offset = 0): Promise<void> {
-    const handle = await this.openFile(path, 1 | 64 | 512, 0o644)
+    const handle = await this.openFile(path, 1 | 64 | (offset === 0 ? 512 : 0), 0o644)
     const data = new Uint8Array(payload)
     const ptr = this.module._malloc(Math.max(1, data.length))
     try {
@@ -360,7 +361,7 @@ export class Libssh2Session {
   }
 
   supports(extension: string): boolean {
-    return extension === 'posix-rename@openssh.com' && typeof (this.module as any)?.ssh2_sftp_posix_rename_ex === 'function'
+    return extension === 'posix-rename@openssh.com' && (this.module as any)?.__photonshellPatchedPosixRename === true
   }
 
   private async openFile(path: string, flags: number, mode: number): Promise<number> {
@@ -384,10 +385,10 @@ export class Libssh2Session {
     try { return await callback(pointers) } finally { pointers.forEach((pointer) => this.module._free(pointer)) }
   }
 
-  private async pumpRead(channel: LIBSSH2_CHANNEL, buffer: number, stderr: boolean): Promise<Uint8Array> {
-    const read = await this.pump(() => stderr
+  private readChannelNow(channel: LIBSSH2_CHANNEL, buffer: number, stderr: boolean): Uint8Array {
+    const read = stderr
       ? this.module.ssh2_channel_read_stderr(channel, buffer, BUFFER_SIZE)
-      : this.module.ssh2_channel_read(channel, buffer, BUFFER_SIZE))
+      : this.module.ssh2_channel_read(channel, buffer, BUFFER_SIZE)
     if (read <= 0) return new Uint8Array()
     return this.module.HEAPU8.slice(buffer, buffer + read)
   }

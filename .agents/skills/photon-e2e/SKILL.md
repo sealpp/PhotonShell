@@ -10,7 +10,7 @@ description: 运行和维护 PhotonShell 端到端测试（PWA/WASM 协议客户
 ```text
 Playwright (Chromium)
   ↓ HTTP/WebSocket
-PWA (Vite/Vue + WASM SSH client)
+PWA (Vite/Vue + libssh2 WASM Workers)
   ↓ loopback WebSocket transport
 PhotonNode (Python pairing + TCP/UDP relay)
   ↓ TCP
@@ -18,7 +18,7 @@ mock SSH server (asyncssh)
 ```
 
 PhotonNode 不实现 SSH，也不保存主机或凭据业务数据。完整链路中的 SSH 协议由 PWA/WASM
-客户端执行；mock SSH 只属于测试依赖。
+Worker 执行；mock SSH 只属于测试依赖。
 
 ## 端口
 
@@ -59,14 +59,15 @@ profile key 自动解锁，不需要额外的口令配置。
 `.agents/skills/photon-e2e/mock-ssh-server.py` 应覆盖：
 
 - 密码认证；
-- PWA SSH 的交互式 PTY shell；
+- PWA libssh2 的交互式 PTY shell；
 - `uname -s`；
-- telemetry 合并采样命令；
+- telemetry direct `channel_exec` 采样命令；
 - `printf exec-ok` 和简单终端命令。
 - telemetry 后台 shell 的连接计数，验证首次探测、连续采样和收起再打开面板均复用同一连接。
+- SFTP v3 subsystem，覆盖目录、读写、rename、递归删除和符号链接；可用 `MOCK_SFTP_ROOT` 指定测试目录。
 
-交互式 shell 必须保持存活。PWA telemetry 使用 SSH shell marker 执行隐藏采样，不依赖
-Node generic exec。
+交互式 shell 必须保持存活。PWA telemetry 使用独立 libssh2 Worker 的 direct `channel_exec`，
+不依赖 shell marker，也不复用控制连接。
 
 ## 选择器
 
@@ -91,17 +92,16 @@ Node generic exec。
 - 有 `[data-metric-id="process.count"][data-metric-kind="stat"]`。
 
 当前仪表盘使用 CSS gauge，不依赖 canvas。面板关闭、标签切换或 session 断开时必须停止
-polling；刷新后 host profile、凭据和设备身份保留，但活动 tab/stream 不恢复；刷新后重新连接
+polling；刷新后 host profile、凭据和设备身份保留，但活动 tab/session 不恢复；刷新后重新连接
 应自动读取已保存凭据且不打开密码对话框。
 
 ## PWA WASM 资源
 
 Vite 配置会从已锁定的 npm 依赖复制以下运行时资源到开发/构建 public 目录：
 
-- `sshclient.wasm`
-- `wasm_exec.js`
+- `libssh2.wasm`
 
-这些生成文件不提交。修改 `ws.ts`、`nodeClient.ts`、`ssh.ts`、`vault.ts` 或 Vite 配置后，
+这些生成文件不提交。修改 `ws.ts`、`nodeClient.ts`、`ssh.ts`、Worker 或 Vite 配置后，
 刷新页面或重启 dev server 再跑 E2E，避免 HMR 使用旧的 WASM/模块状态。
 
 ## 文件卫生

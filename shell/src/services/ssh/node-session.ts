@@ -157,9 +157,16 @@ export class NodeSessionTransport {
     }
   }
 
-  async waitForData(): Promise<void> {
+  async waitForData(timeoutMs = 0): Promise<void> {
     if (this.closed) throw new Error('Node session transport is closed')
-    await new Promise<void>((resolve) => this.dataWaiters.push(resolve))
+    await new Promise<void>((resolve) => {
+      this.dataWaiters.push(resolve)
+      if (timeoutMs > 0) setTimeout(() => {
+        const index = this.dataWaiters.indexOf(resolve)
+        if (index >= 0) this.dataWaiters.splice(index, 1)
+        resolve()
+      }, timeoutMs)
+    })
   }
 
   async close(reason = 'session_closed'): Promise<void> {
@@ -174,7 +181,7 @@ export class NodeSessionTransport {
       }))
     }
     this.socket?.close()
-    this.fail(new Error(reason))
+    this.dataWaiters.splice(0).forEach((resolve) => resolve())
   }
 
   private handleMessage(event: MessageEvent): void {

@@ -36,6 +36,7 @@ async function connectWorker(info: SshConnectionInfo, onState: StateHandler, onO
     hostPasswords.set(info.host, { password: info.password, sessions: (cached?.sessions ?? 0) + 1 })
     return active
   } catch (error) {
+    hostPasswords.delete(info.host)
     await worker.close()
     throw error
   }

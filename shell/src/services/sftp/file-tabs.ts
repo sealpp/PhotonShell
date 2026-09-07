@@ -84,6 +84,15 @@ async function startFileTab(tab: FileTab, host: HostProfile): Promise<void> {
     const backend = backendFactory()
     await backend.connect(options)
     sessions.set(reactiveTab.id, backend)
+    try {
+      await backend.stat(reactiveTab.file.cwd)
+    } catch {
+      reactiveTab.file.cwd = '/'
+      reactiveTab.file.defaultPath = '/'
+      reactiveTab.file.history = ['/']
+      reactiveTab.file.historyIndex = 0
+      reactiveTab.cwd = '/'
+    }
     reactiveTab.state = 'online'
     await refreshFileTab(reactiveTab.id)
   } catch (error) {

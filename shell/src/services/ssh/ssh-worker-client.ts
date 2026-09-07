@@ -117,7 +117,14 @@ export class SshWorkerClient {
     } else {
       this.post({ type: 'hostKeyDecision', accepted: false })
     }
-    if (accepted) void saveKnownHost({ host: this.host, port: this.port, publicKey: bytesToBase64(new Uint8Array(event.publicKey)), fingerprint: event.fingerprint }).catch(() => undefined)
+    if (accepted) {
+      try {
+        await saveKnownHost({ host: this.host, port: this.port, publicKey: bytesToBase64(new Uint8Array(event.publicKey)), fingerprint: event.fingerprint })
+      } catch {
+        this.post({ type: 'hostKeyDecision', accepted: false })
+        return
+      }
+    }
   }
 
   private post(message: unknown, transfer: Transferable[] = []): void {

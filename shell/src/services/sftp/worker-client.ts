@@ -62,8 +62,12 @@ export class SftpWorkerClient implements SftpBackend {
   async cancel(requestId: string): Promise<void> { await this.request({ type: 'cancel', requestId }) }
 
   private async handleHostKey(event: { publicKey: ArrayBuffer; fingerprint: string }): Promise<void> {
-    const accepted = await requestHostKeyApproval({ host: this.host, port: this.port, fingerprint: event.fingerprint })
-    if (accepted) await saveKnownHost({ host: this.host, port: this.port, publicKey: bytesToBase64(new Uint8Array(event.publicKey)), fingerprint: event.fingerprint })
+    let accepted = await requestHostKeyApproval({ host: this.host, port: this.port, fingerprint: event.fingerprint })
+    if (accepted) {
+      try {
+        await saveKnownHost({ host: this.host, port: this.port, publicKey: bytesToBase64(new Uint8Array(event.publicKey)), fingerprint: event.fingerprint })
+      } catch { accepted = false }
+    }
     this.worker.postMessage({ type: 'hostKeyDecision', accepted })
   }
 }

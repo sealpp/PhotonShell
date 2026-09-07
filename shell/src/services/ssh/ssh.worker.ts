@@ -33,9 +33,10 @@ function equal(left: Uint8Array, right: Uint8Array): boolean {
 
 function emitError(error: unknown): void {
   const message = error instanceof Error ? error.message : String(error)
-  const code = error instanceof Libssh2Error
+  const explicitCode = error instanceof Error && 'code' in error ? String((error as Error & { code?: unknown }).code) : ''
+  const code = explicitCode || (error instanceof Libssh2Error
     ? error.code === -18 ? 'AUTHENTICATION_FAILED' : error.code === -13 ? 'DISCONNECTED' : 'SSH_ERROR'
-    : 'SSH_ERROR'
+    : 'SSH_ERROR')
   post({ type: 'error', code, message })
 }
 
