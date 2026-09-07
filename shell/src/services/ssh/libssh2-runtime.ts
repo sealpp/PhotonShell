@@ -404,7 +404,9 @@ export class Libssh2Session {
       }
     }
     const bytes = this.handshakeBytes
-    for (let offset = 0; offset + 5 <= bytes.length; offset += 1) {
+    const bannerEnd = bytes.indexOf(10)
+    const start = bannerEnd >= 0 ? bannerEnd + 1 : 0
+    for (let offset = start; offset + 5 <= bytes.length; offset += 1) {
       const packetLength = new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, false)
       if (packetLength < 16 || packetLength > 1024 * 1024 || offset + 4 + packetLength > bytes.length) continue
       const padding = bytes[offset + 4]
