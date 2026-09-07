@@ -25,8 +25,8 @@ import {
 import { nodeClient, type NodeCallbacks } from './nodeClient'
 import { closeFileTabSession } from './sftp/file-tabs'
 
-const outputHandlers = new Map<number, (data: Uint8Array) => void>()
-const pendingOutput = new Map<number, Uint8Array[]>()
+const outputHandlers = new Map<string, (data: Uint8Array) => void>()
+const pendingOutput = new Map<string, Uint8Array[]>()
 
 export interface ExecResult {
   stdout: Uint8Array
@@ -152,31 +152,31 @@ export async function deleteHosts(hostIds: string[]): Promise<void> {
 }
 
 export function setTerminalOutputHandler(
-  streamId: number,
+  sessionId: string,
   handler: ((data: Uint8Array) => void) | null,
 ): void {
   if (!handler) {
-    outputHandlers.delete(streamId)
-    pendingOutput.delete(streamId)
+    outputHandlers.delete(sessionId)
+    pendingOutput.delete(sessionId)
     return
   }
-  outputHandlers.set(streamId, handler)
-  const buffered = pendingOutput.get(streamId)
-  pendingOutput.delete(streamId)
+  outputHandlers.set(sessionId, handler)
+  const buffered = pendingOutput.get(sessionId)
+  pendingOutput.delete(sessionId)
   for (const data of buffered ?? []) handler(data)
 }
 
-function emitTerminalOutput(streamId: number, data: Uint8Array): void {
-  const handler = outputHandlers.get(streamId)
+function emitTerminalOutput(sessionId: string, data: Uint8Array): void {
+  const handler = outputHandlers.get(sessionId)
   if (handler) {
     handler(data)
     return
   }
-  const buffered = pendingOutput.get(streamId) ?? []
+  const buffered = pendingOutput.get(sessionId) ?? []
   const total = buffered.reduce((sum, item) => sum + item.length, 0)
   if (total + data.length <= 1024 * 1024) {
     buffered.push(data.slice())
-    pendingOutput.set(streamId, buffered)
+    pendingOutput.set(sessionId, buffered)
   }
 }
 
@@ -195,7 +195,6 @@ export function addTab(host: HostProfile, password: string, insertAfterTabId?: s
     label: host.name ?? '',
     state: 'connecting',
     error: '',
-    streamId: 0,
     sessionId,
     terminalId,
     telemetry: null,
@@ -221,17 +220,12 @@ export function addTab(host: HostProfile, password: string, insertAfterTabId?: s
 export function reconnectTab(tab: Tab, host: HostProfile, password: string, options?: AddTabOptions): Tab | undefined {
   const reactiveTab = store.tabs.find((item) => item.id === tab.id)
   if (!reactiveTab) return undefined
-  if (reactiveTab.streamId) {
-    setTerminalOutputHandler(reactiveTab.streamId, null)
-    outputHandlers.delete(reactiveTab.streamId)
-    pendingOutput.delete(reactiveTab.streamId)
-  }
+  setTerminalOutputHandler(reactiveTab.sessionId, null)
   void closeSsh(reactiveTab.sessionId)
   reactiveTab.state = 'connecting'
   reactiveTab.error = ''
   reactiveTab.telemetry = null
   reactiveTab.sessionId = randomId()
-  reactiveTab.streamId = 0
   void startTab(reactiveTab, host, password, options)
   return reactiveTab
 }
@@ -287,8 +281,7 @@ async function startTab(tab: Tab, host: HostProfile, password: string, options?:
     const reactiveTab = store.tabs.find((item) => item.id === tab.id)
     if (!reactiveTab) throw new Error('tab not found in reactive store')
 
-    const initialOutput: Uint8Array[] = []
-    const connection = await connectSsh(
+    await connectSsh(
       {
         sessionId: reactiveTab.sessionId,
         host: host.address,
@@ -298,12 +291,9 @@ async function startTab(tab: Tab, host: HostProfile, password: string, options?:
       },
       (state, error) => updateTabState(reactiveTab.sessionId, state, error),
       (data) => {
-        if (!reactiveTab.streamId) initialOutput.push(data.slice())
-        else emitTerminalOutput(reactiveTab.streamId, data)
+        emitTerminalOutput(reactiveTab.sessionId, data)
       },
     )
-    reactiveTab.streamId = connection.streamId
-    for (const data of initialOutput) emitTerminalOutput(reactiveTab.streamId, data)
     updateTabState(reactiveTab.sessionId, 'online')
     if (store.loginDialogOpen && store.loginDialogHostId === host.id) {
       store.loginDialogOpen = false
@@ -350,10 +340,8 @@ export function closeTabs(tabIds: string[]): void {
   const activeIndex = store.tabs.findIndex((tab) => tab.id === activeTabId)
   store.tabs = store.tabs.filter((tab) => !closing.has(tab.id))
   for (const tab of tabsToClose) {
-    if (tab.streamId) {
-      outputHandlers.delete(tab.streamId)
-      pendingOutput.delete(tab.streamId)
-    }
+    outputHandlers.delete(tab.sessionId)
+    pendingOutput.delete(tab.sessionId)
     void closeSsh(tab.sessionId)
     if (tab.kind === 'file' || tab.kind === 'editor') void closeFileTabSession(tab.id)
   }
@@ -368,8 +356,8 @@ export function closeTabs(tabIds: string[]): void {
   }
 }
 
-export function sendTerminalInput(streamId: number, payload: Uint8Array): void {
-  const tab = store.tabs.find((item) => item.streamId === streamId)
+export function sendTerminalInput(sessionId: string, payload: Uint8Array): void {
+  const tab = store.tabs.find((item) => item.sessionId === sessionId)
   if (tab) void sendInput(tab.sessionId, payload).catch((error) => {
     updateTabState(tab.sessionId, 'error', error instanceof Error ? error.message : String(error))
   })

@@ -83,7 +83,6 @@ export interface Tab {
   label: string
   state: ShellState
   error: string
-  streamId: number
   sessionId: string
   terminalId: string
   telemetry: Telemetry | null
@@ -96,7 +95,6 @@ export interface Tab {
 
 export interface TerminalTab extends Tab {
   kind: 'terminal'
-  streamId: number
   terminalId: string
 }
 

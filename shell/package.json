@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.0",
-    "@verdigris/libssh2.js": "0.1.9",
+    "@verdigris/libssh2.js": "file:../vendor/libssh2.js",
     "@codemirror/commands": "^6.11.0",
     "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
@@ -32,7 +32,6 @@
     "@xterm/xterm": "^6.0.0",
     "dockview-vue": "^7.0.4",
     "reka-ui": "2.10.3",
-    "sshclient-wasm": "0.1.5",
     "vue": "^3.5.0"
   },
   "devDependencies": {

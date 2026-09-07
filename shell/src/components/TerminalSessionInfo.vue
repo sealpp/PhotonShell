@@ -52,8 +52,8 @@ function close() {
         <span class="info-value">{{ tab.terminalId }}</span>
       </div>
       <div class="info-row">
-        <span class="info-label">streamId</span>
-        <span class="info-value">{{ tab.streamId || '-' }}</span>
+        <span class="info-label">协议 session</span>
+        <span class="info-value">{{ tab.sessionId }}</span>
       </div>
       <div class="info-row">
         <span class="info-label">编码</span>

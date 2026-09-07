@@ -12,8 +12,6 @@ function copyRuntimeAssets() {
     configResolved(resolved: ResolvedConfig) {
       config = resolved
       const assets = [
-        ['sshclient-wasm/dist/sshclient.wasm', 'sshclient.wasm'],
-        ['sshclient-wasm/dist/wasm_exec.js', 'wasm_exec.js'],
         ['@verdigris/libssh2.js/dist/libssh2.wasm', 'libssh2.wasm'],
       ]
       mkdirSync(config.publicDir, { recursive: true })
@@ -53,9 +51,6 @@ export default defineConfig({
     }),
   ],
   resolve: {
-    alias: {
-      '@': resolve(__dirname, './src'),
-      'sshclient-wasm': resolve(__dirname, './node_modules/sshclient-wasm/dist/index.esm.js'),
-    },
+    alias: { '@': resolve(__dirname, './src') },
   },
 })

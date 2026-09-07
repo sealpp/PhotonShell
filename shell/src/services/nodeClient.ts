@@ -5,11 +5,6 @@ import {
   PairBeginSchema,
   PairProofSchema,
   PhotonMessageSchema,
-  TransportCloseRequestSchema,
-  TransportCreditSchema,
-  TransportDataSchema,
-  TransportHalfCloseRequestSchema,
-  TransportOpenRequestSchema,
   type PhotonMessage,
 } from '../proto/photon_pb'
 import { randomId } from '../utils/id'
@@ -23,23 +18,14 @@ import { store } from '../stores/app'
 import { requireWebCrypto } from './webCrypto'
 
 const PROTOCOL_VERSION = 1
-const MAX_DATA_PAYLOAD = 60 * 1024
 
 export interface NodeCallbacks {
   onError?: (message: string) => void
   onDisconnected?: () => void
 }
 
-export type TransportKind = 'tcp' | 'udp'
-
 interface PendingRequest {
   resolve: (message: PhotonMessage) => void
-  reject: (error: Error) => void
-}
-
-interface CreditWaiter {
-  amount: number
-  resolve: () => void
   reject: (error: Error) => void
 }
 
@@ -125,171 +111,13 @@ async function verifyNodeSignature(
   )
 }
 
-function toError(message: PhotonMessage): Error {
-  const error = message.body.case === 'transportErrorEvent'
-    ? `${message.body.value.code}: ${message.body.value.message}`
-    : 'Node request failed'
-  return new Error(error)
-}
-
-export class NodeTransportStream {
-  readonly streamId: number
-  readonly kind: TransportKind
-  onData: ((payload: Uint8Array) => void) | null = null
-  onError: ((error: Error) => void) | null = null
-  onClose: (() => void) | null = null
-
-  private inputCredit: number
-  private inputSequence = 0n
-  private outputSequence = 0n
-  private closed = false
-  private readonly inputCreditWaiters: CreditWaiter[] = []
-  private sendQueue: Promise<void> = Promise.resolve()
-
-  constructor(
-    private readonly client: NodeClient,
-    streamId: number,
-    kind: TransportKind,
-    inputCredit: number,
-  ) {
-    this.streamId = streamId
-    this.kind = kind
-    this.inputCredit = inputCredit
-  }
-
-  send(payload: Uint8Array): Promise<void> {
-    const task = this.sendQueue.then(() => this.sendNow(payload))
-    this.sendQueue = task.then(() => undefined, () => undefined)
-    return task
-  }
-
-  private async sendNow(payload: Uint8Array): Promise<void> {
-    if (this.closed) throw new Error('transport stream is closed')
-    for (let offset = 0; offset < payload.length; offset += MAX_DATA_PAYLOAD) {
-      const chunk = payload.subarray(offset, offset + MAX_DATA_PAYLOAD)
-      await this.waitForInputCredit(chunk.length)
-      this.inputCredit -= chunk.length
-      this.drainInputCreditWaiters()
-      const message = create(PhotonMessageSchema, {
-        protocolVersion: PROTOCOL_VERSION,
-        requestId: '',
-        body: {
-          case: 'transportData',
-          value: create(TransportDataSchema, {
-            streamId: this.streamId,
-            sequence: this.inputSequence,
-            payload: chunk,
-          }),
-        },
-      })
-      this.inputSequence += 1n
-
-      try {
-        this.client.sendMessage(message)
-      } catch (error) {
-        this.inputCredit += chunk.length
-        this.drainInputCreditWaiters()
-        throw error
-      }
-    }
-  }
-
-  async halfClose(): Promise<void> {
-    if (this.closed) return
-    this.client.sendMessage(create(PhotonMessageSchema, {
-      protocolVersion: PROTOCOL_VERSION,
-      requestId: '',
-      body: {
-        case: 'transportHalfCloseRequest',
-        value: create(TransportHalfCloseRequestSchema, { streamId: this.streamId }),
-      },
-    }))
-  }
-
-  async close(reason = ''): Promise<void> {
-    if (this.closed) return
-    this.closed = true
-    try {
-      this.client.sendMessage(create(PhotonMessageSchema, {
-        protocolVersion: PROTOCOL_VERSION,
-        requestId: '',
-        body: {
-          case: 'transportCloseRequest',
-          value: create(TransportCloseRequestSchema, { streamId: this.streamId, reason }),
-        },
-      }))
-    } finally {
-      this.client.removeStream(this.streamId)
-    }
-  }
-
-  receive(sequence: bigint, payload: Uint8Array): void {
-    if (this.closed) return
-    if (sequence !== this.outputSequence) {
-      const error = new Error('transport sequence is not increasing')
-      this.onError?.(error)
-      void this.close('sequence_error')
-      return
-    }
-    this.outputSequence += 1n
-    try {
-      this.onData?.(payload)
-    } finally {
-      try {
-        this.client.sendCredit(this.streamId, 'output', payload.length)
-      } catch {
-        this.finish()
-      }
-    }
-  }
-
-  receiveInputCredit(amount: number): void {
-    if (amount <= 0) return
-    this.inputCredit += amount
-    this.drainInputCreditWaiters()
-  }
-
-  private drainInputCreditWaiters(): void {
-    const waiter = this.inputCreditWaiters[0]
-    if (waiter && this.inputCredit >= waiter.amount) {
-      this.inputCreditWaiters.shift()
-      waiter.resolve()
-    }
-  }
-
-  finish(): void {
-    if (this.closed) return
-    this.closed = true
-    this.client.removeStream(this.streamId)
-    const error = new Error('transport stream is closed')
-    for (const waiter of this.inputCreditWaiters.splice(0)) waiter.reject(error)
-    this.onClose?.()
-  }
-
-  fail(error: Error): void {
-    if (this.closed) return
-    this.onError?.(error)
-    this.finish()
-  }
-
-  private waitForInputCredit(amount: number): Promise<void> {
-    if (this.closed) return Promise.reject(new Error('transport stream is closed'))
-    if (this.inputCredit >= amount) return Promise.resolve()
-    return new Promise((resolve, reject) => {
-      this.inputCreditWaiters.push({ amount, resolve, reject })
-    })
-  }
-}
-
 export class NodeClient {
   private socket: WebSocket | null = null
   private identity: StoredIdentity | undefined
   private requestCounter = 0
   private readonly pending = new Map<string, PendingRequest>()
-  private readonly streams = new Map<number, NodeTransportStream>()
   private callbacks: NodeCallbacks = {}
   private disconnectedHandler: (() => void) | undefined
-  private authenticated = false
   private socketReady: Promise<void> | undefined
   private socketReadyResolve: (() => void) | undefined
   private socketReadyReject: ((error: Error) => void) | undefined
@@ -372,7 +200,6 @@ export class NodeClient {
       result.body.value.nodeId,
       new Uint8Array(result.body.value.nodePublicKey),
     )
-    this.authenticated = true
     store.paired = true
     store.nodeConnected = true
   }
@@ -448,37 +275,7 @@ export class NodeClient {
     if (result.body.case !== 'authSucceeded') {
       throw new Error('unexpected Node authentication result')
     }
-    this.authenticated = true
     store.nodeConnected = true
-  }
-
-  async openStream(kind: TransportKind, host: string, port: number): Promise<NodeTransportStream> {
-    if (!this.authenticated) throw new Error('Node is not authenticated')
-    const streamId = this.allocateStreamId()
-    const response = await this.request(create(PhotonMessageSchema, {
-      protocolVersion: PROTOCOL_VERSION,
-      requestId: this.nextRequestId(),
-      body: {
-        case: 'transportOpenRequest',
-        value: create(TransportOpenRequestSchema, {
-          streamId,
-          transport: kind,
-          host,
-          port,
-        }),
-      },
-    }))
-    if (response.body.case !== 'transportOpenedEvent') {
-      throw new Error('unexpected transport open response')
-    }
-    const stream = new NodeTransportStream(
-      this,
-      streamId,
-      kind,
-      Number(response.body.value.inputCreditBytes),
-    )
-    this.streams.set(streamId, stream)
-    return stream
   }
 
   wsUrl(): string {
@@ -490,26 +287,6 @@ export class NodeClient {
       throw new Error('Node WebSocket is not connected')
     }
     this.socket.send(toBinary(PhotonMessageSchema, message))
-  }
-
-  sendCredit(streamId: number, direction: 'input' | 'output', amount: number): void {
-    if (amount <= 0) return
-    this.sendMessage(create(PhotonMessageSchema, {
-      protocolVersion: PROTOCOL_VERSION,
-      requestId: '',
-      body: {
-        case: 'transportCredit',
-        value: create(TransportCreditSchema, {
-          streamId,
-          direction,
-          addBytes: BigInt(amount),
-        }),
-      },
-    }))
-  }
-
-  removeStream(streamId: number): void {
-    this.streams.delete(streamId)
   }
 
   clearPairing(): void {
@@ -562,7 +339,6 @@ export class NodeClient {
     this.closeSocket()
     this.socket = new WebSocket(wsUrl())
     this.socket.binaryType = 'arraybuffer'
-    this.authenticated = false
     store.nodeConnected = false
     this.socketReady = new Promise<void>((resolve, reject) => {
       this.socketReadyResolve = resolve
@@ -580,10 +356,7 @@ export class NodeClient {
       const error = new Error('Node WebSocket closed')
       this.socketReadyReject?.(error)
       store.nodeConnected = false
-      this.authenticated = false
       this.rejectPending(error)
-      for (const stream of this.streams.values()) stream.fail(error)
-      this.streams.clear()
       this.callbacks.onError?.(error.message)
       this.callbacks.onDisconnected?.()
       this.disconnectedHandler?.()
@@ -596,33 +369,10 @@ export class NodeClient {
       const data = new Uint8Array(event.data as ArrayBuffer)
       const message = fromBinary(PhotonMessageSchema, data)
       const body = message.body.case
-      if (body === 'transportData') {
-        const stream = this.streams.get(message.body.value.streamId)
-        if (stream) {
-          stream.receive(message.body.value.sequence, new Uint8Array(message.body.value.payload))
-        }
-        return
-      }
-      if (body === 'transportCredit') {
-        const stream = this.streams.get(message.body.value.streamId)
-        if (stream && message.body.value.direction === 'input') {
-          stream.receiveInputCredit(Number(message.body.value.addBytes))
-        }
-        return
-      }
-      if (body === 'transportClosedEvent') {
-        const stream = this.streams.get(message.body.value.streamId)
-        stream?.finish()
-        return
-      }
-      if (body === 'transportErrorEvent' && message.body.value.streamId) {
-        const stream = this.streams.get(message.body.value.streamId)
-        stream?.fail(toError(message))
-      }
       const pending = this.pending.get(message.requestId)
       if (!pending) return
       this.pending.delete(message.requestId)
-      if (body === 'transportErrorEvent') pending.reject(toError(message))
+      if (body === 'transportErrorEvent') pending.reject(new Error(`${message.body.value.code}: ${message.body.value.message}`))
       else pending.resolve(message)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -648,14 +398,11 @@ export class NodeClient {
   }
 
   private closeSocket(): void {
-    this.authenticated = false
     this.socketReadyReject?.(new Error('Node connection closed'))
     this.socketReady = undefined
     this.socketReadyResolve = undefined
     this.socketReadyReject = undefined
     this.rejectPending(new Error('Node connection closed'))
-    for (const stream of this.streams.values()) stream.finish()
-    this.streams.clear()
     if (this.socket) {
       this.socket.onclose = null
       this.socket.onerror = null
@@ -669,13 +416,6 @@ export class NodeClient {
     return `request-${this.requestCounter}`
   }
 
-  private allocateStreamId(): number {
-    let streamId = requireWebCrypto().getRandomValues(new Uint32Array(1))[0] & 0x7fffffff
-    while (streamId === 0 || this.streams.has(streamId)) {
-      streamId = requireWebCrypto().getRandomValues(new Uint32Array(1))[0] & 0x7fffffff
-    }
-    return streamId
-  }
 }
 
 export const nodeClient = new NodeClient()

@@ -23,8 +23,6 @@ interface VaultMeta {
 
 export interface CredentialPayload {
   password?: string
-  privateKey?: string
-  passphrase?: string
 }
 
 let activeVaultKey!: CryptoKey

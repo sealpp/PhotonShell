@@ -32,8 +32,6 @@ const unwatchActive = ref<() => void>()
 const unwatchEncoding = ref<() => void>()
 const unwatchTerminalMount = ref<() => void>()
 
-let pendingStreamId: number | null = null
-
 const tab = computed(() => store.tabs.find((t) => t.id === props.tabId))
 const isActive = computed(() => store.activeTabId === props.tabId)
 const encoder = new TextEncoder()
@@ -43,7 +41,6 @@ const activeState = computed(() => {
   if (!t) return 'no-tab'
   if (!isActive.value) return 'inactive'
   if (t.state !== 'online') return 'not-online'
-  if (!t.streamId) return 'online-no-terminal'
   return 'online'
 })
 
@@ -67,14 +64,14 @@ function flushBackendResize() {
   backendResizeTimer = null
   const pending = pendingBackendResize
   pendingBackendResize = null
-  if (!pending || !tab.value?.streamId) return
+  if (!pending || !tab.value?.sessionId) return
 
   resizeTerminal(pending.terminalId, pending.columns, pending.rows)
 }
 
 function scheduleBackendResize(columns: number, rows: number) {
   const currentTab = tab.value
-  if (!currentTab?.streamId) return
+  if (!currentTab?.sessionId) return
 
   pendingBackendResize = {
     terminalId: currentTab.terminalId,
@@ -128,15 +125,15 @@ function getTerminalColor(name: string, fallback: string): string {
 }
 
 function bindOutput() {
-  const streamId = tab.value?.streamId ?? pendingStreamId
-  if (!streamId || !terminal) return
-  setTerminalOutputHandler(streamId, writeOutput)
+  const sessionId = tab.value?.sessionId
+  if (!sessionId || !terminal) return
+  setTerminalOutputHandler(sessionId, writeOutput)
 
   // Ensure the remote PTY receives the initial window size as soon as the
   // output handler is bound; xterm's onResize may not fire by itself.
   fitAddon?.fit()
   const currentTab = tab.value
-  if (currentTab && currentTab.streamId) {
+  if (currentTab && currentTab.sessionId) {
     resizeTerminal(currentTab.terminalId, terminal.cols, terminal.rows)
   }
 }
@@ -173,8 +170,8 @@ function initTerminal() {
   })
 
   terminal.onData((data: string) => {
-    if (tab.value?.streamId) {
-      sendTerminalInput(tab.value.streamId, encoder.encode(data))
+    if (tab.value?.sessionId) {
+      sendTerminalInput(tab.value.sessionId, encoder.encode(data))
     }
   })
 
@@ -224,10 +221,9 @@ function initTerminal() {
 
 onMounted(() => {
   unwatchStream.value = watch(
-    () => tab.value?.streamId,
-    (streamId) => {
-      if (streamId) {
-        pendingStreamId = streamId
+    () => tab.value?.sessionId,
+    (sessionId) => {
+      if (sessionId) {
         bindOutput()
       }
     },
@@ -257,8 +253,8 @@ onBeforeUnmount(() => {
   unwatchActive.value?.()
   unwatchEncoding.value?.()
   unwatchTerminalMount.value?.()
-  if (tab.value?.streamId) {
-    setTerminalOutputHandler(tab.value.streamId, null)
+  if (tab.value?.sessionId) {
+    setTerminalOutputHandler(tab.value.sessionId, null)
   }
   terminal?.dispose()
   terminal = null
