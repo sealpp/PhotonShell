@@ -2,6 +2,8 @@ import createLibssh2Module, { type LIBSSH2_CHANNEL, type LIBSSH2_SESSION, type S
 import { NodeSessionTransport } from './node-session'
 
 const EAGAIN = -37
+// Emscripten's WASI errno value for EAGAIN, returned by the custom socket callback.
+const SOCKET_EAGAIN = -6
 const CALLBACK_SEND = 5
 const CALLBACK_RECV = 6
 const BUFFER_SIZE = 64 * 1024
@@ -14,6 +16,26 @@ function kindFromMode(mode: number): 'file' | 'directory' | 'symlink' | 'unknown
   return 'unknown'
 }
 
+const textEncoder = new TextEncoder()
+const textDecoder = new TextDecoder()
+
+function readCString(module: SSH2WASMModule, pointer: number, maxBytes?: number): string {
+  if (!pointer) return ''
+  const heap = module.HEAPU8
+  const end = maxBytes === undefined ? heap.length : Math.min(heap.length, pointer + maxBytes)
+  let cursor = pointer
+  while (cursor < end && heap[cursor] !== 0) cursor += 1
+  return textDecoder.decode(heap.subarray(pointer, cursor))
+}
+
+function allocateCString(module: SSH2WASMModule, value: string): number {
+  const bytes = textEncoder.encode(value)
+  const pointer = module._malloc(bytes.length + 1)
+  module.HEAPU8.set(bytes, pointer)
+  module.HEAPU8[pointer + bytes.length] = 0
+  return pointer
+}
+
 export class Libssh2Error extends Error {
   constructor(readonly code: number, message: string) {
     super(`${code}: ${message}`)
@@ -24,7 +46,7 @@ export class Libssh2Error extends Error {
 function errorFor(module: SSH2WASMModule, session: LIBSSH2_SESSION, fallback: string): Libssh2Error {
   const code = module.ssh2_session_last_errno(session)
   const rawMessage = (module as any).ssh2_session_last_error(session)
-  const message = typeof rawMessage === 'number' ? module.UTF8ToString(rawMessage) || fallback : rawMessage || fallback
+  const message = typeof rawMessage === 'number' ? readCString(module, rawMessage) || fallback : rawMessage || fallback
   return new Libssh2Error(code, message)
 }
 
@@ -59,7 +81,7 @@ export class Libssh2Session {
       },
       customRecv: (ptr, length) => {
         const payload = this.incoming.shift()
-        if (!payload) return EAGAIN
+        if (!payload) return SOCKET_EAGAIN
         const chunk = payload.subarray(0, length)
         this.module.HEAPU8.set(chunk, ptr)
         if (chunk.length < payload.length) this.incoming.unshift(payload.subarray(chunk.length))
@@ -100,7 +122,7 @@ export class Libssh2Session {
   }
 
   async openShell(columns: number, rows: number): Promise<void> {
-    this.channel = this.module.ssh2_channel_open_session(this.session)
+    this.channel = await this.pumpHandle(() => this.module.ssh2_channel_open_session(this.session))
     if (!this.channel) throw errorFor(this.module, this.session, 'SSH channel open failed')
     await this.withStrings(['xterm-256color'], ([term]) => this.pump(() => (this.module as any).ssh2_channel_request_pty(this.channel, term)))
     const size = await this.pump(() => this.module.ssh2_channel_request_pty_size(this.channel, columns, rows))
@@ -156,7 +178,7 @@ export class Libssh2Session {
   }
 
   async exec(command: string): Promise<{ stdout: Uint8Array; stderr: Uint8Array; exitCode: number }> {
-    const channel = this.module.ssh2_channel_open_session(this.session)
+    const channel = await this.pumpHandle(() => this.module.ssh2_channel_open_session(this.session))
     if (!channel) throw errorFor(this.module, this.session, 'SSH exec channel open failed')
     const stdout: number[] = []
     const stderr: number[] = []
@@ -213,19 +235,28 @@ export class Libssh2Session {
     while (true) {
       const result = call()
       if (result !== EAGAIN) return result
-      await this.transport.waitForData()
+      if (!this.incoming.length) await this.transport.waitForData()
+    }
+  }
+
+  private async pumpHandle(call: () => number): Promise<number> {
+    while (true) {
+      const handle = call()
+      if (handle) return handle
+      if (this.module.ssh2_session_last_errno(this.session) !== EAGAIN) return handle
+      if (!this.incoming.length) await this.transport.waitForData()
     }
   }
 
   async initSftp(): Promise<void> {
-    const handle = await this.pump(() => this.module.ssh2_sftp_init(this.session))
+    const handle = await this.pumpHandle(() => this.module.ssh2_sftp_init(this.session))
     if (!handle) throw errorFor(this.module, this.session, 'SFTP subsystem initialization failed')
     this.sftp = handle
   }
 
   async listDirectory(path: string): Promise<Array<{ name: string; kind: 'file' | 'directory' | 'symlink' | 'unknown'; size: number; modifiedAt: number; mode?: number; target?: string }>> {
     if (!this.sftp) throw new Error('SFTP subsystem is not initialized')
-    const handle = await this.withStrings([path], ([pathPtr]) => this.pump(() => (this.module as any).ssh2_sftp_opendir(this.sftp, pathPtr)))
+    const handle = await this.withStrings([path], ([pathPtr]) => this.pumpHandle(() => (this.module as any).ssh2_sftp_opendir(this.sftp, pathPtr)))
     if (!handle) throw errorFor(this.module, this.session, 'SFTP directory open failed')
     const namePtr = this.module._malloc(4096)
     const longPtr = this.module._malloc(8192)
@@ -236,7 +267,7 @@ export class Libssh2Session {
         const result = await this.pump(() => (this.module as any).ssh2_sftp_readdir(handle, namePtr, 4096, longPtr, 8192, attrsPtr))
         if (result === 0) break
         if (result < 0) throw errorFor(this.module, this.session, 'SFTP directory read failed')
-        const name = this.module.UTF8ToString(namePtr)
+        const name = readCString(this.module, namePtr)
         if (!name || name === '.' || name === '..') continue
         const attrs = this.readAttributes(attrsPtr)
         entries.push({ name, kind: kindFromMode(attrs.permissions), size: attrs.filesize, modifiedAt: attrs.mtime * 1000, mode: attrs.permissions })
@@ -351,7 +382,7 @@ export class Libssh2Session {
     try {
       const result = await this.withStrings([path], ([pathPtr]) => this.pump(() => (this.module as any).ssh2_sftp_readlink(this.sftp, pathPtr, buffer, 4096)))
       if (result < 0) throw errorFor(this.module, this.session, 'SFTP readlink failed')
-      return this.module.UTF8ToString(buffer, result)
+      return readCString(this.module, buffer, result)
     } finally { this.module._free(buffer) }
   }
 
@@ -365,7 +396,7 @@ export class Libssh2Session {
   }
 
   private async openFile(path: string, flags: number, mode: number): Promise<number> {
-    const handle = await this.withStrings([path], ([pathPtr]) => this.pump(() => (this.module as any).ssh2_sftp_open(this.sftp, pathPtr, flags, mode)))
+    const handle = await this.withStrings([path], ([pathPtr]) => this.pumpHandle(() => (this.module as any).ssh2_sftp_open(this.sftp, pathPtr, flags, mode)))
     if (!handle) throw errorFor(this.module, this.session, 'SFTP file open failed')
     return handle
   }
@@ -381,7 +412,7 @@ export class Libssh2Session {
   }
 
   private async withStrings<T>(values: string[], callback: (pointers: number[]) => Promise<T>): Promise<T> {
-    const pointers = values.map((value) => this.module.allocateUTF8(value))
+    const pointers = values.map((value) => allocateCString(this.module, value))
     try { return await callback(pointers) } finally { pointers.forEach((pointer) => this.module._free(pointer)) }
   }
 
