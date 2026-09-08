@@ -343,7 +343,7 @@ onBeforeUnmount(() => {
         @lostpointercapture="endResize"
       ></div>
       <div class="terminal-area">
-        <div v-if="store.view === 'shell'" class="shell-workspace">
+        <div v-if="store.view === 'shell'" class="shell-workspace" :class="{ 'bottom-panel-maximized': store.bottomPanelMaximized }">
           <div class="main-dock-container">
             <MainDock />
             <ActionsToolbar />
@@ -590,12 +590,18 @@ button, input {
 }
 
 .shell-workspace {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.shell-workspace.bottom-panel-maximized .main-dock-container {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .main-dock-container {

@@ -1,17 +1,21 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { IconFile, IconFolder } from '@tabler/icons-vue'
 import { store, type BottomPanelCategory } from '../stores/app'
 import BottomPanelDock from './BottomPanelDock.vue'
 
 const MIN_HEIGHT = 220
-const MAX_HEIGHT_RATIO = 0.6
 const DEFAULT_HEIGHT_RATIO = 0.35
+const COLLAPSE_THRESHOLD = 160
+const RESTORE_DRAG_THRESHOLD = 8
 const MIN_LIST_WIDTH = 160
 const MAX_LIST_WIDTH = 420
 
 const panelEl = ref<HTMLElement | null>(null)
 const resizing = ref(false)
+const shellWorkspaceHeight = ref(0)
+const terminalHeaderBottom = ref<number | null>(null)
+const terminalHeaderHeight = ref(0)
 let activePointerId: number | null = null
 let startPointerY = 0
 let startHeight = 0
@@ -19,22 +23,72 @@ let listResizing = false
 let listPointerId: number | null = null
 let listStartX = 0
 let listStartWidth = 0
+let resizeObserver: ResizeObserver | null = null
+let observedHeader: Element | null = null
 
 const visible = computed(() => store.view === 'shell' && store.bottomPanelOpen)
-const heightStyle = computed(() => ({ height: `${store.bottomPanelHeight}px` }))
+const heightStyle = computed(() => ({ height: store.bottomPanelMaximized ? '100%' : `${clampNormalHeight(store.bottomPanelHeight)}px` }))
 
-function clampHeight(value: number): number {
-  const viewportHeight = window.innerHeight || 900
-  const maxHeight = Math.max(MIN_HEIGHT, Math.round(viewportHeight * MAX_HEIGHT_RATIO))
-  return Math.min(maxHeight, Math.max(MIN_HEIGHT, Math.round(value)))
+function getShellWorkspace(): HTMLElement | null {
+  const parent = panelEl.value?.parentElement
+  return parent instanceof HTMLElement ? parent : null
+}
+
+function getNormalMaxHeight(): number {
+  const availableHeight = shellWorkspaceHeight.value || getShellWorkspace()?.clientHeight || window.innerHeight || 900
+  const shell = getShellWorkspace()
+  if (!shell || terminalHeaderBottom.value === null) return Math.max(MIN_HEIGHT, Math.round(availableHeight))
+  const shellRect = shell.getBoundingClientRect()
+  const reservedTop = terminalHeaderBottom.value - shellRect.top + terminalHeaderHeight.value * 2
+  return Math.max(MIN_HEIGHT, Math.round(availableHeight - reservedTop))
+}
+
+function clampNormalHeight(value: number): number {
+  return Math.min(getNormalMaxHeight(), Math.max(MIN_HEIGHT, Math.round(value)))
 }
 
 function initializeHeight(): void {
   if (store.bottomPanelHeight === 320) {
-    store.bottomPanelHeight = clampHeight(window.innerHeight * DEFAULT_HEIGHT_RATIO)
+    store.bottomPanelHeight = clampNormalHeight((shellWorkspaceHeight.value || window.innerHeight || 900) * DEFAULT_HEIGHT_RATIO)
   } else {
-    store.bottomPanelHeight = clampHeight(store.bottomPanelHeight)
+    store.bottomPanelHeight = clampNormalHeight(store.bottomPanelHeight)
   }
+}
+
+function measureLayout(): void {
+  const shell = getShellWorkspace()
+  if (!shell) return
+  shellWorkspaceHeight.value = shell.clientHeight
+
+  const hasTerminal = store.tabs.some((tab) => tab.kind === 'terminal')
+  const header = hasTerminal ? shell.querySelector('.main-dock .dv-tabs-and-actions-container') : null
+  if (header instanceof HTMLElement) {
+    const rect = header.getBoundingClientRect()
+    terminalHeaderBottom.value = rect.bottom
+    terminalHeaderHeight.value = rect.height
+  } else {
+    terminalHeaderBottom.value = null
+    terminalHeaderHeight.value = 0
+  }
+
+  if (observedHeader !== header) {
+    if (observedHeader) resizeObserver?.unobserve(observedHeader)
+    observedHeader = header
+    if (header) resizeObserver?.observe(header)
+  }
+}
+
+function enterMaximized(): void {
+  if (store.bottomPanelMaximized) return
+  store.bottomPanelRestoreHeight = startHeight
+  store.bottomPanelHeight = clampNormalHeight(startHeight)
+  store.bottomPanelMaximized = true
+}
+
+function restoreFromMaximized(): void {
+  if (!store.bottomPanelMaximized) return
+  store.bottomPanelMaximized = false
+  store.bottomPanelHeight = clampNormalHeight(store.bottomPanelRestoreHeight)
 }
 
 function selectCategory(category: BottomPanelCategory): void {
@@ -50,14 +104,38 @@ function startResize(event: PointerEvent): void {
   resizing.value = true
   activePointerId = event.pointerId
   startPointerY = event.clientY
-  startHeight = store.bottomPanelHeight
+  startHeight = store.bottomPanelMaximized ? store.bottomPanelRestoreHeight : store.bottomPanelHeight
   target.setPointerCapture(event.pointerId)
 }
 
 function moveResize(event: PointerEvent): void {
   if (!resizing.value || activePointerId !== event.pointerId) return
   event.preventDefault()
-  store.bottomPanelHeight = clampHeight(startHeight + startPointerY - event.clientY)
+  if (store.bottomPanelMaximized) {
+    if (event.clientY - startPointerY > RESTORE_DRAG_THRESHOLD) {
+      restoreFromMaximized()
+      endResize(event)
+    }
+    return
+  }
+
+  const requestedHeight = startHeight + startPointerY - event.clientY
+  if (requestedHeight < COLLAPSE_THRESHOLD) {
+    store.bottomPanelOpen = false
+    store.bottomPanelMaximized = false
+    endResize(event)
+    return
+  }
+
+  const shell = getShellWorkspace()
+  const shellTop = shell?.getBoundingClientRect().top ?? 0
+  const maximizeBoundary = terminalHeaderBottom.value ?? shellTop
+  if (event.clientY <= maximizeBoundary && requestedHeight > getNormalMaxHeight()) {
+    enterMaximized()
+    return
+  }
+
+  store.bottomPanelHeight = clampNormalHeight(requestedHeight)
 }
 
 function endResize(event?: PointerEvent): void {
@@ -73,7 +151,8 @@ function endResize(event?: PointerEvent): void {
 }
 
 function onViewportResize(): void {
-  if (visible.value) store.bottomPanelHeight = clampHeight(store.bottomPanelHeight)
+  measureLayout()
+  if (visible.value && !store.bottomPanelMaximized) store.bottomPanelHeight = clampNormalHeight(store.bottomPanelHeight)
 }
 
 function clampListWidth(value: number): number {
@@ -109,19 +188,41 @@ function endListResize(event?: PointerEvent): void {
 }
 
 onMounted(() => {
-  initializeHeight()
+  if (typeof ResizeObserver === 'undefined') {
+    initializeHeight()
+    window.addEventListener('resize', onViewportResize)
+    return
+  }
+  resizeObserver = new ResizeObserver(() => {
+    measureLayout()
+    if (visible.value && !store.bottomPanelMaximized) store.bottomPanelHeight = clampNormalHeight(store.bottomPanelHeight)
+  })
+  const shell = getShellWorkspace()
+  if (shell) resizeObserver.observe(shell)
+  void nextTick(() => {
+    measureLayout()
+    initializeHeight()
+  })
   window.addEventListener('resize', onViewportResize)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onViewportResize)
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  observedHeader = null
   endResize()
   endListResize()
 })
+
+watch(
+  () => [store.tabs.length, store.view, store.bottomPanelOpen],
+  () => void nextTick(measureLayout),
+)
 </script>
 
 <template>
-  <section v-show="visible" ref="panelEl" class="workspace-panel" :style="heightStyle" aria-label="文件工作区">
+  <section v-show="visible" ref="panelEl" class="workspace-panel" :class="{ maximized: store.bottomPanelMaximized }" :style="heightStyle" aria-label="文件工作区">
     <div
       class="workspace-resizer"
       :class="{ dragging: resizing }"
@@ -191,6 +292,14 @@ onBeforeUnmount(() => {
   background: #1e1e1e;
   border-top: 1px solid #111;
   color: #ccc;
+}
+
+.workspace-panel.maximized {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100% !important;
+  z-index: 20;
 }
 
 .workspace-resizer {
