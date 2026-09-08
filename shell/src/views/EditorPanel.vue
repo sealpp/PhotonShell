@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
@@ -30,7 +30,7 @@ function languageExtension(language: string) {
 
 function mountEditor(): void {
   const current = tab.value
-  if (!current || !editorEl.value || view) return
+  if (!current || current.state !== 'online' || !editorEl.value || view) return
   const state = EditorState.create({
     doc: current.editor.content,
     extensions: [
@@ -57,6 +57,9 @@ async function save(): Promise<void> { await saveEditorTab(tabId.value) }
 function openFind(): void { if (view) void openSearchPanel(view) }
 
 onMounted(mountEditor)
+watch(() => tab.value?.state, (state) => {
+  if (state === 'online') mountEditor()
+})
 onBeforeUnmount(() => { view?.destroy(); view = undefined })
 </script>
 
