@@ -1,6 +1,6 @@
 export const BOTTOM_PANEL_MIN_HEIGHT = 220
 export const BOTTOM_PANEL_DEFAULT_HEIGHT_RATIO = 0.35
-export const BOTTOM_PANEL_COLLAPSE_THRESHOLD = 160
+export const BOTTOM_PANEL_COLLAPSE_THRESHOLD = 100
 
 export function normalBottomPanelMaxHeight(
   availableHeight: number,
@@ -19,6 +19,10 @@ export function clampBottomPanelHeight(value: number, maxHeight: number): number
 
 export function shouldCollapseBottomPanel(requestedHeight: number): boolean {
   return requestedHeight < BOTTOM_PANEL_COLLAPSE_THRESHOLD
+}
+
+export function shouldReopenBottomPanel(requestedHeight: number): boolean {
+  return requestedHeight >= BOTTOM_PANEL_COLLAPSE_THRESHOLD
 }
 
 export function shouldMaximizeBottomPanel(

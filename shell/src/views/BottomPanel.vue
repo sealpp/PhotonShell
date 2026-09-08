@@ -10,6 +10,7 @@ import {
   shouldCollapseBottomPanel,
   shouldExitMaximizedBottomPanel,
   shouldMaximizeBottomPanel,
+  shouldReopenBottomPanel,
 } from '../services/bottom-panel-layout'
 import BottomPanelDock from './BottomPanelDock.vue'
 
@@ -31,6 +32,8 @@ let listStartWidth = 0
 let resizeObserver: ResizeObserver | null = null
 let observedHeader: Element | null = null
 let resizeUsesBottomAnchor = false
+let resizeCollapsed = false
+let resizeTarget: HTMLElement | null = null
 
 const visible = computed(() => store.view === 'shell' && store.bottomPanelOpen)
 const heightStyle = computed(() => ({ height: store.bottomPanelMaximized ? '100%' : `${clampNormalHeight(store.bottomPanelHeight)}px` }))
@@ -130,7 +133,11 @@ function startResize(event: PointerEvent): void {
   startPointerY = event.clientY
   startHeight = store.bottomPanelMaximized ? store.bottomPanelRestoreHeight : store.bottomPanelHeight
   resizeUsesBottomAnchor = false
+  resizeTarget = target
   target.setPointerCapture(event.pointerId)
+  window.addEventListener('pointermove', moveResize)
+  window.addEventListener('pointerup', endResize)
+  window.addEventListener('pointercancel', endResize)
 }
 
 function moveResize(event: PointerEvent): void {
@@ -150,6 +157,15 @@ function moveResize(event: PointerEvent): void {
   const requestedHeight = resizeUsesBottomAnchor
     ? (shellRect?.bottom ?? 0) - event.clientY
     : startHeight + startPointerY - event.clientY
+
+  if (resizeCollapsed) {
+    if (!shouldReopenBottomPanel(requestedHeight)) return
+    resizeCollapsed = false
+    store.bottomPanelOpen = true
+    store.bottomPanelHeight = clampNormalHeight(requestedHeight)
+    return
+  }
+
   if (shouldMaximizeBottomPanel(event.clientY, maximizeBoundary, requestedHeight, getNormalMaxHeight())) {
     enterMaximized()
     return
@@ -157,8 +173,7 @@ function moveResize(event: PointerEvent): void {
 
   if (shouldCollapseBottomPanel(requestedHeight)) {
     store.bottomPanelOpen = false
-    store.bottomPanelMaximized = false
-    endResize(event)
+    resizeCollapsed = true
     return
   }
 
@@ -168,14 +183,18 @@ function moveResize(event: PointerEvent): void {
 function endResize(event?: PointerEvent): void {
   if (activePointerId === null) return
   if (event && event.pointerId !== activePointerId) return
-  const target = event?.currentTarget
   const pointerId = activePointerId
   activePointerId = null
   resizing.value = false
   resizeUsesBottomAnchor = false
-  if (target instanceof HTMLElement && target.hasPointerCapture(pointerId)) {
-    target.releasePointerCapture(pointerId)
+  resizeCollapsed = false
+  window.removeEventListener('pointermove', moveResize)
+  window.removeEventListener('pointerup', endResize)
+  window.removeEventListener('pointercancel', endResize)
+  if (resizeTarget?.hasPointerCapture(pointerId)) {
+    resizeTarget.releasePointerCapture(pointerId)
   }
+  resizeTarget = null
 }
 
 function onViewportResize(): void {
@@ -257,10 +276,6 @@ watch(
       role="separator"
       aria-label="调整面板高度"
       @pointerdown="startResize"
-      @pointermove="moveResize"
-      @pointerup="endResize"
-      @pointercancel="endResize"
-      @lostpointercapture="endResize"
     ></div>
     <nav class="workspace-categories" role="tablist" aria-label="面板视图">
       <button
