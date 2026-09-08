@@ -13,7 +13,7 @@
     <script type="module">
       import { createApp, h } from 'vue'
       import 'dockview-vue/dist/styles/dockview.css'
-      import WorkspacePanel from '/src/views/WorkspacePanel.vue'
+      import BottomPanel from '/src/views/BottomPanel.vue'
       import { store } from '/src/stores/app'
 
       const file = (id, label) => ({
@@ -28,13 +28,13 @@
       }
       store.tabs.splice(0, store.tabs.length, file('file-a', '远端 /srv'), file('file-b', '远端 /var'), editor)
       store.view = 'shell'
-      store.workspacePanelOpen = true
-      store.workspaceCategory = 'files'
-      store.focusedDock = 'workspace'
+      store.bottomPanelOpen = true
+      store.bottomPanelCategory = 'files'
+      store.focusedDock = 'bottomPanel'
       store.activeFileTabId = 'file-a'
       store.activeEditorTabId = 'editor-a'
 
-      createApp({ render: () => h(WorkspacePanel) }).mount('#app')
+      createApp({ render: () => h(BottomPanel) }).mount('#app')
     </script>
   </body>
 </html>

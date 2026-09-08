@@ -3,13 +3,13 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { DockviewVue, themeAbyss } from 'dockview-vue'
 import type { DockviewApi, DockviewPanelApi, DockviewReadyEvent } from 'dockview-vue'
 import { IconFile, IconFolder, IconX } from '@tabler/icons-vue'
-import { store, setWorkspaceActiveTab, type Tab, type WorkspaceCategory } from '../stores/app'
+import { store, setBottomPanelActiveTab, type Tab, type BottomPanelCategory } from '../stores/app'
 import { commandService } from '../services/commands'
 import { canDropWorkspaceInstance, workspaceSplitMarker } from '../services/workspace-docking'
 import FilePanel from './FilePanel.vue'
 import EditorPanel from './EditorPanel.vue'
 
-const props = defineProps<{ category: WorkspaceCategory }>()
+const props = defineProps<{ category: BottomPanelCategory }>()
 interface WorkspaceGroup {
   id: string
   panels: readonly unknown[]
@@ -22,7 +22,7 @@ type PanelMoveGroup = NonNullable<Parameters<DockviewPanelApi['moveTo']>[0]['gro
 const api = ref<DockviewApi | null>(null)
 const layoutVersion = ref(0)
 const draggingId = ref('')
-let activeWorkspaceDrag: { tabId: string; category: WorkspaceCategory } | undefined
+let activeWorkspaceDrag: { tabId: string; category: BottomPanelCategory } | undefined
 let subscriptions: Array<{ dispose: () => void }> = []
 
 const components = {
@@ -98,7 +98,7 @@ function onReady(event: DockviewReadyEvent): void {
   subscriptions.push(
     currentApi.onDidActivePanelChange(({ panel }) => {
       if (!panel) return
-      setWorkspaceActiveTab(panel.id, props.category)
+      setBottomPanelActiveTab(panel.id, props.category)
       tick()
     }),
     currentApi.onDidLayoutChange(() => {
@@ -137,7 +137,7 @@ function instanceMarker(tabId: string): string {
 }
 
 function selectInstance(tab: Tab): void {
-  setWorkspaceActiveTab(tab.id, props.category)
+  setBottomPanelActiveTab(tab.id, props.category)
   api.value?.getPanel(tab.id)?.api.setActive()
 }
 
@@ -160,12 +160,12 @@ function onDragEnd(): void {
   activeWorkspaceDrag = undefined
 }
 
-function readWorkspaceDrag(event: DragEvent | PointerEvent): { tabId: string; category: WorkspaceCategory } | undefined {
+function readWorkspaceDrag(event: DragEvent | PointerEvent): { tabId: string; category: BottomPanelCategory } | undefined {
   if (!(event instanceof DragEvent)) return undefined
   const raw = event.dataTransfer?.getData('application/x-photonshell-workspace')
   if (!raw) return undefined
   try {
-    const data = JSON.parse(raw) as { tabId?: string; category?: WorkspaceCategory }
+    const data = JSON.parse(raw) as { tabId?: string; category?: BottomPanelCategory }
     if (!data.tabId || (data.category !== 'files' && data.category !== 'editors')) return undefined
     return { tabId: data.tabId, category: data.category }
   } catch {

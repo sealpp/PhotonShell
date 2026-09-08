@@ -4,8 +4,8 @@ import type { CommandContext } from '../services/context'
 export type View = 'welcome' | 'shell'
 export type ShellState = 'idle' | 'connecting' | 'online' | 'error'
 export type TabKind = 'terminal' | 'file' | 'editor'
-export type WorkspaceCategory = 'files' | 'editors'
-export type FocusedDock = 'terminal' | 'workspace'
+export type BottomPanelCategory = 'files' | 'editors'
+export type FocusedDock = 'terminal' | 'bottomPanel'
 
 export type FileSortKey = 'name' | 'modified' | 'size' | 'type'
 export type FileSortDirection = 'asc' | 'desc'
@@ -143,11 +143,13 @@ export interface AppState {
   activeTerminalTabId: string
   activeFileTabId: string
   activeEditorTabId: string
-  workspaceCategory: WorkspaceCategory
+  bottomPanelCategory: BottomPanelCategory
   focusedDock: FocusedDock
-  workspacePanelOpen: boolean
-  workspacePanelHeight: number
-  workspaceInstanceListWidth: number
+  bottomPanelOpen: boolean
+  bottomPanelHeight: number
+  bottomPanelInstanceListWidth: number
+  bottomPanelMaximized: boolean
+  bottomPanelRestoreHeight: number
   selectedHostIds: Set<string>
   selectionAnchor: string
   selectedNodeIds: Set<string>
@@ -216,11 +218,13 @@ export const store = reactive<AppState>({
   activeTerminalTabId: '',
   activeFileTabId: '',
   activeEditorTabId: '',
-  workspaceCategory: 'files',
+  bottomPanelCategory: 'files',
   focusedDock: 'terminal',
-  workspacePanelOpen: false,
-  workspacePanelHeight: 320,
-  workspaceInstanceListWidth: 220,
+  bottomPanelOpen: false,
+  bottomPanelHeight: 320,
+  bottomPanelInstanceListWidth: 220,
+  bottomPanelMaximized: false,
+  bottomPanelRestoreHeight: 320,
   selectedHostIds: new Set(),
   selectionAnchor: '',
   selectedNodeIds: new Set(),
@@ -261,17 +265,17 @@ export const store = reactive<AppState>({
   sftpClipboard: null,
 })
 
-export function getActiveWorkspaceTabId(): string {
-  return store.workspaceCategory === 'files' ? store.activeFileTabId : store.activeEditorTabId
+export function getActiveBottomPanelTabId(): string {
+  return store.bottomPanelCategory === 'files' ? store.activeFileTabId : store.activeEditorTabId
 }
 
 export function getFocusedTabId(): string {
-  return store.focusedDock === 'terminal' ? store.activeTerminalTabId : getActiveWorkspaceTabId()
+  return store.focusedDock === 'terminal' ? store.activeTerminalTabId : getActiveBottomPanelTabId()
 }
 
-export function setWorkspaceActiveTab(tabId: string, category: WorkspaceCategory): void {
+export function setBottomPanelActiveTab(tabId: string, category: BottomPanelCategory): void {
   if (category === 'files') store.activeFileTabId = tabId
   else store.activeEditorTabId = tabId
-  store.workspaceCategory = category
-  store.focusedDock = 'workspace'
+  store.bottomPanelCategory = category
+  store.focusedDock = 'bottomPanel'
 }

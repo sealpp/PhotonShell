@@ -27,7 +27,7 @@ import AboutDialog from './components/AboutDialog.vue'
 import DirtyCloseDialog from './components/DirtyCloseDialog.vue'
 import InteractionDialog from './components/InteractionDialog.vue'
 import TransferPanel from './views/TransferPanel.vue'
-import WorkspacePanel from './views/WorkspacePanel.vue'
+import BottomPanel from './views/BottomPanel.vue'
 import WorkspaceStatusButton from './components/WorkspaceStatusButton.vue'
 import { loadTransferConcurrency } from './services/sftp/transfer-runtime'
 
@@ -211,9 +211,9 @@ const stopContextSync = watch(
     store.activeTerminalTabId,
     store.activeFileTabId,
     store.activeEditorTabId,
-    store.workspaceCategory,
+    store.bottomPanelCategory,
     store.focusedDock,
-    store.workspacePanelOpen,
+    store.bottomPanelOpen,
     store.tabs.map((tab) => `${tab.id}:${tab.state}`).join(','),
     store.sidebarOpen,
     store.panelOpen,
@@ -234,8 +234,8 @@ const stopContextSync = watch(
       [ContextKeys.activeTabId]: getFocusedTabId(),
       [ContextKeys.activeTabExists]: store.tabs.some((tab) => tab.id === getFocusedTabId()),
       [ContextKeys.focusedDock]: store.focusedDock,
-      [ContextKeys.workspaceCategory]: store.workspaceCategory,
-      [ContextKeys.workspacePanelOpen]: store.workspacePanelOpen,
+      [ContextKeys.bottomPanelCategory]: store.bottomPanelCategory,
+      [ContextKeys.bottomPanelOpen]: store.bottomPanelOpen,
       [ContextKeys.sidebarOpen]: store.sidebarOpen,
       [ContextKeys.panelOpen]: store.panelOpen,
       [ContextKeys.isPaired]: store.paired,
@@ -348,7 +348,7 @@ onBeforeUnmount(() => {
             <MainDock />
             <ActionsToolbar />
           </div>
-          <WorkspacePanel />
+          <BottomPanel />
         </div>
         <div v-else class="welcome">
           <div class="welcome-logo">

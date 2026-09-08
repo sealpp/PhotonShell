@@ -68,14 +68,14 @@ registerAction({
 })
 
 registerAction({
-  id: 'workbench.toggleWorkspacePanel',
-  title: '文件工作区',
-  description: '显示或隐藏底部文件工作区',
+  id: 'workbench.toggleBottomPanel',
+  title: '面板',
+  description: '显示或隐藏底部面板',
   category: 'workbench',
-  checked: 'workspacePanelOpen',
+  checked: 'bottomPanelOpen',
   keybindings: [{ key: 'Mod+J' }],
   run: () => {
-    store.workspacePanelOpen = !store.workspacePanelOpen
+    store.bottomPanelOpen = !store.bottomPanelOpen
   },
 })
 

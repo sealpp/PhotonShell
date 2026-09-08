@@ -1,4 +1,4 @@
-export type WorkspaceCategory = 'files' | 'editors'
+export type BottomPanelCategory = 'files' | 'editors'
 
 export function workspaceSplitMarker(index: number, count: number): string {
   if (count <= 1 || index < 0 || index >= count) return ''
@@ -7,6 +7,6 @@ export function workspaceSplitMarker(index: number, count: number): string {
   return '├'
 }
 
-export function canDropWorkspaceInstance(source: WorkspaceCategory, target: WorkspaceCategory): boolean {
+export function canDropWorkspaceInstance(source: BottomPanelCategory, target: BottomPanelCategory): boolean {
   return source === target
 }

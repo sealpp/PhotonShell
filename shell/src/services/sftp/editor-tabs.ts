@@ -1,6 +1,6 @@
 import { randomId } from '../../utils/id'
 import { loadCredentialRecord } from '../vault'
-import { setWorkspaceActiveTab, store, type EditorTab, type FileEntry, type FileTab } from '../../stores/app'
+import { setBottomPanelActiveTab, store, type EditorTab, type FileEntry, type FileTab } from '../../stores/app'
 import { getSftpBackend, registerSftpSession } from './file-tabs'
 import { SftpWorkerClient } from './worker-client'
 import type { SftpBackend, SftpConnectionOptions } from './types'
@@ -81,8 +81,8 @@ export async function openEditorTab(fileTabId: string, entry: FileEntry): Promis
     },
   }
   store.tabs.push(editor)
-  setWorkspaceActiveTab(editor.id, 'editors')
-  store.workspacePanelOpen = true
+  setBottomPanelActiveTab(editor.id, 'editors')
+  store.bottomPanelOpen = true
   try {
     if (entry.size > MAX_EDIT_SIZE && !await confirmDialog('文件较大', `${entry.name} 大小超过 10 MiB，仍要打开吗？`, { confirmLabel: '继续打开' })) throw new Error('Opening large file was cancelled')
     const credential = await loadCredentialRecord(host.id)

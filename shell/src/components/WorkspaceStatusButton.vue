@@ -4,10 +4,10 @@ import { IconFolder } from '@tabler/icons-vue'
 import { commandService } from '../services/commands'
 import { store } from '../stores/app'
 
-const open = computed(() => store.workspacePanelOpen)
+const open = computed(() => store.bottomPanelOpen)
 
 function toggle(): void {
-  void commandService.execute('workbench.toggleWorkspacePanel', { area: 'global' })
+  void commandService.execute('workbench.toggleBottomPanel', { area: 'global' })
 }
 </script>
 
@@ -17,11 +17,11 @@ function toggle(): void {
     class="workspace-status"
     :class="{ active: open }"
     :aria-pressed="open"
-    :title="open ? '隐藏文件工作区' : '显示文件工作区'"
+    :title="open ? '隐藏面板' : '显示面板'"
     @click="toggle"
   >
     <IconFolder :size="14" aria-hidden="true" />
-    <span>文件</span>
+    <span>面板</span>
   </button>
 </template>
 

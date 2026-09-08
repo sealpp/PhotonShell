@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { IconFile, IconFolder } from '@tabler/icons-vue'
-import { store, type WorkspaceCategory } from '../stores/app'
-import WorkspaceDock from './WorkspaceDock.vue'
+import { store, type BottomPanelCategory } from '../stores/app'
+import BottomPanelDock from './BottomPanelDock.vue'
 
 const MIN_HEIGHT = 220
 const MAX_HEIGHT_RATIO = 0.6
@@ -20,8 +20,8 @@ let listPointerId: number | null = null
 let listStartX = 0
 let listStartWidth = 0
 
-const visible = computed(() => store.view === 'shell' && store.workspacePanelOpen)
-const heightStyle = computed(() => ({ height: `${store.workspacePanelHeight}px` }))
+const visible = computed(() => store.view === 'shell' && store.bottomPanelOpen)
+const heightStyle = computed(() => ({ height: `${store.bottomPanelHeight}px` }))
 
 function clampHeight(value: number): number {
   const viewportHeight = window.innerHeight || 900
@@ -30,16 +30,16 @@ function clampHeight(value: number): number {
 }
 
 function initializeHeight(): void {
-  if (store.workspacePanelHeight === 320) {
-    store.workspacePanelHeight = clampHeight(window.innerHeight * DEFAULT_HEIGHT_RATIO)
+  if (store.bottomPanelHeight === 320) {
+    store.bottomPanelHeight = clampHeight(window.innerHeight * DEFAULT_HEIGHT_RATIO)
   } else {
-    store.workspacePanelHeight = clampHeight(store.workspacePanelHeight)
+    store.bottomPanelHeight = clampHeight(store.bottomPanelHeight)
   }
 }
 
-function selectCategory(category: WorkspaceCategory): void {
-  store.workspaceCategory = category
-  store.focusedDock = 'workspace'
+function selectCategory(category: BottomPanelCategory): void {
+  store.bottomPanelCategory = category
+  store.focusedDock = 'bottomPanel'
 }
 
 function startResize(event: PointerEvent): void {
@@ -50,14 +50,14 @@ function startResize(event: PointerEvent): void {
   resizing.value = true
   activePointerId = event.pointerId
   startPointerY = event.clientY
-  startHeight = store.workspacePanelHeight
+  startHeight = store.bottomPanelHeight
   target.setPointerCapture(event.pointerId)
 }
 
 function moveResize(event: PointerEvent): void {
   if (!resizing.value || activePointerId !== event.pointerId) return
   event.preventDefault()
-  store.workspacePanelHeight = clampHeight(startHeight + startPointerY - event.clientY)
+  store.bottomPanelHeight = clampHeight(startHeight + startPointerY - event.clientY)
 }
 
 function endResize(event?: PointerEvent): void {
@@ -73,7 +73,7 @@ function endResize(event?: PointerEvent): void {
 }
 
 function onViewportResize(): void {
-  if (visible.value) store.workspacePanelHeight = clampHeight(store.workspacePanelHeight)
+  if (visible.value) store.bottomPanelHeight = clampHeight(store.bottomPanelHeight)
 }
 
 function clampListWidth(value: number): number {
@@ -88,14 +88,14 @@ function startListResize(event: PointerEvent): void {
   listResizing = true
   listPointerId = event.pointerId
   listStartX = event.clientX
-  listStartWidth = store.workspaceInstanceListWidth
+  listStartWidth = store.bottomPanelInstanceListWidth
   target.setPointerCapture(event.pointerId)
 }
 
 function moveListResize(event: PointerEvent): void {
   if (!listResizing || listPointerId !== event.pointerId) return
   event.preventDefault()
-  store.workspaceInstanceListWidth = clampListWidth(listStartWidth - (event.clientX - listStartX))
+  store.bottomPanelInstanceListWidth = clampListWidth(listStartWidth - (event.clientX - listStartX))
 }
 
 function endListResize(event?: PointerEvent): void {
@@ -138,8 +138,8 @@ onBeforeUnmount(() => {
         type="button"
         role="tab"
         class="workspace-category"
-        :class="{ active: store.workspaceCategory === 'files' }"
-        :aria-selected="store.workspaceCategory === 'files'"
+        :class="{ active: store.bottomPanelCategory === 'files' }"
+        :aria-selected="store.bottomPanelCategory === 'files'"
         @click="selectCategory('files')"
       >
         <IconFolder :size="14" aria-hidden="true" />
@@ -149,8 +149,8 @@ onBeforeUnmount(() => {
         type="button"
         role="tab"
         class="workspace-category"
-        :class="{ active: store.workspaceCategory === 'editors' }"
-        :aria-selected="store.workspaceCategory === 'editors'"
+        :class="{ active: store.bottomPanelCategory === 'editors' }"
+        :aria-selected="store.bottomPanelCategory === 'editors'"
         @click="selectCategory('editors')"
       >
         <IconFile :size="14" aria-hidden="true" />
@@ -158,11 +158,11 @@ onBeforeUnmount(() => {
       </button>
     </nav>
     <div class="workspace-content">
-      <div class="workspace-category-view" :class="{ active: store.workspaceCategory === 'files' }">
-        <WorkspaceDock category="files" />
+      <div class="workspace-category-view" :class="{ active: store.bottomPanelCategory === 'files' }">
+        <BottomPanelDock category="files" />
       </div>
-      <div class="workspace-category-view" :class="{ active: store.workspaceCategory === 'editors' }">
-        <WorkspaceDock category="editors" />
+      <div class="workspace-category-view" :class="{ active: store.bottomPanelCategory === 'editors' }">
+        <BottomPanelDock category="editors" />
       </div>
     </div>
     <div
@@ -269,7 +269,7 @@ onBeforeUnmount(() => {
   display: none;
   min-width: 0;
   min-height: 0;
-  --workspace-instance-list-width: v-bind('store.workspaceInstanceListWidth + "px"');
+  --workspace-instance-list-width: v-bind('store.bottomPanelInstanceListWidth + "px"');
 }
 
 .workspace-category-view.active {
@@ -279,7 +279,7 @@ onBeforeUnmount(() => {
 .workspace-list-resizer {
   position: absolute;
   top: 35px;
-  right: calc(v-bind('store.workspaceInstanceListWidth + "px"') - 4px);
+  right: calc(v-bind('store.bottomPanelInstanceListWidth + "px"') - 4px);
   bottom: 0;
   z-index: 20;
   width: 8px;

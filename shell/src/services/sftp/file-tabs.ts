@@ -1,6 +1,6 @@
 import { randomId } from '../../utils/id'
 import { loadCredentialRecord } from '../vault'
-import { setWorkspaceActiveTab, store, type FileEntry, type FileTab, type HostProfile } from '../../stores/app'
+import { setBottomPanelActiveTab, store, type FileEntry, type FileTab, type HostProfile } from '../../stores/app'
 import { normalizeRemotePath, parentRemotePath, joinRemotePath } from './path'
 import { listDirectory } from './operations'
 import { copyEntry, moveEntry, targetNameForEntry } from './operations'
@@ -59,8 +59,8 @@ export function createFileTab(host: HostProfile, _sourceTabId: string, initialPa
     file: createFileState(initialPath),
   }
   store.tabs.push(tab)
-  setWorkspaceActiveTab(tab.id, 'files')
-  store.workspacePanelOpen = true
+  setBottomPanelActiveTab(tab.id, 'files')
+  store.bottomPanelOpen = true
   store.view = 'shell'
   void startFileTab(tab, host)
   return tab
