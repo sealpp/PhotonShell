@@ -17,6 +17,8 @@
 
 - For complex tasks, maintain a task tracker with decomposed subtasks and checkpoints; avoid overlong intermediate subtasks that cause context drift, loss of direction, or forgotten work.
 - Split complex changes into logically scoped commits, making each as independently verifiable as practical.
+- Complex tasks must use atomic commits organized by one user-visible behavior or one architecture layer. Each commit should be independently buildable, testable, and revertible where practical; do not mix design, state/model, UI, interaction, and test changes without a direct dependency.
+- Before committing, inspect the staged diff and keep unrelated changes out of the commit. Push each repository from its own root after its commits are verified.
 - Prefer removing confirmed-redundant or obsolete code, tests, and content over blindly appending; avoid unnecessary defensive programming and redundant logic that cause bloat and decay.
 
 ## E2E & local dev
