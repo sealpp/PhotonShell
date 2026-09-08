@@ -67,4 +67,16 @@ registerAction({
   },
 })
 
+registerAction({
+  id: 'workbench.toggleWorkspacePanel',
+  title: '文件工作区',
+  description: '显示或隐藏底部文件工作区',
+  category: 'workbench',
+  checked: 'workspacePanelOpen',
+  keybindings: [{ key: 'Mod+J' }],
+  run: () => {
+    store.workspacePanelOpen = !store.workspacePanelOpen
+  },
+})
+
 export const WORKBENCH_MENU_ID = MenuId.Workbench

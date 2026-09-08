@@ -1,6 +1,6 @@
 import { randomId } from '../../utils/id'
 import { loadCredentialRecord } from '../vault'
-import { store, type FileEntry, type FileTab, type HostProfile } from '../../stores/app'
+import { setWorkspaceActiveTab, store, type FileEntry, type FileTab, type HostProfile } from '../../stores/app'
 import { normalizeRemotePath, parentRemotePath, joinRemotePath } from './path'
 import { listDirectory } from './operations'
 import { copyEntry, moveEntry, targetNameForEntry } from './operations'
@@ -43,8 +43,7 @@ function createFileState(path: string) {
   }
 }
 
-export function createFileTab(host: HostProfile, sourceTabId: string, initialPath = '/'): FileTab {
-  const sourceIndex = store.tabs.findIndex((tab) => tab.id === sourceTabId)
+export function createFileTab(host: HostProfile, _sourceTabId: string, initialPath = '/'): FileTab {
   const tab: FileTab = {
     id: randomId(),
     kind: 'file',
@@ -58,10 +57,10 @@ export function createFileTab(host: HostProfile, sourceTabId: string, initialPat
     encoding: 'utf-8',
     cwd: normalizeRemotePath(initialPath),
     file: createFileState(initialPath),
-    afterTabId: sourceTabId,
   }
-  store.tabs.splice(sourceIndex >= 0 ? sourceIndex + 1 : store.tabs.length, 0, tab)
-  store.activeTabId = tab.id
+  store.tabs.push(tab)
+  setWorkspaceActiveTab(tab.id, 'files')
+  store.workspacePanelOpen = true
   store.view = 'shell'
   void startFileTab(tab, host)
   return tab

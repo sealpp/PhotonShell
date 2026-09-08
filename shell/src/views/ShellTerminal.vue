@@ -33,7 +33,7 @@ const unwatchEncoding = ref<() => void>()
 const unwatchTerminalMount = ref<() => void>()
 
 const tab = computed(() => store.tabs.find((t) => t.id === props.tabId))
-const isActive = computed(() => store.activeTabId === props.tabId)
+const isActive = computed(() => store.activeTerminalTabId === props.tabId)
 const encoder = new TextEncoder()
 
 const activeState = computed(() => {

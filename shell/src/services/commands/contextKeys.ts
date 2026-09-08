@@ -20,6 +20,9 @@ export const ContextKeys = {
   nodeConnected: 'nodeConnected',
   sidebarOpen: 'sidebarOpen',
   panelOpen: 'panelOpen',
+  workspacePanelOpen: 'workspacePanelOpen',
+  workspaceCategory: 'workspaceCategory',
+  focusedDock: 'focusedDock',
   modalOpen: 'modalOpen',
 } as const
 

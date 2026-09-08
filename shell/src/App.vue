@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { store } from './stores/app'
+import { getFocusedTabId, store } from './stores/app'
 import { connect, initializePwa, setNodeDisconnectedHandler } from './services/ws'
 import { commandService, keybindingService, syncAppContext, ContextKeys } from './services/commands'
 import { startTelemetryService } from './services/telemetry'
@@ -206,7 +206,12 @@ let reconnectTimer: number | null = null
 const stopContextSync = watch(
   () => [
     store.view,
-    store.activeTabId,
+    store.activeTerminalTabId,
+    store.activeFileTabId,
+    store.activeEditorTabId,
+    store.workspaceCategory,
+    store.focusedDock,
+    store.workspacePanelOpen,
     store.tabs.map((tab) => `${tab.id}:${tab.state}`).join(','),
     store.sidebarOpen,
     store.panelOpen,
@@ -224,8 +229,11 @@ const stopContextSync = watch(
   () => {
     syncAppContext({
       [ContextKeys.view]: store.view,
-      [ContextKeys.activeTabId]: store.activeTabId,
-      [ContextKeys.activeTabExists]: store.tabs.some((tab) => tab.id === store.activeTabId),
+      [ContextKeys.activeTabId]: getFocusedTabId(),
+      [ContextKeys.activeTabExists]: store.tabs.some((tab) => tab.id === getFocusedTabId()),
+      [ContextKeys.focusedDock]: store.focusedDock,
+      [ContextKeys.workspaceCategory]: store.workspaceCategory,
+      [ContextKeys.workspacePanelOpen]: store.workspacePanelOpen,
       [ContextKeys.sidebarOpen]: store.sidebarOpen,
       [ContextKeys.panelOpen]: store.panelOpen,
       [ContextKeys.isPaired]: store.paired,
@@ -270,13 +278,13 @@ onMounted(async () => {
   }
   startTelemetryService()
   keybindingService.attach(window, () => ({
-    area: store.tabs.find((tab) => tab.id === store.activeTabId)?.kind === 'file'
+    area: store.tabs.find((tab) => tab.id === getFocusedTabId())?.kind === 'file'
       ? 'file'
-      : store.tabs.find((tab) => tab.id === store.activeTabId)?.kind === 'editor'
+      : store.tabs.find((tab) => tab.id === getFocusedTabId())?.kind === 'editor'
         ? 'editor'
         : 'global',
-    tabId: store.activeTabId,
-    selectedPaths: store.tabs.find((tab) => tab.id === store.activeTabId && tab.kind === 'file')?.file?.selectedPaths,
+    tabId: getFocusedTabId(),
+    selectedPaths: store.tabs.find((tab) => tab.id === getFocusedTabId() && tab.kind === 'file')?.file?.selectedPaths,
     canPasteFiles: !!store.sftpClipboard?.entries.length,
   }))
 })

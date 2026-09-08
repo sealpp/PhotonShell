@@ -5,7 +5,7 @@ import CommandContextMenu from '../components/CommandContextMenu.vue'
 import { FILE_MENU_ID } from '../services/actions/menuIds'
 import type { CommandContext } from '../services/context'
 import { commandService } from '../services/commands'
-import { store, type FileEntry, type FileTab } from '../stores/app'
+import { setWorkspaceActiveTab, store, type FileEntry, type FileTab } from '../stores/app'
 import { copyEntry, moveEntry, targetNameForEntry } from '../services/sftp/operations'
 import { getSftpBackend, goBackFileTab, goForwardFileTab, navigateFileTab, navigateParentFileTab, refreshFileTab } from '../services/sftp/file-tabs'
 
@@ -127,7 +127,7 @@ function onDragStart(event: DragEvent, entry: FileEntry): void {
 
 function onDragEnter(): void {
   if (activateTimer !== undefined) window.clearTimeout(activateTimer)
-  activateTimer = window.setTimeout(() => { store.activeTabId = tabId.value }, 500)
+  activateTimer = window.setTimeout(() => { setWorkspaceActiveTab(tabId.value, 'files') }, 500)
 }
 
 function onDragLeave(): void {

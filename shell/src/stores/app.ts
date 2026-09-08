@@ -4,6 +4,8 @@ import type { CommandContext } from '../services/context'
 export type View = 'welcome' | 'shell'
 export type ShellState = 'idle' | 'connecting' | 'online' | 'error'
 export type TabKind = 'terminal' | 'file' | 'editor'
+export type WorkspaceCategory = 'files' | 'editors'
+export type FocusedDock = 'terminal' | 'workspace'
 
 export type FileSortKey = 'name' | 'modified' | 'size' | 'type'
 export type FileSortDirection = 'asc' | 'desc'
@@ -138,7 +140,14 @@ export interface AppState {
   hosts: HostProfile[]
   folders: FolderProfile[]
   tabs: Tab[]
-  activeTabId: string
+  activeTerminalTabId: string
+  activeFileTabId: string
+  activeEditorTabId: string
+  workspaceCategory: WorkspaceCategory
+  focusedDock: FocusedDock
+  workspacePanelOpen: boolean
+  workspacePanelHeight: number
+  workspaceInstanceListWidth: number
   selectedHostIds: Set<string>
   selectionAnchor: string
   selectedNodeIds: Set<string>
@@ -204,7 +213,14 @@ export const store = reactive<AppState>({
   hosts: [],
   folders: [],
   tabs: [],
-  activeTabId: '',
+  activeTerminalTabId: '',
+  activeFileTabId: '',
+  activeEditorTabId: '',
+  workspaceCategory: 'files',
+  focusedDock: 'terminal',
+  workspacePanelOpen: false,
+  workspacePanelHeight: 320,
+  workspaceInstanceListWidth: 220,
   selectedHostIds: new Set(),
   selectionAnchor: '',
   selectedNodeIds: new Set(),
@@ -244,3 +260,18 @@ export const store = reactive<AppState>({
   nodeConnected: false,
   sftpClipboard: null,
 })
+
+export function getActiveWorkspaceTabId(): string {
+  return store.workspaceCategory === 'files' ? store.activeFileTabId : store.activeEditorTabId
+}
+
+export function getFocusedTabId(): string {
+  return store.focusedDock === 'terminal' ? store.activeTerminalTabId : getActiveWorkspaceTabId()
+}
+
+export function setWorkspaceActiveTab(tabId: string, category: WorkspaceCategory): void {
+  if (category === 'files') store.activeFileTabId = tabId
+  else store.activeEditorTabId = tabId
+  store.workspaceCategory = category
+  store.focusedDock = 'workspace'
+}

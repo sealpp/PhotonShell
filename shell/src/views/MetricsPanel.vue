@@ -89,7 +89,7 @@ const metrics = computed<MetricCard[]>(() => {
   ]
 })
 
-const activeTab = computed(() => store.tabs.find((tab) => tab.id === store.activeTabId))
+const activeTab = computed(() => store.tabs.find((tab) => tab.id === store.activeTerminalTabId))
 const activeHost = computed(() => {
   const tab = activeTab.value
   return tab ? store.hosts.find((host) => host.id === tab.hostId) : undefined

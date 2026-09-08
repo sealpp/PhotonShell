@@ -6,25 +6,24 @@ import type { Tab } from '../stores/app'
 import { store } from '../stores/app'
 import TerminalPanel from './TerminalPanel.vue'
 import TerminalTab from './TerminalTab.vue'
-import FilePanel from './FilePanel.vue'
-import EditorPanel from './EditorPanel.vue'
 
 const api = ref<DockviewApi | null>(null)
 let unsubs: (() => void)[] = []
 let ignoreStoreActive = false
 let ignoreDockviewActive = false
 
-const components = { terminal: TerminalPanel, file: FilePanel, editor: EditorPanel }
+const components = { terminal: TerminalPanel }
 const tabComponents = { terminalTab: TerminalTab }
 
 function onReady(event: DockviewReadyEvent) {
   api.value = event.api
 
-  // When Dockview active panel changes, update store.activeTabId.
+  // Keep terminal activity independent from the bottom workspace.
   const activeSub = event.api.onDidActivePanelChange(({ panel }) => {
     if (ignoreDockviewActive) return
     ignoreStoreActive = true
-    store.activeTabId = panel?.id ?? ''
+    store.activeTerminalTabId = panel?.id ?? ''
+    store.focusedDock = 'terminal'
     nextTick(() => {
       ignoreStoreActive = false
     })
@@ -32,13 +31,13 @@ function onReady(event: DockviewReadyEvent) {
   unsubs.push(() => activeSub.dispose())
 
   // Sync any existing tabs to panels.
-  for (const tab of store.tabs) {
+  for (const tab of store.tabs.filter((candidate) => candidate.kind === 'terminal')) {
     addPanel(tab)
   }
 
   // Set active panel from store without triggering the reactive sync.
-  if (store.activeTabId && api.value) {
-    const panel = api.value.getPanel(store.activeTabId)
+  if (store.activeTerminalTabId && api.value) {
+    const panel = api.value.getPanel(store.activeTerminalTabId)
     if (panel) {
       ignoreDockviewActive = true
       panel.api.setActive()
@@ -50,6 +49,7 @@ function onReady(event: DockviewReadyEvent) {
 }
 
 function addPanel(tab: Tab) {
+  if (tab.kind !== 'terminal') return
   const dockviewApi = api.value
   if (!dockviewApi) return
   if (dockviewApi.getPanel(tab.id)) return
@@ -68,16 +68,16 @@ function addPanel(tab: Tab) {
   dockviewApi.addPanel({
     id: tab.id,
     title,
-    component: tab.kind === 'file' || tab.kind === 'editor' ? tab.kind : 'terminal',
+    component: 'terminal',
     tabComponent: 'terminalTab',
     params: { tabId: tab.id },
     renderer: 'always',
     position,
   })
 
-  if (store.activeTabId === tab.id) {
+  if (store.activeTerminalTabId === tab.id) {
     nextTick(() => {
-      if (store.activeTabId === tab.id) {
+      if (store.activeTerminalTabId === tab.id) {
         api.value?.getPanel(tab.id)?.api.setActive()
       }
     })
@@ -112,9 +112,9 @@ watch(
   { flush: 'post' },
 )
 
-// Watch store.activeTabId to sync active panel.
+// Watch the terminal activity independently from bottom workspace activity.
 watch(
-  () => store.activeTabId,
+  () => store.activeTerminalTabId,
   (id) => {
     if (ignoreStoreActive || !id || !api.value) return
     const panel = api.value.getPanel(id)

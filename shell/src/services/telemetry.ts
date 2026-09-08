@@ -134,7 +134,7 @@ let generation = 0
 const telemetrySessions = new Map<string, TelemetrySession>()
 
 function activeTab(): Tab | undefined {
-  return store.tabs.find((tab) => tab.id === store.activeTabId)
+  return store.tabs.find((tab) => tab.id === store.activeTerminalTabId)
 }
 
 function canPoll(sessionId: string): boolean {
@@ -227,7 +227,7 @@ export function startTelemetryService(): void {
       () => store.nodeConnected,
       () => store.view,
       () => store.panelOpen,
-      () => store.activeTabId,
+      () => store.activeTerminalTabId,
       () => activeTab()?.sessionId,
       () => activeTab()?.state,
     ],

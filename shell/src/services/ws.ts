@@ -209,7 +209,8 @@ export function addTab(host: HostProfile, password: string, insertAfterTabId?: s
   } else {
     store.tabs.push(tab)
   }
-  store.activeTabId = tabId
+  store.activeTerminalTabId = tabId
+  store.focusedDock = 'terminal'
   store.view = 'shell'
   store.connectionModalOpen = false
   store.editingHostId = ''
@@ -317,7 +318,7 @@ function updateTabState(sessionId: string, state: ShellState, error = ''): void 
   tab.error = error
   if (state === 'idle' || state === 'error') {
     tab.telemetry = null
-    if (tab.id === store.activeTabId) store.telemetry = null
+    if (tab.id === store.activeTerminalTabId) store.telemetry = null
   }
 }
 
@@ -343,8 +344,15 @@ export function closeTabs(tabIds: string[], skipDirtyPrompt = false): void {
   const tabsToClose = requestedTabs
   if (!tabsToClose.length) return
 
-  const activeTabId = store.activeTabId
-  const activeIndex = store.tabs.findIndex((tab) => tab.id === activeTabId)
+  const previousTabs = store.tabs.slice()
+  const nextActiveId = (kind: Tab['kind'], activeId: string): string => {
+    if (!activeId || !closing.has(activeId)) return activeId
+    const typed = previousTabs.filter((tab) => tab.kind === kind)
+    const index = typed.findIndex((tab) => tab.id === activeId)
+    const remaining = typed.filter((tab) => !closing.has(tab.id))
+    return remaining[index]?.id ?? remaining[index - 1]?.id ?? remaining[0]?.id ?? ''
+  }
+
   store.tabs = store.tabs.filter((tab) => !closing.has(tab.id))
   for (const tab of tabsToClose) {
     outputHandlers.delete(tab.sessionId)
@@ -353,13 +361,16 @@ export function closeTabs(tabIds: string[], skipDirtyPrompt = false): void {
     if (tab.kind === 'file' || tab.kind === 'editor') void closeFileTabSession(tab.id)
   }
 
-  if (activeTabId && !closing.has(activeTabId) && store.tabs.some((tab) => tab.id === activeTabId)) return
-  const next = store.tabs[activeIndex] || store.tabs[activeIndex - 1] || store.tabs[0]
-  store.activeTabId = next?.id ?? ''
-  store.telemetry = next?.telemetry ?? null
-  if (!store.activeTabId) {
+  store.activeTerminalTabId = nextActiveId('terminal', store.activeTerminalTabId)
+  store.activeFileTabId = nextActiveId('file', store.activeFileTabId)
+  store.activeEditorTabId = nextActiveId('editor', store.activeEditorTabId)
+  const activeTerminal = store.tabs.find((tab) => tab.id === store.activeTerminalTabId)
+  store.telemetry = activeTerminal?.telemetry ?? null
+  if (!store.tabs.length) {
     store.view = 'welcome'
     store.telemetry = null
+  } else {
+    store.view = 'shell'
   }
 }
 
