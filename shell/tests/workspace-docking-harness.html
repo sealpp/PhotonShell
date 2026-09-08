@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Workspace Docking Harness</title>
+    <style>
+      html, body, #app { width: 100%; height: 100%; margin: 0; background: #1e1e1e; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import { createApp, h } from 'vue'
+      import 'dockview-vue/dist/styles/dockview.css'
+      import WorkspacePanel from '/src/views/WorkspacePanel.vue'
+      import { store } from '/src/stores/app'
+
+      const file = (id, label) => ({
+        id, kind: 'file', hostId: 'host-a', label, state: 'online', error: '', sessionId: `session-${id}`,
+        terminalId: `terminal-${id}`, telemetry: null, encoding: 'utf-8', cwd: '/',
+        file: { cwd: '/', defaultPath: '/', history: ['/'], historyIndex: 0, entries: [], selectedPaths: [], sortKey: 'name', sortDirection: 'asc', showHidden: false, loading: false, error: '' },
+      })
+      const editor = {
+        id: 'editor-a', kind: 'editor', hostId: 'host-a', label: 'README.md', state: 'idle', error: '', sessionId: 'session-editor',
+        terminalId: 'terminal-editor', telemetry: null, encoding: 'utf-8', cwd: '/',
+        editor: { path: '/README.md', language: 'markdown', dirty: false, encoding: 'utf-8', bom: false, lineEnding: '\n', content: '# PhotonShell', size: 13, largeFileConfirmed: true },
+      }
+      store.tabs.splice(0, store.tabs.length, file('file-a', '远端 /srv'), file('file-b', '远端 /var'), editor)
+      store.view = 'shell'
+      store.workspacePanelOpen = true
+      store.workspaceCategory = 'files'
+      store.focusedDock = 'workspace'
+      store.activeFileTabId = 'file-a'
+      store.activeEditorTabId = 'editor-a'
+
+      createApp({ render: () => h(WorkspacePanel) }).mount('#app')
+    </script>
+  </body>
+</html>
