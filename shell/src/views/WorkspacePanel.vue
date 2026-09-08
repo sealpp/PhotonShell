@@ -2,16 +2,23 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { IconFile, IconFolder } from '@tabler/icons-vue'
 import { store, type WorkspaceCategory } from '../stores/app'
+import WorkspaceDock from './WorkspaceDock.vue'
 
 const MIN_HEIGHT = 220
 const MAX_HEIGHT_RATIO = 0.6
 const DEFAULT_HEIGHT_RATIO = 0.35
+const MIN_LIST_WIDTH = 160
+const MAX_LIST_WIDTH = 420
 
 const panelEl = ref<HTMLElement | null>(null)
 const resizing = ref(false)
 let activePointerId: number | null = null
 let startPointerY = 0
 let startHeight = 0
+let listResizing = false
+let listPointerId: number | null = null
+let listStartX = 0
+let listStartWidth = 0
 
 const visible = computed(() => store.view === 'shell' && store.workspacePanelOpen)
 const heightStyle = computed(() => ({ height: `${store.workspacePanelHeight}px` }))
@@ -69,6 +76,38 @@ function onViewportResize(): void {
   if (visible.value) store.workspacePanelHeight = clampHeight(store.workspacePanelHeight)
 }
 
+function clampListWidth(value: number): number {
+  return Math.min(MAX_LIST_WIDTH, Math.max(MIN_LIST_WIDTH, Math.round(value)))
+}
+
+function startListResize(event: PointerEvent): void {
+  if (event.button !== 0 || listResizing) return
+  const target = event.currentTarget
+  if (!(target instanceof HTMLElement)) return
+  event.preventDefault()
+  listResizing = true
+  listPointerId = event.pointerId
+  listStartX = event.clientX
+  listStartWidth = store.workspaceInstanceListWidth
+  target.setPointerCapture(event.pointerId)
+}
+
+function moveListResize(event: PointerEvent): void {
+  if (!listResizing || listPointerId !== event.pointerId) return
+  event.preventDefault()
+  store.workspaceInstanceListWidth = clampListWidth(listStartWidth - (event.clientX - listStartX))
+}
+
+function endListResize(event?: PointerEvent): void {
+  if (listPointerId === null) return
+  if (event && event.pointerId !== listPointerId) return
+  const target = event?.currentTarget
+  const pointerId = listPointerId
+  listPointerId = null
+  listResizing = false
+  if (target instanceof HTMLElement && target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId)
+}
+
 onMounted(() => {
   initializeHeight()
   window.addEventListener('resize', onViewportResize)
@@ -77,11 +116,12 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onViewportResize)
   endResize()
+  endListResize()
 })
 </script>
 
 <template>
-  <section v-if="visible" ref="panelEl" class="workspace-panel" :style="heightStyle" aria-label="文件工作区">
+  <section v-show="visible" ref="panelEl" class="workspace-panel" :style="heightStyle" aria-label="文件工作区">
     <div
       class="workspace-resizer"
       :class="{ dragging: resizing }"
@@ -118,15 +158,24 @@ onBeforeUnmount(() => {
       </button>
     </nav>
     <div class="workspace-content">
-      <div v-if="store.workspaceCategory === 'files'" class="workspace-empty">
-        <IconFolder :size="22" aria-hidden="true" />
-        <span>暂无文件列表</span>
+      <div class="workspace-category-view" :class="{ active: store.workspaceCategory === 'files' }">
+        <WorkspaceDock category="files" />
       </div>
-      <div v-else class="workspace-empty">
-        <IconFile :size="22" aria-hidden="true" />
-        <span>暂无打开的文件</span>
+      <div class="workspace-category-view" :class="{ active: store.workspaceCategory === 'editors' }">
+        <WorkspaceDock category="editors" />
       </div>
     </div>
+    <div
+      class="workspace-list-resizer"
+      :class="{ dragging: listResizing }"
+      role="separator"
+      aria-label="调整实例列表宽度"
+      @pointerdown="startListResize"
+      @pointermove="moveListResize"
+      @pointerup="endListResize"
+      @pointercancel="endListResize"
+      @lostpointercapture="endListResize"
+    ></div>
   </section>
 </template>
 
@@ -207,18 +256,47 @@ onBeforeUnmount(() => {
 }
 
 .workspace-content {
+  position: relative;
   min-height: 0;
   min-width: 0;
   flex: 1;
   overflow: hidden;
 }
 
-.workspace-empty {
+.workspace-category-view {
+  position: absolute;
+  inset: 0;
+  display: none;
+  min-width: 0;
+  min-height: 0;
+  --workspace-instance-list-width: v-bind('store.workspaceInstanceListWidth + "px"');
+}
+
+.workspace-category-view.active {
   display: flex;
-  height: 100%;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #777;
+}
+
+.workspace-list-resizer {
+  position: absolute;
+  top: 35px;
+  right: calc(v-bind('store.workspaceInstanceListWidth + "px"') - 4px);
+  bottom: 0;
+  z-index: 20;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.workspace-list-resizer::before {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  background: transparent;
+}
+
+.workspace-list-resizer:hover::before,
+.workspace-list-resizer.dragging::before {
+  background: rgba(74, 170, 255, 0.42);
 }
 </style>

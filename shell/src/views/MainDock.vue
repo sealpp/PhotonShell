@@ -28,7 +28,11 @@ function onReady(event: DockviewReadyEvent) {
       ignoreStoreActive = false
     })
   })
-  unsubs.push(() => activeSub.dispose())
+  const dropSub = event.api.onWillDrop((drop) => {
+    const data = drop.getData()
+    if (data && data.viewId !== event.api.id) drop.preventDefault()
+  })
+  unsubs.push(() => activeSub.dispose(), () => dropSub.dispose())
 
   // Sync any existing tabs to panels.
   for (const tab of store.tabs.filter((candidate) => candidate.kind === 'terminal')) {
