@@ -8,8 +8,8 @@ import {
   clampBottomPanelHeight,
   normalBottomPanelMaxHeight,
   shouldCollapseBottomPanel,
+  shouldExitMaximizedBottomPanel,
   shouldMaximizeBottomPanel,
-  shouldRestoreBottomPanel,
 } from '../services/bottom-panel-layout'
 import BottomPanelDock from './BottomPanelDock.vue'
 
@@ -30,6 +30,7 @@ let listStartX = 0
 let listStartWidth = 0
 let resizeObserver: ResizeObserver | null = null
 let observedHeader: Element | null = null
+let resizeUsesBottomAnchor = false
 
 const visible = computed(() => store.view === 'shell' && store.bottomPanelOpen)
 const heightStyle = computed(() => ({ height: store.bottomPanelMaximized ? '100%' : `${clampNormalHeight(store.bottomPanelHeight)}px` }))
@@ -95,6 +96,12 @@ function restoreFromMaximized(): void {
   store.bottomPanelHeight = clampNormalHeight(store.bottomPanelRestoreHeight)
 }
 
+function exitMaximizedForResize(): void {
+  store.bottomPanelMaximized = false
+  store.bottomPanelHeight = getNormalMaxHeight()
+  resizeUsesBottomAnchor = true
+}
+
 function toggleMaximized(): void {
   if (store.bottomPanelMaximized) {
     restoreFromMaximized()
@@ -122,33 +129,36 @@ function startResize(event: PointerEvent): void {
   activePointerId = event.pointerId
   startPointerY = event.clientY
   startHeight = store.bottomPanelMaximized ? store.bottomPanelRestoreHeight : store.bottomPanelHeight
+  resizeUsesBottomAnchor = false
   target.setPointerCapture(event.pointerId)
 }
 
 function moveResize(event: PointerEvent): void {
   if (!resizing.value || activePointerId !== event.pointerId) return
   event.preventDefault()
+
+  const shell = getShellWorkspace()
+  const shellRect = shell?.getBoundingClientRect()
+  const shellTop = shellRect?.top ?? 0
+  const maximizeBoundary = terminalHeaderBottom.value ?? shellTop
+
   if (store.bottomPanelMaximized) {
-    if (shouldRestoreBottomPanel(event.clientY, startPointerY)) {
-      restoreFromMaximized()
-      endResize(event)
-    }
+    if (shouldExitMaximizedBottomPanel(event.clientY, maximizeBoundary)) exitMaximizedForResize()
+    else return
+  }
+
+  const requestedHeight = resizeUsesBottomAnchor
+    ? (shellRect?.bottom ?? 0) - event.clientY
+    : startHeight + startPointerY - event.clientY
+  if (shouldMaximizeBottomPanel(event.clientY, maximizeBoundary, requestedHeight, getNormalMaxHeight())) {
+    enterMaximized()
     return
   }
 
-  const requestedHeight = startHeight + startPointerY - event.clientY
   if (shouldCollapseBottomPanel(requestedHeight)) {
     store.bottomPanelOpen = false
     store.bottomPanelMaximized = false
     endResize(event)
-    return
-  }
-
-  const shell = getShellWorkspace()
-  const shellTop = shell?.getBoundingClientRect().top ?? 0
-  const maximizeBoundary = terminalHeaderBottom.value ?? shellTop
-  if (shouldMaximizeBottomPanel(event.clientY, maximizeBoundary, requestedHeight, getNormalMaxHeight())) {
-    enterMaximized()
     return
   }
 
@@ -162,6 +172,7 @@ function endResize(event?: PointerEvent): void {
   const pointerId = activePointerId
   activePointerId = null
   resizing.value = false
+  resizeUsesBottomAnchor = false
   if (target instanceof HTMLElement && target.hasPointerCapture(pointerId)) {
     target.releasePointerCapture(pointerId)
   }

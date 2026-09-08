@@ -1,7 +1,6 @@
 export const BOTTOM_PANEL_MIN_HEIGHT = 220
 export const BOTTOM_PANEL_DEFAULT_HEIGHT_RATIO = 0.35
 export const BOTTOM_PANEL_COLLAPSE_THRESHOLD = 160
-export const BOTTOM_PANEL_RESTORE_DRAG_THRESHOLD = 8
 
 export function normalBottomPanelMaxHeight(
   availableHeight: number,
@@ -31,6 +30,6 @@ export function shouldMaximizeBottomPanel(
   return pointerY <= maximizeBoundary && requestedHeight > normalMaxHeight
 }
 
-export function shouldRestoreBottomPanel(pointerY: number, startPointerY: number): boolean {
-  return pointerY - startPointerY > BOTTOM_PANEL_RESTORE_DRAG_THRESHOLD
+export function shouldExitMaximizedBottomPanel(pointerY: number, maximizeBoundary: number): boolean {
+  return pointerY > maximizeBoundary
 }

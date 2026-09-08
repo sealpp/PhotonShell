@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   BOTTOM_PANEL_COLLAPSE_THRESHOLD,
   BOTTOM_PANEL_MIN_HEIGHT,
-  BOTTOM_PANEL_RESTORE_DRAG_THRESHOLD,
   clampBottomPanelHeight,
   normalBottomPanelMaxHeight,
   shouldCollapseBottomPanel,
+  shouldExitMaximizedBottomPanel,
   shouldMaximizeBottomPanel,
-  shouldRestoreBottomPanel,
 } from './bottom-panel-layout'
 
 describe('bottom panel layout', () => {
@@ -29,7 +28,7 @@ describe('bottom panel layout', () => {
     expect(shouldCollapseBottomPanel(BOTTOM_PANEL_COLLAPSE_THRESHOLD)).toBe(false)
     expect(shouldMaximizeBottomPanel(134, 135, 900, 895)).toBe(true)
     expect(shouldMaximizeBottomPanel(136, 135, 900, 895)).toBe(false)
-    expect(shouldRestoreBottomPanel(100 + BOTTOM_PANEL_RESTORE_DRAG_THRESHOLD, 100)).toBe(false)
-    expect(shouldRestoreBottomPanel(100 + BOTTOM_PANEL_RESTORE_DRAG_THRESHOLD + 1, 100)).toBe(true)
+    expect(shouldExitMaximizedBottomPanel(135, 135)).toBe(false)
+    expect(shouldExitMaximizedBottomPanel(136, 135)).toBe(true)
   })
 })
