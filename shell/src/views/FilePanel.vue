@@ -21,6 +21,7 @@ const ROW_HEIGHT = 32
 let activateTimer: number | undefined
 
 const sortedEntries = computed(() => tab.value?.file.entries ?? [])
+const canNavigateParent = computed(() => tab.value?.file.cwd !== '/')
 const renderStart = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW_HEIGHT) - 8))
 const renderEnd = computed(() => Math.min(sortedEntries.value.length, renderStart.value + Math.ceil(viewportHeight.value / ROW_HEIGHT) + 16))
 const renderedEntries = computed(() => sortedEntries.value.slice(renderStart.value, renderEnd.value))
@@ -78,6 +79,12 @@ async function navigateFromInput(): Promise<void> {
   syncPath()
 }
 
+async function goToParent(): Promise<void> {
+  if (!canNavigateParent.value) return
+  await navigateParentFileTab(tabId.value)
+  syncPath()
+}
+
 function setSort(event: Event): void {
   const current = tab.value
   if (!current) return
@@ -105,7 +112,7 @@ function onKeydown(event: KeyboardEvent): void {
     void commandService.execute(key === 'f2' ? 'file.rename' : key === 'f5' ? 'file.refresh' : 'file.delete', fileContext())
   } else if (event.altKey && event.key === 'ArrowUp') {
     event.preventDefault()
-    void navigateParentFileTab(tabId.value)
+    void goToParent()
   }
 }
 
@@ -161,7 +168,7 @@ onBeforeUnmount(onDragLeave)
       <header class="file-toolbar">
         <button type="button" title="后退" :disabled="tab.file.historyIndex <= 0" @click="goBackFileTab(tabId)"><IconArrowBackUp :size="16" /></button>
         <button type="button" title="前进" :disabled="tab.file.historyIndex >= tab.file.history.length - 1" @click="goForwardFileTab(tabId)"><IconArrowForwardUp :size="16" /></button>
-        <button type="button" title="上级目录" @click="navigateParentFileTab(tabId)"><IconArrowUp :size="16" /></button>
+        <button type="button" title="上级目录" :disabled="!canNavigateParent" @click="goToParent"><IconArrowUp :size="16" /></button>
         <button type="button" title="刷新" @click="refreshFileTab(tabId)"><IconRefresh :size="16" /></button>
         <input v-model="pathInput" aria-label="远端路径" @keydown.enter="navigateFromInput" @blur="syncPath">
         <button type="button" title="显示隐藏文件" :class="{ active: tab.file.showHidden }" @click="toggleHidden"><IconEye :size="16" /></button>
@@ -176,6 +183,18 @@ onBeforeUnmount(onDragLeave)
       <div v-if="tab.file.error" class="file-error">{{ tab.file.error }}</div>
       <div ref="listEl" class="file-list" :class="`view-${tab.file.view}`" @scroll="onListScroll">
         <div class="file-list-head"><span>名称</span><span>大小</span><span>修改时间</span><span>类型</span></div>
+        <div
+          class="file-row file-parent"
+          :class="{ disabled: !canNavigateParent }"
+          :aria-disabled="!canNavigateParent"
+          title="返回上一级目录"
+          @dblclick="goToParent"
+        >
+          <span class="file-name"><span class="file-kind">↩</span><span>..</span></span>
+          <span>—</span>
+          <span>—</span>
+          <span>目录</span>
+        </div>
         <div class="virtual-spacer" :style="{ height: `${topSpacer}px` }" aria-hidden="true" />
         <div
           v-for="entry in renderedEntries"
@@ -206,5 +225,6 @@ onBeforeUnmount(onDragLeave)
 </template>
 
 <style scoped>
+.file-parent{color:#ddd;cursor:pointer}.file-parent.disabled{color:#777;cursor:default}
 .file-panel{width:100%;height:100%;display:flex;flex-direction:column;background:#1e1e1e;color:#ccc;outline:none}.file-toolbar{height:40px;display:flex;align-items:center;gap:5px;padding:0 8px;background:#252526;border-bottom:1px solid #333}.file-toolbar button{width:27px;height:27px;display:inline-flex;align-items:center;justify-content:center;background:#333;border:1px solid #444;color:#ccc;cursor:pointer}.file-toolbar button:hover,.file-toolbar button.active{background:#0e639c;color:#fff}.file-toolbar button:disabled{opacity:.4;cursor:default}.file-toolbar input{min-width:140px;flex:1;height:27px;background:#1e1e1e;border:1px solid #555;color:#eee;padding:0 8px}.file-toolbar select{height:27px;max-width:160px;background:#1e1e1e;border:1px solid #555;color:#ddd}.file-error{padding:8px 12px;color:#f48771;background:#3a1d1d;border-bottom:1px solid #633}.file-list{min-height:0;flex:1;overflow:auto}.file-list-head,.file-row{display:grid;grid-template-columns:minmax(200px,2fr) 100px 170px 100px;gap:10px;align-items:center;padding:0 12px;min-height:32px;height:32px;border-bottom:1px solid #2a2a2a}.virtual-spacer{pointer-events:none}.file-list-head{position:sticky;top:0;background:#2d2d2d;color:#aaa;font-size:12px;z-index:1}.file-row{cursor:default}.file-row:hover{background:#2a2d2e}.file-row.selected{background:#094771;color:#fff}.file-row.drop{outline:1px solid #3794ff}.file-name{display:flex;align-items:center;gap:8px;min-width:0}.file-name span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.file-kind{color:#dcdcaa}.file-empty{padding:28px;color:#777;text-align:center}.file-status{height:24px;display:flex;align-items:center;gap:14px;padding:0 10px;background:#007acc;color:#fff;font-size:11px}.file-status span:first-child{margin-right:auto}.file-status button{display:inline-flex;align-items:center;border:0;background:transparent;color:#fff;padding:1px;cursor:pointer}.view-tiles .file-list-head,.view-tiles .file-row{grid-template-columns:repeat(3,minmax(130px,1fr));min-height:70px;height:70px}.view-tiles .file-list-head span:not(:first-child),.view-tiles .file-row>span:not(:first-child){display:none}.view-tiles .file-name{flex-direction:column;align-items:flex-start}
 </style>
