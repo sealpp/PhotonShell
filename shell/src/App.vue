@@ -28,7 +28,7 @@ import DirtyCloseDialog from './components/DirtyCloseDialog.vue'
 import InteractionDialog from './components/InteractionDialog.vue'
 import TransferPanel from './views/TransferPanel.vue'
 import BottomPanel from './views/BottomPanel.vue'
-import WorkspaceStatusButton from './components/WorkspaceStatusButton.vue'
+import BottomPanelStatusButton from './components/BottomPanelStatusButton.vue'
 import { loadTransferConcurrency } from './services/sftp/transfer-runtime'
 
 type ResizeSide = 'left' | 'right'
@@ -377,7 +377,7 @@ onBeforeUnmount(() => {
     </div>
     <div class="statusbar">
       <NodeStatusMenu />
-      <WorkspaceStatusButton />
+      <BottomPanelStatusButton />
     </div>
     <PairingView v-if="store.pairingModalOpen" />
     <HostFormView v-if="store.connectionModalOpen" />

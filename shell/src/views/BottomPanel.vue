@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { IconFile, IconFolder } from '@tabler/icons-vue'
+import { IconFile, IconFolder, IconMaximize, IconMaximizeOff, IconX } from '@tabler/icons-vue'
 import { store, type BottomPanelCategory } from '../stores/app'
 import BottomPanelDock from './BottomPanelDock.vue'
 
@@ -89,6 +89,19 @@ function restoreFromMaximized(): void {
   if (!store.bottomPanelMaximized) return
   store.bottomPanelMaximized = false
   store.bottomPanelHeight = clampNormalHeight(store.bottomPanelRestoreHeight)
+}
+
+function toggleMaximized(): void {
+  if (store.bottomPanelMaximized) {
+    restoreFromMaximized()
+    return
+  }
+  store.bottomPanelRestoreHeight = store.bottomPanelHeight
+  store.bottomPanelMaximized = true
+}
+
+function closePanel(): void {
+  store.bottomPanelOpen = false
 }
 
 function selectCategory(category: BottomPanelCategory): void {
@@ -222,19 +235,19 @@ watch(
 </script>
 
 <template>
-  <section v-show="visible" ref="panelEl" class="workspace-panel" :class="{ maximized: store.bottomPanelMaximized }" :style="heightStyle" aria-label="文件工作区">
+  <section v-show="visible" ref="panelEl" class="workspace-panel" :class="{ maximized: store.bottomPanelMaximized }" :style="heightStyle" aria-label="面板">
     <div
       class="workspace-resizer"
       :class="{ dragging: resizing }"
       role="separator"
-      aria-label="调整文件工作区高度"
+      aria-label="调整面板高度"
       @pointerdown="startResize"
       @pointermove="moveResize"
       @pointerup="endResize"
       @pointercancel="endResize"
       @lostpointercapture="endResize"
     ></div>
-    <nav class="workspace-categories" role="tablist" aria-label="文件工作区功能">
+    <nav class="workspace-categories" role="tablist" aria-label="面板视图">
       <button
         type="button"
         role="tab"
@@ -257,6 +270,27 @@ watch(
         <IconFile :size="14" aria-hidden="true" />
         <span>文件</span>
       </button>
+      <div class="workspace-actions">
+        <button
+          type="button"
+          class="workspace-action"
+          :aria-label="store.bottomPanelMaximized ? '恢复面板大小' : '最大化面板'"
+          :title="store.bottomPanelMaximized ? '恢复面板大小' : '最大化面板'"
+          @click="toggleMaximized"
+        >
+          <IconMaximizeOff v-if="store.bottomPanelMaximized" :size="15" aria-hidden="true" />
+          <IconMaximize v-else :size="15" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          class="workspace-action"
+          aria-label="关闭面板"
+          title="关闭面板"
+          @click="closePanel"
+        >
+          <IconX :size="15" aria-hidden="true" />
+        </button>
+      </div>
     </nav>
     <div class="workspace-content">
       <div class="workspace-category-view" :class="{ active: store.bottomPanelCategory === 'files' }">
@@ -336,6 +370,34 @@ watch(
   padding-left: 8px;
   background: #252526;
   border-bottom: 1px solid #333;
+}
+
+.workspace-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding: 0 6px;
+}
+
+.workspace-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+}
+
+.workspace-action:hover,
+.workspace-action:focus-visible {
+  background: #3c3c3c;
+  color: #fff;
+  outline: none;
 }
 
 .workspace-category {

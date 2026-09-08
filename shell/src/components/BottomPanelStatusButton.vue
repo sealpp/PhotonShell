@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { IconFolder } from '@tabler/icons-vue'
+import { IconLayoutBottombar } from '@tabler/icons-vue'
 import { commandService } from '../services/commands'
 import { store } from '../stores/app'
 
@@ -20,7 +20,7 @@ function toggle(): void {
     :title="open ? '隐藏面板' : '显示面板'"
     @click="toggle"
   >
-    <IconFolder :size="14" aria-hidden="true" />
+    <IconLayoutBottombar :size="14" aria-hidden="true" />
     <span>面板</span>
   </button>
 </template>

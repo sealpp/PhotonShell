@@ -217,7 +217,7 @@ onBeforeUnmount(() => {
         <span>{{ props.category === 'files' ? '暂无文件列表' : '暂无打开的文件' }}</span>
       </div>
     </div>
-    <aside class="workspace-instance-list" aria-label="工作区实例">
+    <aside class="workspace-instance-list" aria-label="面板实例">
       <div v-if="!tabs.length" class="workspace-instance-empty">暂无实例</div>
       <button
         v-for="tab in tabs"
