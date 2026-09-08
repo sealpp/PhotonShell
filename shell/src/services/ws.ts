@@ -325,15 +325,22 @@ export function closeTab(tabId: string): void {
   closeTabs([tabId])
 }
 
-export function closeTabs(tabIds: string[]): void {
+export function closeTabs(tabIds: string[], skipDirtyPrompt = false): void {
+  if (!skipDirtyPrompt && store.dirtyCloseConfirm) return
   const closing = new Set(tabIds)
-  const tabsToClose = store.tabs.filter((tab) => closing.has(tab.id)).filter((tab) => {
-    if (tab.kind === 'editor' && tab.editor?.dirty && !window.confirm(`文件 ${tab.editor.path} 有未保存修改，仍要关闭吗？`)) {
-      closing.delete(tab.id)
-      return false
+  const requestedTabs = store.tabs.filter((tab) => closing.has(tab.id))
+  if (!skipDirtyPrompt) {
+    const dirty = requestedTabs.find((tab) => tab.kind === 'editor' && tab.editor?.dirty)
+    if (dirty && dirty.kind === 'editor' && dirty.editor) {
+      store.dirtyCloseConfirm = {
+        tabId: dirty.id,
+        path: dirty.editor.path,
+        remainingTabIds: requestedTabs.filter((tab) => tab.id !== dirty.id).map((tab) => tab.id),
+      }
+      return
     }
-    return true
-  })
+  }
+  const tabsToClose = requestedTabs
   if (!tabsToClose.length) return
 
   const activeTabId = store.activeTabId

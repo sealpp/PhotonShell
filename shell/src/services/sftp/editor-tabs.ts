@@ -6,6 +6,7 @@ import { SftpWorkerClient } from './worker-client'
 import type { SftpBackend, SftpConnectionOptions } from './types'
 import { getRuntimePassword } from '../ssh'
 import { transferFile } from './transfer'
+import { confirmDialog } from '../dialogs'
 
 const MAX_EDIT_SIZE = 10 * 1024 * 1024
 
@@ -84,7 +85,7 @@ export async function openEditorTab(fileTabId: string, entry: FileEntry): Promis
   store.tabs.splice(index + 1, 0, editor)
   store.activeTabId = editor.id
   try {
-    if (entry.size > MAX_EDIT_SIZE && !window.confirm(`${entry.name} 大小超过 10 MiB，仍要打开吗？`)) throw new Error('Opening large file was cancelled')
+    if (entry.size > MAX_EDIT_SIZE && !await confirmDialog('文件较大', `${entry.name} 大小超过 10 MiB，仍要打开吗？`, { confirmLabel: '继续打开' })) throw new Error('Opening large file was cancelled')
     const credential = await loadCredentialRecord(host.id)
     const backend = new SftpWorkerClient()
     const options: SftpConnectionOptions = { sessionId: editor.sessionId, host: host.address, port: host.port, username: host.username, password: credential?.password ?? getRuntimePassword(host.address) ?? (() => { throw new Error('SFTP credentials are unavailable for this host') })(), defaultPath: source.file.cwd }
@@ -98,9 +99,11 @@ export async function openEditorTab(fileTabId: string, entry: FileEntry): Promis
     reactive.editor = { ...reactive.editor, ...content, size: stat.size, largeFileConfirmed: stat.size > MAX_EDIT_SIZE }
     return reactive
   } catch (error) {
-    editor.state = 'error'
-    editor.error = error instanceof Error ? error.message : String(error)
-    return editor
+    const reactive = store.tabs.find((candidate) => candidate.id === editor.id) as EditorTab | undefined
+    const target = reactive ?? editor
+    target.state = 'error'
+    target.error = error instanceof Error ? error.message : String(error)
+    return target
   }
 }
 

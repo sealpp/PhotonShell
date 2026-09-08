@@ -4,6 +4,7 @@ import { registerAction } from '../commands'
 import { MenuId } from '../actions/menuIds'
 import { copySelectedFileEntries, deleteFileEntries, navigateFileTab, navigateParentFileTab, pasteFileTab, refreshFileTab, renameFileEntry } from './file-tabs'
 import { openEditorTab } from './editor-tabs'
+import { alertDialog, confirmDialog, promptDialog } from '../dialogs'
 
 function getFileTab(tabId?: string): FileTab | undefined {
   const tab = tabId ? store.tabs.find((candidate) => candidate.id === tabId) : undefined
@@ -77,7 +78,7 @@ registerAction({
   enablement: (ctx) => selectedPaths(ctx).length === 1,
   run: async (ctx) => {
     const path = selectedPaths(ctx)[0]
-    const name = window.prompt('重命名', path?.slice(path.lastIndexOf('/') + 1) ?? '')
+    const name = await promptDialog('重命名', path?.slice(path.lastIndexOf('/') + 1) ?? '', { message: path ?? '请输入新的文件名' })
     if (ctx.tabId && name !== null && path) await renameFileEntry(ctx.tabId, path, name)
   },
   keybindings: [{ key: 'F2' }],
@@ -93,7 +94,7 @@ registerAction({
   enablement: (ctx) => selectedPaths(ctx).length > 0,
   run: async (ctx) => {
     if (!ctx.tabId) return
-    if (!window.confirm(`确认删除 ${selectedPaths(ctx).length} 个项目？`)) return
+    if (!await confirmDialog('确认删除', `确认递归删除 ${selectedPaths(ctx).length} 个项目？`, { confirmLabel: '删除', danger: true })) return
     await deleteFileEntries(ctx.tabId, selectedPaths(ctx))
   },
   keybindings: [{ key: 'Delete' }, { key: 'Backspace' }],
@@ -118,10 +119,10 @@ registerAction({
   category: 'workbench',
   when: 'area == "file"',
   enablement: (ctx) => selectedPaths(ctx).length === 1,
-  run: (ctx) => {
+  run: async (ctx) => {
     const tab = getFileTab(ctx.tabId)
     const entry = tab?.file.entries.find((candidate) => candidate.path === selectedPaths(ctx)[0])
-    if (entry) window.alert(`${entry.name}\n${entry.path}\n${entry.kind}\n${entry.size} bytes`)
+    if (entry) await alertDialog('属性', `${entry.name}\n${entry.path}\n${entry.kind}\n${entry.size} bytes`)
   },
   menus: [{ menuId: MenuId.FileContext, order: 80 }],
 })

@@ -117,6 +117,19 @@ export interface SftpClipboardState {
   createdAt: number
 }
 
+export type InteractionDialogKind = 'confirm' | 'prompt' | 'alert'
+
+export interface InteractionDialogState {
+  kind: InteractionDialogKind
+  title: string
+  message: string
+  confirmLabel: string
+  cancelLabel: string
+  danger: boolean
+  value: string
+  placeholder: string
+}
+
 export interface AppState {
   view: View
   identityLoaded: boolean
@@ -145,6 +158,12 @@ export interface AppState {
   settingsModalOpen: boolean
   keyboardShortcutsModalOpen: boolean
   aboutModalOpen: boolean
+  dirtyCloseConfirm: {
+    tabId: string
+    path: string
+    remainingTabIds: string[]
+  } | null
+  interactionDialog: InteractionDialogState | null
   loginDialogHostId: string
   loginDialogTabId: string
   loginDialogError: string
@@ -205,6 +224,8 @@ export const store = reactive<AppState>({
   settingsModalOpen: false,
   keyboardShortcutsModalOpen: false,
   aboutModalOpen: false,
+  dirtyCloseConfirm: null,
+  interactionDialog: null,
   loginDialogHostId: '',
   loginDialogTabId: '',
   loginDialogError: '',

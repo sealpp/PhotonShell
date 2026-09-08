@@ -24,6 +24,8 @@ import WorkbenchMenu from './components/WorkbenchMenu.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog.vue'
 import AboutDialog from './components/AboutDialog.vue'
+import DirtyCloseDialog from './components/DirtyCloseDialog.vue'
+import InteractionDialog from './components/InteractionDialog.vue'
 import TransferPanel from './views/TransferPanel.vue'
 import { loadTransferConcurrency } from './services/sftp/transfer-runtime'
 
@@ -216,6 +218,8 @@ const stopContextSync = watch(
     store.settingsModalOpen,
     store.keyboardShortcutsModalOpen,
     store.aboutModalOpen,
+    store.dirtyCloseConfirm,
+    store.interactionDialog,
   ],
   () => {
     syncAppContext({
@@ -226,7 +230,7 @@ const stopContextSync = watch(
       [ContextKeys.panelOpen]: store.panelOpen,
       [ContextKeys.isPaired]: store.paired,
       [ContextKeys.nodeConnected]: store.nodeConnected,
-      [ContextKeys.modalOpen]: store.pairingModalOpen || store.connectionModalOpen || store.loginDialogOpen || store.settingsModalOpen || store.keyboardShortcutsModalOpen || store.aboutModalOpen,
+      [ContextKeys.modalOpen]: store.pairingModalOpen || store.connectionModalOpen || store.loginDialogOpen || store.settingsModalOpen || store.keyboardShortcutsModalOpen || store.aboutModalOpen || !!store.dirtyCloseConfirm || !!store.interactionDialog,
     })
   },
   { immediate: true },
@@ -375,6 +379,8 @@ onBeforeUnmount(() => {
     <SettingsDialog v-if="store.settingsModalOpen" />
     <KeyboardShortcutsDialog v-if="store.keyboardShortcutsModalOpen" />
     <AboutDialog v-if="store.aboutModalOpen" />
+    <DirtyCloseDialog />
+    <InteractionDialog />
     <TransferPanel />
   </div>
 </template>
