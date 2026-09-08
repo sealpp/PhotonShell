@@ -35,7 +35,6 @@ function createFileState(path: string) {
     historyIndex: 0,
     entries: [] as FileEntry[],
     selectedPaths: [] as string[],
-    view: 'list' as const,
     sortKey: 'name' as const,
     sortDirection: 'asc' as const,
     showHidden: false,

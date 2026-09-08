@@ -5,7 +5,6 @@ export type View = 'welcome' | 'shell'
 export type ShellState = 'idle' | 'connecting' | 'online' | 'error'
 export type TabKind = 'terminal' | 'file' | 'editor'
 
-export type FileViewMode = 'list' | 'compact' | 'tiles'
 export type FileSortKey = 'name' | 'modified' | 'size' | 'type'
 export type FileSortDirection = 'asc' | 'desc'
 
@@ -16,7 +15,6 @@ export interface FileWorkspaceState {
   historyIndex: number
   entries: FileEntry[]
   selectedPaths: string[]
-  view: FileViewMode
   sortKey: FileSortKey
   sortDirection: FileSortDirection
   showHidden: boolean
