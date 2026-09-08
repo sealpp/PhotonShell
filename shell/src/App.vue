@@ -27,6 +27,8 @@ import AboutDialog from './components/AboutDialog.vue'
 import DirtyCloseDialog from './components/DirtyCloseDialog.vue'
 import InteractionDialog from './components/InteractionDialog.vue'
 import TransferPanel from './views/TransferPanel.vue'
+import WorkspacePanel from './views/WorkspacePanel.vue'
+import WorkspaceStatusButton from './components/WorkspaceStatusButton.vue'
 import { loadTransferConcurrency } from './services/sftp/transfer-runtime'
 
 type ResizeSide = 'left' | 'right'
@@ -346,6 +348,7 @@ onBeforeUnmount(() => {
             <MainDock />
             <ActionsToolbar />
           </div>
+          <WorkspacePanel />
         </div>
         <div v-else class="welcome">
           <div class="welcome-logo">
@@ -374,6 +377,7 @@ onBeforeUnmount(() => {
     </div>
     <div class="statusbar">
       <NodeStatusMenu />
+      <WorkspaceStatusButton />
     </div>
     <PairingView v-if="store.pairingModalOpen" />
     <HostFormView v-if="store.connectionModalOpen" />

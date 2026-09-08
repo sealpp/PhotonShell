@@ -364,6 +364,9 @@ export function closeTabs(tabIds: string[], skipDirtyPrompt = false): void {
   store.activeTerminalTabId = nextActiveId('terminal', store.activeTerminalTabId)
   store.activeFileTabId = nextActiveId('file', store.activeFileTabId)
   store.activeEditorTabId = nextActiveId('editor', store.activeEditorTabId)
+  if (!store.tabs.some((tab) => tab.kind === 'file' || tab.kind === 'editor')) {
+    store.workspacePanelOpen = false
+  }
   const activeTerminal = store.tabs.find((tab) => tab.id === store.activeTerminalTabId)
   store.telemetry = activeTerminal?.telemetry ?? null
   if (!store.tabs.length) {
