@@ -8,6 +8,8 @@ test.beforeEach(async ({ page }) => {
 test('keeps fixed categories and shows only the selected category instances', async ({ page }) => {
   await expect(page.getByRole('tab')).toHaveCount(2)
   await expect(page.locator('.workspace-category-view.active .workspace-instance')).toHaveCount(2)
+  const dockBox = await page.locator('.workspace-category-view.active .workspace-dockview').boundingBox()
+  expect(dockBox?.height ?? 0).toBeGreaterThan(0)
 
   await page.getByRole('tab', { name: '文件' }).click()
   await expect(page.locator('.workspace-category-view.active .workspace-instance')).toHaveCount(1)
