@@ -25,3 +25,10 @@ test('selects an instance without changing the other category layout', async ({ 
   await page.getByRole('tab', { name: '文件列表' }).click()
   await expect(page.locator('.workspace-category-view.active .workspace-instance').nth(1)).toHaveClass(/active/)
 })
+
+test('opens the file context menu from a file row', async ({ page }) => {
+  const row = page.locator('.workspace-category-view.active .file-row').filter({ hasText: 'README.md' }).last()
+  await expect(row).toBeVisible()
+  await row.click({ button: 'right' })
+  await expect(page.locator('[role="menu"]')).toBeVisible()
+})

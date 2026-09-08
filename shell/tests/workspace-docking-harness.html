@@ -19,7 +19,7 @@
       const file = (id, label) => ({
         id, kind: 'file', hostId: 'host-a', label, state: 'online', error: '', sessionId: `session-${id}`,
         terminalId: `terminal-${id}`, telemetry: null, encoding: 'utf-8', cwd: '/',
-        file: { cwd: '/', defaultPath: '/', history: ['/'], historyIndex: 0, entries: [], selectedPaths: [], sortKey: 'name', sortDirection: 'asc', showHidden: false, loading: false, error: '' },
+        file: { cwd: '/', defaultPath: '/', history: ['/'], historyIndex: 0, entries: [{ name: 'README.md', path: '/README.md', kind: 'file', size: 13, modifiedAt: Date.now() }], selectedPaths: [], sortKey: 'name', sortDirection: 'asc', showHidden: false, loading: false, error: '' },
       })
       const editor = {
         id: 'editor-a', kind: 'editor', hostId: 'host-a', label: 'README.md', state: 'idle', error: '', sessionId: 'session-editor',

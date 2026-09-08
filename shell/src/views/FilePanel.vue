@@ -206,7 +206,7 @@ onBeforeUnmount(onDragLeave)
           @dragenter="dropTarget = entry.kind === 'directory' ? entry.path : null"
           @dragover.prevent
           @drop="onDrop($event, entry)"
-          @contextmenu.stop="select(entry, $event)"
+          @contextmenu="select(entry, $event)"
         >
           <span class="file-name"><span class="file-kind">{{ entry.kind === 'directory' ? '▰' : entry.kind === 'symlink' ? '↗' : '•' }}</span><span>{{ entry.name }}</span></span>
           <span>{{ entry.kind === 'directory' ? '—' : entry.size }}</span>
