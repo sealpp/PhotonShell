@@ -28,6 +28,7 @@ node/photon-trust.json
 *.enc
 
 # PWA runtime WASM assets copied from npm dependencies
+shell/public/libssh2.wasm
 shell/public/sshclient.wasm
 shell/public/wasm_exec.js
 
