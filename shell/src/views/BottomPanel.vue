@@ -2,12 +2,17 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { IconFile, IconFolder, IconMaximize, IconMaximizeOff, IconX } from '@tabler/icons-vue'
 import { store, type BottomPanelCategory } from '../stores/app'
+import {
+  BOTTOM_PANEL_DEFAULT_HEIGHT_RATIO,
+  BOTTOM_PANEL_MIN_HEIGHT,
+  clampBottomPanelHeight,
+  normalBottomPanelMaxHeight,
+  shouldCollapseBottomPanel,
+  shouldMaximizeBottomPanel,
+  shouldRestoreBottomPanel,
+} from '../services/bottom-panel-layout'
 import BottomPanelDock from './BottomPanelDock.vue'
 
-const MIN_HEIGHT = 220
-const DEFAULT_HEIGHT_RATIO = 0.35
-const COLLAPSE_THRESHOLD = 160
-const RESTORE_DRAG_THRESHOLD = 8
 const MIN_LIST_WIDTH = 160
 const MAX_LIST_WIDTH = 420
 
@@ -37,19 +42,18 @@ function getShellWorkspace(): HTMLElement | null {
 function getNormalMaxHeight(): number {
   const availableHeight = shellWorkspaceHeight.value || getShellWorkspace()?.clientHeight || window.innerHeight || 900
   const shell = getShellWorkspace()
-  if (!shell || terminalHeaderBottom.value === null) return Math.max(MIN_HEIGHT, Math.round(availableHeight))
+  if (!shell) return Math.max(BOTTOM_PANEL_MIN_HEIGHT, Math.round(availableHeight))
   const shellRect = shell.getBoundingClientRect()
-  const reservedTop = terminalHeaderBottom.value - shellRect.top + terminalHeaderHeight.value * 2
-  return Math.max(MIN_HEIGHT, Math.round(availableHeight - reservedTop))
+  return normalBottomPanelMaxHeight(availableHeight, terminalHeaderBottom.value, shellRect.top, terminalHeaderHeight.value)
 }
 
 function clampNormalHeight(value: number): number {
-  return Math.min(getNormalMaxHeight(), Math.max(MIN_HEIGHT, Math.round(value)))
+  return clampBottomPanelHeight(value, getNormalMaxHeight())
 }
 
 function initializeHeight(): void {
   if (store.bottomPanelHeight === 320) {
-    store.bottomPanelHeight = clampNormalHeight((shellWorkspaceHeight.value || window.innerHeight || 900) * DEFAULT_HEIGHT_RATIO)
+    store.bottomPanelHeight = clampNormalHeight((shellWorkspaceHeight.value || window.innerHeight || 900) * BOTTOM_PANEL_DEFAULT_HEIGHT_RATIO)
   } else {
     store.bottomPanelHeight = clampNormalHeight(store.bottomPanelHeight)
   }
@@ -125,7 +129,7 @@ function moveResize(event: PointerEvent): void {
   if (!resizing.value || activePointerId !== event.pointerId) return
   event.preventDefault()
   if (store.bottomPanelMaximized) {
-    if (event.clientY - startPointerY > RESTORE_DRAG_THRESHOLD) {
+    if (shouldRestoreBottomPanel(event.clientY, startPointerY)) {
       restoreFromMaximized()
       endResize(event)
     }
@@ -133,7 +137,7 @@ function moveResize(event: PointerEvent): void {
   }
 
   const requestedHeight = startHeight + startPointerY - event.clientY
-  if (requestedHeight < COLLAPSE_THRESHOLD) {
+  if (shouldCollapseBottomPanel(requestedHeight)) {
     store.bottomPanelOpen = false
     store.bottomPanelMaximized = false
     endResize(event)
@@ -143,7 +147,7 @@ function moveResize(event: PointerEvent): void {
   const shell = getShellWorkspace()
   const shellTop = shell?.getBoundingClientRect().top ?? 0
   const maximizeBoundary = terminalHeaderBottom.value ?? shellTop
-  if (event.clientY <= maximizeBoundary && requestedHeight > getNormalMaxHeight()) {
+  if (shouldMaximizeBottomPanel(event.clientY, maximizeBoundary, requestedHeight, getNormalMaxHeight())) {
     enterMaximized()
     return
   }
