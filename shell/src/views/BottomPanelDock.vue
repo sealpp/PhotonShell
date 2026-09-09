@@ -1,29 +1,25 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { DockviewVue, themeAbyss } from 'dockview-vue'
 import type { DockviewApi, DockviewPanelApi, DockviewReadyEvent } from 'dockview-vue'
 import { IconFile, IconFolder, IconX } from '@tabler/icons-vue'
 import { store, setBottomPanelActiveTab, type Tab, type BottomPanelCategory } from '../stores/app'
 import { commandService } from '../services/commands'
-import { canDropWorkspaceInstance, workspaceSplitMarker } from '../services/workspace-docking'
+import { arrangeWorkspaceInstances, canDropWorkspaceInstance } from '../services/workspace-docking'
 import FilePanel from './FilePanel.vue'
 import EditorPanel from './EditorPanel.vue'
 
 const props = defineProps<{ category: BottomPanelCategory }>()
-interface WorkspaceGroup {
-  id: string
-  panels: readonly unknown[]
-  activePanel?: { id: string }
-  api: { boundingBox?: { left: number; top: number; width: number; height: number } }
-  model: { header: { hidden: boolean } }
-}
 type PanelMoveGroup = NonNullable<Parameters<DockviewPanelApi['moveTo']>[0]['group']>
+type ActivatablePanel = { readonly id: string; readonly api: { setActive(): void } }
+type ActivePanelApi = { getPanel(id: string): ActivatablePanel | undefined; readonly activePanel?: ActivatablePanel }
 
 const api = ref<DockviewApi | null>(null)
 const layoutVersion = ref(0)
 const draggingId = ref('')
 let activeWorkspaceDrag: { tabId: string; category: BottomPanelCategory } | undefined
 let subscriptions: Array<{ dispose: () => void }> = []
+let syncingPanels = false
 
 const components = {
   file: FilePanel,
@@ -32,20 +28,29 @@ const components = {
 
 const tabs = computed(() => store.tabs.filter((tab): tab is Tab & { kind: 'file' | 'editor' } => tab.kind === props.category.slice(0, -1)))
 
-const visiblePanels = computed(() => {
+const instanceLayout = computed(() => {
   // Dockview owns layout state outside Vue. A version tick keeps the instance
-  // list in sync after moves, splits, and tab activation.
+  // list in sync after moves and splits.
   layoutVersion.value
   const currentApi = api.value
-  if (!currentApi) return new Map<string, { marker: string; group: WorkspaceGroup }>()
-  const groups = currentApi.groups
-  const activeGroups = groups.filter((group) => !!group.activePanel)
-  const result = new Map<string, { marker: string; group: WorkspaceGroup }>()
-  activeGroups.forEach((group, index) => {
-    const panel = group.activePanel
-    if (panel) result.set(panel.id, { marker: workspaceSplitMarker(index, activeGroups.length), group })
+  const tabIds = tabs.value.map((tab) => tab.id)
+  if (!currentApi) return arrangeWorkspaceInstances(tabIds, [])
+  return arrangeWorkspaceInstances(tabIds, currentApi.groups.map((group) => ({
+    panelIds: group.panels.map((panel) => panel.id),
+    bounds: group.api.boundingBox,
+  })))
+})
+
+const orderedTabs = computed(() => {
+  const byId = new Map(tabs.value.map((tab) => [tab.id, tab]))
+  return instanceLayout.value.flatMap(({ tabId }) => {
+    const tab = byId.get(tabId)
+    return tab ? [tab] : []
   })
-  return result
+})
+
+const instanceMarkers = computed(() => {
+  return new Map(instanceLayout.value.map(({ tabId, marker }) => [tabId, marker]))
 })
 
 function tick(): void {
@@ -60,6 +65,14 @@ function groupHeadersHidden(): void {
 
 function panelTitle(tab: Tab): string {
   return tab.label || (tab.kind === 'file' ? '文件列表' : '文件')
+}
+
+function restoreActivePanel(currentApi: ActivePanelApi): void {
+  const requestedId = props.category === 'files' ? store.activeFileTabId : store.activeEditorTabId
+  const panel = (requestedId ? currentApi.getPanel(requestedId) : undefined) ?? currentApi.activePanel
+  if (!panel) return
+  panel.api.setActive()
+  if (panel.id !== requestedId) setBottomPanelActiveTab(panel.id, props.category)
 }
 
 function addPanel(tab: Tab): void {
@@ -79,9 +92,6 @@ function addPanel(tab: Tab): void {
   }
   currentApi.addPanel(options)
   groupHeadersHidden()
-  if ((props.category === 'files' ? store.activeFileTabId : store.activeEditorTabId) === tab.id) {
-    nextTick(() => currentApi.getPanel(tab.id)?.api.setActive())
-  }
   tick()
 }
 
@@ -97,7 +107,7 @@ function onReady(event: DockviewReadyEvent): void {
   const currentApi = event.api
   subscriptions.push(
     currentApi.onDidActivePanelChange(({ panel }) => {
-      if (!panel) return
+      if (!panel || syncingPanels) return
       setBottomPanelActiveTab(panel.id, props.category)
       tick()
     }),
@@ -128,17 +138,23 @@ function onReady(event: DockviewReadyEvent): void {
       if (movedTab) selectInstance(movedTab)
     }),
   )
+  syncingPanels = true
   for (const tab of tabs.value) addPanel(tab)
+  restoreActivePanel(currentApi)
+  syncingPanels = false
   groupHeadersHidden()
+  tick()
 }
 
 function instanceMarker(tabId: string): string {
-  return visiblePanels.value.get(tabId)?.marker ?? ''
+  return instanceMarkers.value.get(tabId) ?? ''
 }
 
 function selectInstance(tab: Tab): void {
+  const panel = api.value?.getPanel(tab.id)
+  panel?.api.setActive()
   setBottomPanelActiveTab(tab.id, props.category)
-  api.value?.getPanel(tab.id)?.api.setActive()
+  tick()
 }
 
 function closeInstance(tabId: string): void {
@@ -176,13 +192,18 @@ function readWorkspaceDrag(event: DragEvent | PointerEvent): { tabId: string; ca
 watch(
   () => store.tabs.map((tab) => `${tab.id}:${tab.kind}`).join(','),
   (_, previous) => {
-    if (!api.value) return
+    const currentApi = api.value
+    if (!currentApi) return
     const oldIds = (previous ?? '').split(',').filter(Boolean).map((value) => value.split(':')[0])
     const currentTabs = tabs.value
     const currentIds = currentTabs.map((tab) => tab.id)
+    syncingPanels = true
     for (const id of oldIds.filter((id) => !currentIds.includes(id))) removePanel(id)
     for (const tab of currentTabs) addPanel(tab)
+    restoreActivePanel(currentApi)
+    syncingPanels = false
     groupHeadersHidden()
+    tick()
   },
   { flush: 'post' },
 )
@@ -220,7 +241,7 @@ onBeforeUnmount(() => {
     <aside class="workspace-instance-list" aria-label="面板实例">
       <div v-if="!tabs.length" class="workspace-instance-empty">暂无实例</div>
       <button
-        v-for="tab in tabs"
+        v-for="tab in orderedTabs"
         :key="tab.id"
         type="button"
         class="workspace-instance"
