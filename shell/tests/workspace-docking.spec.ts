@@ -68,6 +68,34 @@ test('restores the clicked panel when returning to a tabbed group', async ({ pag
   await expect(page.getByRole('region', { name: '远端 /var' })).toBeHidden()
 })
 
+test('activates the clicked tab inside a grouped pane', async ({ page }) => {
+  const dock = page.locator('.workspace-category-view.active .workspace-dock')
+  const source = page.getByRole('button', { name: '远端 /var' })
+  const [dockBox, sourceBox] = await Promise.all([dock.boundingBox(), source.boundingBox()])
+  expect(dockBox).not.toBeNull()
+  expect(sourceBox).not.toBeNull()
+  if (!dockBox || !sourceBox) return
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(sourceBox.x - 40, sourceBox.y + sourceBox.height / 2, { steps: 4 })
+  await page.mouse.move(dockBox.x + dockBox.width / 2, dockBox.y + dockBox.height / 2, { steps: 12 })
+  await page.mouse.up()
+
+  const groupedDock = page.locator('.workspace-dockview .dv-groupview').filter({
+    has: page.locator('.dv-tab').filter({ hasText: '远端 /srv' }),
+  })
+  await expect(groupedDock.locator('.dv-tab')).toHaveCount(2)
+
+  await page.getByRole('button', { name: '远端 /var' }).click()
+  await expect(groupedDock.locator('.dv-tab').filter({ hasText: '远端 /var' })).toHaveClass(/dv-active-tab/)
+  await expect(groupedDock.locator('.dv-tab').filter({ hasText: '远端 /srv' })).not.toHaveClass(/dv-active-tab/)
+
+  await page.getByRole('button', { name: '远端 /srv' }).click()
+  await expect(groupedDock.locator('.dv-tab').filter({ hasText: '远端 /srv' })).toHaveClass(/dv-active-tab/)
+  await expect(groupedDock.locator('.dv-tab').filter({ hasText: '远端 /var' })).not.toHaveClass(/dv-active-tab/)
+})
+
 test('selects an instance without changing the other category layout', async ({ page }) => {
   const first = page.locator('.workspace-category-view.active .workspace-instance').nth(1)
   await first.click()
