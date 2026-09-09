@@ -32,17 +32,18 @@ test('keeps grouped markers stable and activates tabs across panes', async ({ pa
 
   const instances = page.locator('.workspace-category-view.active .workspace-instance')
   await expect(instances.locator('.workspace-instance-label')).toHaveText(['远端 /opt', '远端 /srv', '远端 /var'])
-  await expect(instances.locator('.workspace-instance-marker')).toHaveText(['', '┌', '└'])
+  await expect(instances.locator('.workspace-instance-marker')).toHaveText(['┌', '└', ''])
 
   await page.getByRole('button', { name: '远端 /var' }).click()
   await expect(page.getByRole('region', { name: '远端 /var' })).toBeVisible()
   await expect(page.getByRole('region', { name: '远端 /srv' })).toBeHidden()
-  await expect(page.getByRole('region', { name: '远端 /opt' })).toBeVisible()
-  await expect(instances.locator('.workspace-instance-marker')).toHaveText(['', '┌', '└'])
+  await expect(page.getByRole('region', { name: '远端 /opt' })).toBeHidden()
+  await expect(instances.locator('.workspace-instance-marker')).toHaveText(['┌', '└', ''])
 
   await page.getByRole('button', { name: '远端 /opt' }).click()
   await expect(page.getByRole('button', { name: '远端 /opt' })).toHaveClass(/active/)
-  await expect(page.getByRole('region', { name: '远端 /var' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '远端 /srv' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '远端 /var' })).toBeHidden()
 })
 
 test('selects an instance without changing the other category layout', async ({ page }) => {

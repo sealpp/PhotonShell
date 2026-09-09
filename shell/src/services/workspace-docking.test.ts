@@ -11,14 +11,28 @@ describe('workspace docking primitives', () => {
     expect(arrangeWorkspaceInstances(
       ['file-a', 'file-b', 'file-c', 'pending'],
       [
-        { panelIds: ['file-c'], bounds: { left: 600, top: 0 } },
-        { panelIds: ['file-a', 'file-b'], bounds: { left: 0, top: 0 } },
+        { workspaceGroupId: 'group-c', panelIds: ['file-c'], bounds: { left: 600, top: 0 } },
+        { workspaceGroupId: 'group-a', panelIds: ['file-a'], bounds: { left: 0, top: 0 } },
+        { workspaceGroupId: 'group-a', panelIds: ['file-b'], bounds: { left: 300, top: 0 } },
       ],
     )).toEqual([
       { tabId: 'file-a', marker: '┌' },
       { tabId: 'file-b', marker: '└' },
       { tabId: 'file-c', marker: '' },
       { tabId: 'pending', marker: '' },
+    ])
+  })
+
+  it('does not draw markers for independent panes', () => {
+    expect(arrangeWorkspaceInstances(
+      ['file-a', 'file-b'],
+      [
+        { workspaceGroupId: 'group-a', panelIds: ['file-a'], bounds: { left: 0, top: 0 } },
+        { workspaceGroupId: 'group-b', panelIds: ['file-b'], bounds: { left: 600, top: 0 } },
+      ],
+    )).toEqual([
+      { tabId: 'file-a', marker: '' },
+      { tabId: 'file-b', marker: '' },
     ])
   })
 
