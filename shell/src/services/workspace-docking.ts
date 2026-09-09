@@ -58,9 +58,9 @@ export function arrangeWorkspaceInstances(
         ? workspaceSplitMarker(paneIndex, markerCount)
         : ''
       pane.panelIds.forEach((tabId) => {
-      if (placedIds.has(tabId)) return
-      placedIds.add(tabId)
-      result.push({ tabId, marker })
+        if (placedIds.has(tabId)) return
+        placedIds.add(tabId)
+        result.push({ tabId, marker })
       })
     })
   }
