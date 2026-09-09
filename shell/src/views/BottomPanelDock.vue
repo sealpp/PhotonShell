@@ -25,6 +25,8 @@ const dockWorkspaceGroups = new Map<string, string>()
 let activeWorkspaceDrag: { tabId: string; category: BottomPanelCategory } | undefined
 let subscriptions: Array<{ dispose: () => void }> = []
 let syncingPanels = false
+let activationToken = 0
+let pendingActivation: { tabId: string; token: number } | undefined
 
 const components = {
   file: FilePanel,
@@ -83,6 +85,36 @@ function setCategoryActiveTab(tabId: string): void {
   else store.activeEditorTabId = tabId
 }
 
+function schedulePanelActivation(tabId: string): void {
+  const currentApi = api.value
+  if (!currentApi) return
+
+  const token = ++activationToken
+  pendingActivation = { tabId, token }
+  const activate = (): void => {
+    if (pendingActivation?.token !== token) return
+    const panel = currentApi.getPanel(tabId)
+    if (!panel) {
+      pendingActivation = undefined
+      return
+    }
+    panel.api.setActive()
+    setCategoryActiveTab(panel.id)
+  }
+
+  // Visibility changes can make Dockview select the first panel while it is
+  // recalculating the grid. Re-apply the requested panel after those layout
+  // passes so a clicked tab remains the actual active content.
+  activate()
+  requestAnimationFrame(() => {
+    activate()
+    requestAnimationFrame(() => {
+      activate()
+      if (pendingActivation?.token === token) pendingActivation = undefined
+    })
+  })
+}
+
 function applyWorkspaceGroupVisibility(preferredTabId?: string): void {
   const currentApi = api.value
   if (!currentApi) return
@@ -112,8 +144,8 @@ function applyWorkspaceGroupVisibility(preferredTabId?: string): void {
       ?? visibleGroups[0]?.panels[0]
     const activePanel = preferred ?? fallback
     if (activePanel) {
-      activePanel.api.setActive()
       setCategoryActiveTab(activePanel.id)
+      schedulePanelActivation(activePanel.id)
     }
   } finally {
     syncingPanels = previousSyncing
@@ -219,6 +251,13 @@ function onReady(event: DockviewReadyEvent): void {
   subscriptions.push(
     currentApi.onDidActivePanelChange(({ panel }) => {
       if (!panel || syncingPanels) return
+      // A visibility/layout pass may briefly report the group's first panel.
+      // Keep the explicit instance-list selection until its deferred
+      // activation has settled.
+      if (pendingActivation) {
+        if (pendingActivation.tabId !== panel.id) return
+        pendingActivation = undefined
+      }
       syncDockWorkspaceGroups(currentApi)
       activeWorkspaceGroupId.value = workspaceGroupForPanel(panel.id) ?? activeWorkspaceGroupId.value
       setBottomPanelActiveTab(panel.id, props.category)
