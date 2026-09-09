@@ -1,6 +1,8 @@
 export type BottomPanelCategory = 'files' | 'editors'
 
 export interface WorkspaceGroupLayout {
+  /** Logical group containing one or more parallel panes. */
+  workspaceGroupId: string
   panelIds: readonly string[]
   bounds?: { left: number; top: number }
 }
@@ -22,25 +24,44 @@ export function arrangeWorkspaceInstances(
   groups: readonly WorkspaceGroupLayout[],
 ): WorkspaceInstanceLayout[] {
   const knownIds = new Set(tabIds)
-  const arranged = groups
-    .map((group, index) => ({ group, index }))
-    .sort((left, right) => {
-      if (!left.group.bounds && !right.group.bounds) return left.index - right.index
-      if (!left.group.bounds) return 1
-      if (!right.group.bounds) return -1
-      return left.group.bounds.top - right.group.bounds.top
-        || left.group.bounds.left - right.group.bounds.left
-        || left.index - right.index
-    })
+  const tabOrder = new Map(tabIds.map((id, index) => [id, index]))
+  const logicalGroups = new Map<string, Array<{ group: WorkspaceGroupLayout; index: number }>>()
+  groups.forEach((group, index) => {
+    const panelIds = group.panelIds.filter((id) => knownIds.has(id))
+    if (!panelIds.length) return
+    const panes = logicalGroups.get(group.workspaceGroupId) ?? []
+    panes.push({ group: { ...group, panelIds }, index })
+    logicalGroups.set(group.workspaceGroupId, panes)
+  })
 
+  const sortedPanes = (panes: Array<{ group: WorkspaceGroupLayout; index: number }>) => panes.slice().sort((left, right) => {
+    if (!left.group.bounds && !right.group.bounds) return left.index - right.index
+    if (!left.group.bounds) return 1
+    if (!right.group.bounds) return -1
+    return left.group.bounds.top - right.group.bounds.top
+      || left.group.bounds.left - right.group.bounds.left
+      || left.index - right.index
+  })
+
+  const arrangedGroups = Array.from(logicalGroups.entries()).sort((left, right) => {
+    const leftFirst = Math.min(...left[1].flatMap(({ group }) => group.panelIds.map((id) => tabOrder.get(id) ?? Number.MAX_SAFE_INTEGER)))
+    const rightFirst = Math.min(...right[1].flatMap(({ group }) => group.panelIds.map((id) => tabOrder.get(id) ?? Number.MAX_SAFE_INTEGER)))
+    return leftFirst - rightFirst
+  })
   const result: WorkspaceInstanceLayout[] = []
   const placedIds = new Set<string>()
-  for (const { group } of arranged) {
-    const panelIds = group.panelIds.filter((id) => knownIds.has(id))
-    panelIds.forEach((tabId, index) => {
+  for (const [, panes] of arrangedGroups) {
+    const arrangedPanes = sortedPanes(panes)
+    const markerCount = arrangedPanes.length
+    arrangedPanes.forEach(({ group: pane }, paneIndex) => {
+      const marker = markerCount > 1
+        ? workspaceSplitMarker(paneIndex, markerCount)
+        : ''
+      pane.panelIds.forEach((tabId) => {
       if (placedIds.has(tabId)) return
       placedIds.add(tabId)
-      result.push({ tabId, marker: workspaceSplitMarker(index, panelIds.length) })
+      result.push({ tabId, marker })
+      })
     })
   }
   for (const tabId of tabIds) {

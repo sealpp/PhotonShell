@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { DockviewVue, themeAbyss } from 'dockview-vue'
 import type { DockviewApi, DockviewPanelApi, DockviewReadyEvent } from 'dockview-vue'
 import { IconFile, IconFolder, IconX } from '@tabler/icons-vue'
@@ -14,9 +14,14 @@ type PanelMoveGroup = NonNullable<Parameters<DockviewPanelApi['moveTo']>[0]['gro
 type ActivatablePanel = { readonly id: string; readonly api: { setActive(): void } }
 type ActivePanelApi = { getPanel(id: string): ActivatablePanel | undefined; readonly activePanel?: ActivatablePanel }
 
-const api = ref<DockviewApi | null>(null)
+const api = shallowRef<DockviewApi | null>(null)
 const layoutVersion = ref(0)
 const draggingId = ref('')
+const activeWorkspaceGroupId = ref('')
+// Dockview groups are panes. A logical workspace group can own several panes
+// after an edge split, while an un-split instance keeps its own group.
+const panelWorkspaceGroups = new Map<string, string>()
+const dockWorkspaceGroups = new Map<string, string>()
 let activeWorkspaceDrag: { tabId: string; category: BottomPanelCategory } | undefined
 let subscriptions: Array<{ dispose: () => void }> = []
 let syncingPanels = false
@@ -28,6 +33,92 @@ const components = {
 
 const tabs = computed(() => store.tabs.filter((tab): tab is Tab & { kind: 'file' | 'editor' } => tab.kind === props.category.slice(0, -1)))
 
+function newWorkspaceGroupId(tabId: string): string {
+  return `${props.category}:${tabId}`
+}
+
+function ensurePanelWorkspaceGroup(tabId: string): string {
+  const existing = panelWorkspaceGroups.get(tabId)
+  if (existing) return existing
+  const created = newWorkspaceGroupId(tabId)
+  panelWorkspaceGroups.set(tabId, created)
+  return created
+}
+
+function syncDockWorkspaceGroups(currentApi: DockviewApi): void {
+  const knownPanelIds = new Set(tabs.value.map((tab) => tab.id))
+  for (const tabId of Array.from(panelWorkspaceGroups.keys())) {
+    if (!knownPanelIds.has(tabId)) panelWorkspaceGroups.delete(tabId)
+  }
+
+  const knownDockIds = new Set<string>()
+  for (const group of currentApi.groups) {
+    knownDockIds.add(group.id)
+    let workspaceGroupId = dockWorkspaceGroups.get(group.id)
+    if (!workspaceGroupId) {
+      const firstPanel = group.panels[0]
+      workspaceGroupId = firstPanel ? ensurePanelWorkspaceGroup(firstPanel.id) : `${props.category}:${group.id}`
+      dockWorkspaceGroups.set(group.id, workspaceGroupId)
+    }
+    for (const panel of group.panels) {
+      if (!panelWorkspaceGroups.has(panel.id)) panelWorkspaceGroups.set(panel.id, workspaceGroupId)
+    }
+  }
+  for (const groupId of Array.from(dockWorkspaceGroups.keys())) {
+    if (!knownDockIds.has(groupId)) dockWorkspaceGroups.delete(groupId)
+  }
+}
+
+function workspaceGroupForPanel(panelId: string): string | undefined {
+  const panel = api.value?.getPanel(panelId)
+  if (panel) {
+    const groupId = dockWorkspaceGroups.get(panel.group.id)
+    if (groupId) return groupId
+  }
+  return panelWorkspaceGroups.get(panelId)
+}
+
+function setCategoryActiveTab(tabId: string): void {
+  if (props.category === 'files') store.activeFileTabId = tabId
+  else store.activeEditorTabId = tabId
+}
+
+function applyWorkspaceGroupVisibility(preferredTabId?: string): void {
+  const currentApi = api.value
+  if (!currentApi) return
+  syncDockWorkspaceGroups(currentApi)
+  const requestedId = props.category === 'files' ? store.activeFileTabId : store.activeEditorTabId
+  const activeGroupStillExists = activeWorkspaceGroupId.value.length > 0
+    && currentApi.groups.some((group) => dockWorkspaceGroups.get(group.id) === activeWorkspaceGroupId.value)
+  const targetGroupId = (activeGroupStillExists ? activeWorkspaceGroupId.value : undefined)
+    || (requestedId ? workspaceGroupForPanel(requestedId) : undefined)
+    || currentApi.groups.map((group) => dockWorkspaceGroups.get(group.id)).find(Boolean)
+  if (!targetGroupId) return
+  activeWorkspaceGroupId.value = targetGroupId
+
+  const previousSyncing = syncingPanels
+  syncingPanels = true
+  try {
+    const visibleGroups = currentApi.groups.filter((group) => dockWorkspaceGroups.get(group.id) === targetGroupId)
+    for (const group of currentApi.groups) {
+      const shouldBeVisible = dockWorkspaceGroups.get(group.id) === targetGroupId
+      if (group.api.isVisible !== shouldBeVisible) group.api.setVisible(shouldBeVisible)
+    }
+
+    const preferred = preferredTabId ? currentApi.getPanel(preferredTabId) : undefined
+    const fallback = visibleGroups.flatMap((group) => group.panels).find((panel) => panel.id === requestedId)
+      ?? visibleGroups[0]?.panels[0]
+    const activePanel = preferred && workspaceGroupForPanel(preferred.id) === targetGroupId ? preferred : fallback
+    if (activePanel) {
+      activePanel.api.setActive()
+      setCategoryActiveTab(activePanel.id)
+    }
+  } finally {
+    syncingPanels = previousSyncing
+  }
+  tick()
+}
+
 const instanceLayout = computed(() => {
   // Dockview owns layout state outside Vue. A version tick keeps the instance
   // list in sync after moves and splits.
@@ -35,7 +126,9 @@ const instanceLayout = computed(() => {
   const currentApi = api.value
   const tabIds = tabs.value.map((tab) => tab.id)
   if (!currentApi) return arrangeWorkspaceInstances(tabIds, [])
+  syncDockWorkspaceGroups(currentApi)
   return arrangeWorkspaceInstances(tabIds, currentApi.groups.map((group) => ({
+    workspaceGroupId: dockWorkspaceGroups.get(group.id) ?? `${props.category}:${group.id}`,
     panelIds: group.panels.map((panel) => panel.id),
     bounds: group.api.boundingBox,
   })))
@@ -71,8 +164,13 @@ function restoreActivePanel(currentApi: ActivePanelApi): void {
   const requestedId = props.category === 'files' ? store.activeFileTabId : store.activeEditorTabId
   const panel = (requestedId ? currentApi.getPanel(requestedId) : undefined) ?? currentApi.activePanel
   if (!panel) return
-  panel.api.setActive()
-  if (panel.id !== requestedId) setBottomPanelActiveTab(panel.id, props.category)
+  const groupId = workspaceGroupForPanel(panel.id)
+  if (groupId) activeWorkspaceGroupId.value = groupId
+  applyWorkspaceGroupVisibility(panel.id)
+  if (panel.id !== requestedId) {
+    if (store.bottomPanelCategory === props.category) setBottomPanelActiveTab(panel.id, props.category)
+    else setCategoryActiveTab(panel.id)
+  }
 }
 
 function addPanel(tab: Tab): void {
@@ -81,24 +179,35 @@ function addPanel(tab: Tab): void {
   if (currentApi.getPanel(tab.id)) return
 
   const group = currentApi.activeGroup ?? currentApi.groups[0]
-  const index = group?.panels.length ?? 0
+  const workspaceGroupId = ensurePanelWorkspaceGroup(tab.id)
   const options = {
     id: tab.id,
     title: panelTitle(tab),
     component: tab.kind,
     params: { tabId: tab.id },
     renderer: 'always' as const,
-    ...(group ? { position: { referenceGroup: group.id, direction: 'within' as const, index } } : {}),
+    inactive: true,
+    // Every new instance starts in its own logical group. An edge drop later
+    // merges the source and target groups into one parallel layout.
+    ...(group ? { position: { referenceGroup: group.id, direction: 'right' as const } } : {}),
   }
-  currentApi.addPanel(options)
+  const panel = currentApi.addPanel(options)
+  dockWorkspaceGroups.set(panel.group.id, workspaceGroupId)
+  if (!activeWorkspaceGroupId.value) activeWorkspaceGroupId.value = workspaceGroupId
   groupHeadersHidden()
+  applyWorkspaceGroupVisibility()
   tick()
 }
 
 function removePanel(tabId: string): void {
   const currentApi = api.value
   const panel = currentApi?.getPanel(tabId)
-  if (panel && currentApi) currentApi.removePanel(panel)
+  if (panel && currentApi) {
+    currentApi.removePanel(panel)
+    panelWorkspaceGroups.delete(tabId)
+    dockWorkspaceGroups.delete(panel.group.id)
+  }
+  if (currentApi) applyWorkspaceGroupVisibility()
   tick()
 }
 
@@ -108,11 +217,14 @@ function onReady(event: DockviewReadyEvent): void {
   subscriptions.push(
     currentApi.onDidActivePanelChange(({ panel }) => {
       if (!panel || syncingPanels) return
+      syncDockWorkspaceGroups(currentApi)
+      activeWorkspaceGroupId.value = workspaceGroupForPanel(panel.id) ?? activeWorkspaceGroupId.value
       setBottomPanelActiveTab(panel.id, props.category)
       tick()
     }),
     currentApi.onDidLayoutChange(() => {
       groupHeadersHidden()
+      if (!syncingPanels) applyWorkspaceGroupVisibility()
       tick()
     }),
     currentApi.onWillDrop((drop) => {
@@ -129,17 +241,36 @@ function onReady(event: DockviewReadyEvent): void {
       if (!workspaceDrag || !canDropWorkspaceInstance(workspaceDrag.category, props.category) || !drop.group) return
       const panel = currentApi.getPanel(workspaceDrag.tabId)
       if (!panel) return
+      syncDockWorkspaceGroups(currentApi)
+      const sourceDockGroupId = panel.group.id
+      const targetWorkspaceGroupId = dockWorkspaceGroups.get(drop.group.id) ?? ensurePanelWorkspaceGroup(drop.group.panels[0]?.id ?? workspaceDrag.tabId)
       panel.api.moveTo({
         group: drop.group as unknown as PanelMoveGroup,
         position: drop.position,
         index: drop.position === 'center' ? drop.group.panels.length : undefined,
       })
+      if (drop.position === 'center') {
+        panelWorkspaceGroups.set(workspaceDrag.tabId, targetWorkspaceGroupId)
+      } else {
+        // An edge drop creates a parallel pane. Merge the two logical groups
+        // so they can be switched together and receive split markers.
+        for (const group of currentApi.groups) {
+          if (group.id !== sourceDockGroupId && group.id !== drop.group.id) continue
+          dockWorkspaceGroups.set(group.id, targetWorkspaceGroupId)
+          for (const member of group.panels) panelWorkspaceGroups.set(member.id, targetWorkspaceGroupId)
+        }
+        panelWorkspaceGroups.set(workspaceDrag.tabId, targetWorkspaceGroupId)
+        activeWorkspaceGroupId.value = targetWorkspaceGroupId
+      }
+      syncDockWorkspaceGroups(currentApi)
       const movedTab = store.tabs.find((tab) => tab.id === workspaceDrag.tabId)
       if (movedTab) selectInstance(movedTab)
+      else applyWorkspaceGroupVisibility()
     }),
   )
   syncingPanels = true
   for (const tab of tabs.value) addPanel(tab)
+  syncDockWorkspaceGroups(currentApi)
   restoreActivePanel(currentApi)
   syncingPanels = false
   groupHeadersHidden()
@@ -152,6 +283,9 @@ function instanceMarker(tabId: string): string {
 
 function selectInstance(tab: Tab): void {
   const panel = api.value?.getPanel(tab.id)
+  const groupId = workspaceGroupForPanel(tab.id)
+  if (groupId) activeWorkspaceGroupId.value = groupId
+  applyWorkspaceGroupVisibility(tab.id)
   panel?.api.setActive()
   setBottomPanelActiveTab(tab.id, props.category)
   tick()
@@ -200,6 +334,7 @@ watch(
     syncingPanels = true
     for (const id of oldIds.filter((id) => !currentIds.includes(id))) removePanel(id)
     for (const tab of currentTabs) addPanel(tab)
+    syncDockWorkspaceGroups(currentApi)
     restoreActivePanel(currentApi)
     syncingPanels = false
     groupHeadersHidden()
@@ -212,7 +347,9 @@ watch(
   () => props.category === 'files' ? store.activeFileTabId : store.activeEditorTabId,
   (tabId) => {
     if (!tabId || !api.value) return
-    api.value.getPanel(tabId)?.api.setActive()
+    const groupId = workspaceGroupForPanel(tabId)
+    if (groupId) activeWorkspaceGroupId.value = groupId
+    applyWorkspaceGroupVisibility(tabId)
   },
 )
 
@@ -220,6 +357,8 @@ onBeforeUnmount(() => {
   subscriptions.forEach((subscription) => subscription.dispose())
   subscriptions = []
   api.value = null
+  panelWorkspaceGroups.clear()
+  dockWorkspaceGroups.clear()
 })
 </script>
 
