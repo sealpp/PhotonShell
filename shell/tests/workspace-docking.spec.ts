@@ -40,9 +40,31 @@ test('keeps grouped markers stable and activates tabs across panes', async ({ pa
   await expect(page.getByRole('region', { name: '远端 /opt' })).toBeHidden()
   await expect(instances.locator('.workspace-instance-marker')).toHaveText(['┌', '└', ''])
 
+  await page.getByRole('button', { name: '远端 /srv' }).click()
+  await expect(page.getByRole('button', { name: '远端 /srv' })).toHaveClass(/active/)
+  await expect(page.getByRole('region', { name: '远端 /opt' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '远端 /srv' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '远端 /var' })).toBeHidden()
+})
+
+test('restores the clicked panel when returning to a tabbed group', async ({ page }) => {
+  const dock = page.locator('.workspace-category-view.active .workspace-dock')
+  const source = page.getByRole('button', { name: '远端 /opt' })
+  const [dockBox, sourceBox] = await Promise.all([dock.boundingBox(), source.boundingBox()])
+  expect(dockBox).not.toBeNull()
+  expect(sourceBox).not.toBeNull()
+  if (!dockBox || !sourceBox) return
+
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(sourceBox.x - 40, sourceBox.y + sourceBox.height / 2, { steps: 4 })
+  await page.mouse.move(dockBox.x + dockBox.width / 2, dockBox.y + dockBox.height / 2, { steps: 12 })
+  await page.mouse.up()
+
+  await page.getByRole('button', { name: '远端 /var' }).click()
   await page.getByRole('button', { name: '远端 /opt' }).click()
   await expect(page.getByRole('button', { name: '远端 /opt' })).toHaveClass(/active/)
-  await expect(page.getByRole('region', { name: '远端 /srv' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '远端 /opt' })).toBeVisible()
   await expect(page.getByRole('region', { name: '远端 /var' })).toBeHidden()
 })
 
