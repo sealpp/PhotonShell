@@ -31,27 +31,9 @@ Do not duplicate the detailed caveats here; update the skill directly. This sect
 
 After finishing local testing or browser validation, kill the PWA Vite dev server (`npm run dev`, usually on `127.0.0.1:8080`) and the PhotonNode Python process (`./.venv/bin/python -m photon.main`, usually on `127.0.0.1:17373`) unless the user explicitly asks to keep them running. This avoids keeping ports 8080/17373 occupied when the user wants to start their own manual tests.
 
-## Known Pitfalls
+## Known Pitfalls Index
 
-### SSH / libssh2 Worker lifecycle
+长期有效的实现踩坑、根因和修复规则集中维护在私有文档：
+`me_PhotonShell/docs/engineering/pitfalls.md`。
 
-- Each terminal, file, editor, and direct-exec task owns a libssh2 Worker and PhotonNode WebSocket. The main NodeClient is only the pairing/control connection.
-- libssh2 PTY setup is explicit in the Worker (`request_pty`, `request_pty_size`, `shell`); resize only applies after the shell channel is open.
-- After editing Worker/runtime code, Vite HMR may leave an old WASM module alive. Restart the dev server or do a **hard refresh (Ctrl+Shift+R)** before interpreting SSH logs.
-
-### Direct exec boundary
-
-- Telemetry uses libssh2 `channel_exec` in an independent Worker session. Do not reintroduce shell markers, `stty`, or command-terminator parsing.
-
-### Vue reactivity with store tabs
-
-- `store.tabs.push(tab)` stores the raw object. Mutating that raw object later does not reliably trigger Vue watchers on `store.tabs`. Always get the reactive proxy via `store.tabs.find(...)` and mutate that.
-
-### xterm / Dockview / ContextMenu mounting
-
-- `ContextMenuTrigger as-child` from `reka-ui` can swallow or interfere with the slot element's `ref`. Keep the xterm mount node (`ref="termEl"`) inside the trigger slot but as a nested child, not the trigger element itself.
-- `DockviewVue` does not auto-activate a panel when `addPanel()` is called; `api.setActive()` must be called explicitly when `store.activeTabId === tab.id`.
-
-### Telemetry diagnostics
-
-- `telemetry.ts` silently catches and swallows exec errors. When debugging telemetry, temporarily log the error in the `catch` block; otherwise the UI only shows "等待数据".
+修复可复用问题后先合并、删减或改写该文档，再提交代码；不要在本文件复制正文或追加一次性 workaround。
