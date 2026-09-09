@@ -13,6 +13,7 @@ const props = defineProps<{ category: BottomPanelCategory }>()
 type PanelMoveGroup = NonNullable<Parameters<DockviewPanelApi['moveTo']>[0]['group']>
 type ActivatablePanel = { readonly id: string; readonly api: { setActive(): void } }
 type ActivePanelApi = { getPanel(id: string): ActivatablePanel | undefined; readonly activePanel?: ActivatablePanel }
+type WorkspaceGroupSize = { width: number; height: number }
 
 const api = shallowRef<DockviewApi | null>(null)
 const layoutVersion = ref(0)
@@ -22,6 +23,7 @@ const activeWorkspaceGroupId = ref('')
 // after an edge split, while an un-split instance keeps its own group.
 const panelWorkspaceGroups = new Map<string, string>()
 const dockWorkspaceGroups = new Map<string, string>()
+const workspaceGroupSizes = new Map<string, WorkspaceGroupSize>()
 let activeWorkspaceDrag: { tabId: string; category: BottomPanelCategory } | undefined
 let subscriptions: Array<{ dispose: () => void }> = []
 let syncingPanels = false
@@ -69,6 +71,9 @@ function syncDockWorkspaceGroups(currentApi: DockviewApi): void {
   for (const groupId of Array.from(dockWorkspaceGroups.keys())) {
     if (!knownDockIds.has(groupId)) dockWorkspaceGroups.delete(groupId)
   }
+  for (const groupId of Array.from(workspaceGroupSizes.keys())) {
+    if (!knownDockIds.has(groupId)) workspaceGroupSizes.delete(groupId)
+  }
 }
 
 function workspaceGroupForPanel(panelId: string): string | undefined {
@@ -83,6 +88,32 @@ function workspaceGroupForPanel(panelId: string): string | undefined {
 function setCategoryActiveTab(tabId: string): void {
   if (props.category === 'files') store.activeFileTabId = tabId
   else store.activeEditorTabId = tabId
+}
+
+function captureVisibleGroupSizes(currentApi: DockviewApi): Map<string, WorkspaceGroupSize> {
+  const snapshot = new Map<string, WorkspaceGroupSize>()
+  for (const group of currentApi.groups) {
+    if (!group.api.isVisible) continue
+    const bounds = group.api.boundingBox
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) continue
+    const size = { width: bounds.width, height: bounds.height }
+    snapshot.set(group.id, size)
+    workspaceGroupSizes.set(group.id, size)
+  }
+  return snapshot
+}
+
+function restoreGroupSizes(currentApi: DockviewApi, snapshot: Map<string, WorkspaceGroupSize>): void {
+  for (const group of currentApi.groups) {
+    if (!group.api.isVisible) continue
+    const size = snapshot.get(group.id) ?? workspaceGroupSizes.get(group.id)
+    if (!size) continue
+    const bounds = group.api.boundingBox
+    if (!bounds) continue
+    if (Math.abs(bounds.width - size.width) > 1 || Math.abs(bounds.height - size.height) > 1) {
+      group.api.setSize(size)
+    }
+  }
 }
 
 function schedulePanelActivation(tabId: string): void {
@@ -115,9 +146,13 @@ function schedulePanelActivation(tabId: string): void {
   })
 }
 
-function applyWorkspaceGroupVisibility(preferredTabId?: string): void {
+function applyWorkspaceGroupVisibility(
+  preferredTabId?: string,
+  preservedSizes?: Map<string, WorkspaceGroupSize>,
+): void {
   const currentApi = api.value
   if (!currentApi) return
+  const sizeSnapshot = preservedSizes ?? captureVisibleGroupSizes(currentApi)
   syncDockWorkspaceGroups(currentApi)
   const requestedId = props.category === 'files' ? store.activeFileTabId : store.activeEditorTabId
   const preferred = preferredTabId ? currentApi.getPanel(preferredTabId) : undefined
@@ -139,6 +174,7 @@ function applyWorkspaceGroupVisibility(preferredTabId?: string): void {
       const shouldBeVisible = dockWorkspaceGroups.get(group.id) === targetGroupId
       if (group.api.isVisible !== shouldBeVisible) group.api.setVisible(shouldBeVisible)
     }
+    restoreGroupSizes(currentApi, sizeSnapshot)
 
     const fallback = visibleGroups.flatMap((group) => group.panels).find((panel) => panel.id === requestedId)
       ?? visibleGroups[0]?.panels[0]
@@ -212,6 +248,7 @@ function addPanel(tab: Tab): void {
   if (!currentApi || (props.category === 'files' && tab.kind !== 'file') || (props.category === 'editors' && tab.kind !== 'editor')) return
   if (currentApi.getPanel(tab.id)) return
 
+  const preservedSizes = captureVisibleGroupSizes(currentApi)
   const group = currentApi.activeGroup ?? currentApi.groups[0]
   const workspaceGroupId = ensurePanelWorkspaceGroup(tab.id)
   const options = {
@@ -229,19 +266,20 @@ function addPanel(tab: Tab): void {
   dockWorkspaceGroups.set(panel.group.id, workspaceGroupId)
   if (!activeWorkspaceGroupId.value) activeWorkspaceGroupId.value = workspaceGroupId
   groupHeadersHidden()
-  applyWorkspaceGroupVisibility()
+  applyWorkspaceGroupVisibility(undefined, preservedSizes)
   tick()
 }
 
 function removePanel(tabId: string): void {
   const currentApi = api.value
   const panel = currentApi?.getPanel(tabId)
+  const preservedSizes = currentApi ? captureVisibleGroupSizes(currentApi) : undefined
   if (panel && currentApi) {
     currentApi.removePanel(panel)
     panelWorkspaceGroups.delete(tabId)
     dockWorkspaceGroups.delete(panel.group.id)
   }
-  if (currentApi) applyWorkspaceGroupVisibility()
+  if (currentApi) applyWorkspaceGroupVisibility(undefined, preservedSizes)
   tick()
 }
 
@@ -398,6 +436,7 @@ onBeforeUnmount(() => {
   api.value = null
   panelWorkspaceGroups.clear()
   dockWorkspaceGroups.clear()
+  workspaceGroupSizes.clear()
 })
 </script>
 
