@@ -88,9 +88,12 @@ function applyWorkspaceGroupVisibility(preferredTabId?: string): void {
   if (!currentApi) return
   syncDockWorkspaceGroups(currentApi)
   const requestedId = props.category === 'files' ? store.activeFileTabId : store.activeEditorTabId
+  const preferred = preferredTabId ? currentApi.getPanel(preferredTabId) : undefined
+  const preferredGroupId = preferred ? workspaceGroupForPanel(preferred.id) : undefined
   const activeGroupStillExists = activeWorkspaceGroupId.value.length > 0
     && currentApi.groups.some((group) => dockWorkspaceGroups.get(group.id) === activeWorkspaceGroupId.value)
-  const targetGroupId = (activeGroupStillExists ? activeWorkspaceGroupId.value : undefined)
+  const targetGroupId = preferredGroupId
+    || (activeGroupStillExists ? activeWorkspaceGroupId.value : undefined)
     || (requestedId ? workspaceGroupForPanel(requestedId) : undefined)
     || currentApi.groups.map((group) => dockWorkspaceGroups.get(group.id)).find(Boolean)
   if (!targetGroupId) return
@@ -105,10 +108,9 @@ function applyWorkspaceGroupVisibility(preferredTabId?: string): void {
       if (group.api.isVisible !== shouldBeVisible) group.api.setVisible(shouldBeVisible)
     }
 
-    const preferred = preferredTabId ? currentApi.getPanel(preferredTabId) : undefined
     const fallback = visibleGroups.flatMap((group) => group.panels).find((panel) => panel.id === requestedId)
       ?? visibleGroups[0]?.panels[0]
-    const activePanel = preferred && workspaceGroupForPanel(preferred.id) === targetGroupId ? preferred : fallback
+    const activePanel = preferred ?? fallback
     if (activePanel) {
       activePanel.api.setActive()
       setCategoryActiveTab(activePanel.id)
@@ -282,12 +284,10 @@ function instanceMarker(tabId: string): string {
 }
 
 function selectInstance(tab: Tab): void {
-  const panel = api.value?.getPanel(tab.id)
+  setBottomPanelActiveTab(tab.id, props.category)
   const groupId = workspaceGroupForPanel(tab.id)
   if (groupId) activeWorkspaceGroupId.value = groupId
   applyWorkspaceGroupVisibility(tab.id)
-  panel?.api.setActive()
-  setBottomPanelActiveTab(tab.id, props.category)
   tick()
 }
 
