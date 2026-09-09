@@ -35,6 +35,11 @@
       store.activeFileTabId = 'file-a'
       store.activeEditorTabId = 'editor-a'
 
+      window.__workspaceHarnessAddFile = () => {
+        if (store.tabs.some((tab) => tab.id === 'file-d')) return
+        store.tabs.push(file('file-d', '远端 /tmp'))
+      }
+
       createApp({ render: () => h(BottomPanel) }).mount('#app')
     </script>
   </body>
