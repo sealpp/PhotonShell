@@ -4,6 +4,7 @@ import type { Locator, Page } from '@playwright/test'
 declare global {
   interface Window {
     __workspaceHarnessAddFile?: () => void
+    __workspaceHarnessOpenEditor?: () => void
   }
 }
 
@@ -48,6 +49,14 @@ test('keeps fixed categories and shows only the selected category instances', as
   await page.getByRole('tab', { name: '文件', exact: true }).click()
   await expect(page.locator('.workspace-category-view.active .workspace-instance')).toHaveCount(1)
   await expect(page.locator('.workspace-category-view.active .workspace-instance-label')).toContainText('README.md')
+})
+
+test('opens a new editor without recursing through the hidden file dock layout', async ({ page }) => {
+  await page.evaluate(() => window.__workspaceHarnessOpenEditor?.())
+  const activeView = page.locator('.workspace-category-view.active')
+  await expect(activeView.locator('.workspace-instance')).toHaveCount(2)
+  await expect(activeView.locator('.workspace-instance-label[title="opened.md"]')).toBeVisible()
+  await expect(activeView.locator('.editor-panel')).toHaveCount(2)
 })
 
 test('keeps grouped markers stable and activates tabs across panes', async ({ page }) => {

@@ -113,7 +113,10 @@ function restoreGroupSizes(currentApi: DockviewApi, snapshot: Map<string, Worksp
     const size = snapshot.get(group.id) ?? workspaceGroupSizes.get(group.id)
     if (!size) continue
     const bounds = group.api.boundingBox
-    if (!bounds) continue
+    // Hidden category docks report zero-sized bounds. Applying a cached
+    // visible size while hidden causes Dockview to emit layout changes
+    // forever because the parent cannot accept that size until shown again.
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) continue
     if (Math.abs(bounds.width - size.width) > 1 || Math.abs(bounds.height - size.height) > 1) {
       group.api.setSize(size)
     }
@@ -185,7 +188,7 @@ function applyWorkspaceGroupVisibility(
     const activePanel = preferred ?? fallback
     if (activePanel) {
       setCategoryActiveTab(activePanel.id)
-      schedulePanelActivation(activePanel.id)
+      if (currentApi.activePanel?.id !== activePanel.id) schedulePanelActivation(activePanel.id)
     }
   } finally {
     syncingPanels = previousSyncing

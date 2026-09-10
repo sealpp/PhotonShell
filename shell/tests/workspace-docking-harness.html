@@ -40,6 +40,19 @@
         store.tabs.push(file('file-d', '远端 /tmp'))
       }
 
+      window.__workspaceHarnessOpenEditor = () => {
+        if (store.tabs.some((tab) => tab.id === 'editor-opened')) return
+        store.tabs.push({
+          ...editor,
+          id: 'editor-opened',
+          label: 'opened.md',
+          state: 'online',
+          editor: { ...editor.editor, path: '/opened.md', content: '# opened' },
+        })
+        store.activeEditorTabId = 'editor-opened'
+        store.bottomPanelCategory = 'editors'
+      }
+
       createApp({ render: () => h(BottomPanel) }).mount('#app')
     </script>
   </body>
