@@ -14,6 +14,10 @@ type PanelMoveGroup = NonNullable<Parameters<DockviewPanelApi['moveTo']>[0]['gro
 type ActivatablePanel = { readonly id: string; readonly api: { setActive(): void } }
 type ActivePanelApi = { getPanel(id: string): ActivatablePanel | undefined; readonly activePanel?: ActivatablePanel }
 type WorkspaceGroupSize = { width: number; height: number }
+// Dockview defaults groups to 100px minimums; panes in this panel must flex
+// in either axis so Sizing.Distribute can divide the available space.
+const workspacePaneConstraints = { minimumWidth: 0, minimumHeight: 0 } as const
+const edgeDropDirections = { left: 'left', right: 'right', top: 'above', bottom: 'below' } as const
 
 const api = shallowRef<DockviewApi | null>(null)
 const layoutVersion = ref(0)
@@ -234,12 +238,9 @@ function restoreActivePanel(currentApi: ActivePanelApi): void {
   const requestedId = props.category === 'files' ? store.activeFileTabId : store.activeEditorTabId
   const panel = (requestedId ? currentApi.getPanel(requestedId) : undefined) ?? currentApi.activePanel
   if (!panel) return
-  const groupId = workspaceGroupForPanel(panel.id)
-  if (groupId) activeWorkspaceGroupId.value = groupId
   applyWorkspaceGroupVisibility(panel.id)
   if (panel.id !== requestedId) {
     if (store.bottomPanelCategory === props.category) setBottomPanelActiveTab(panel.id, props.category)
-    else setCategoryActiveTab(panel.id)
   }
 }
 
@@ -258,16 +259,15 @@ function addPanel(tab: Tab): void {
     params: { tabId: tab.id },
     renderer: 'always' as const,
     inactive: true,
+    ...workspacePaneConstraints,
     // Every new instance starts in its own logical group. An edge drop later
     // merges the source and target groups into one parallel layout.
     ...(group ? { position: { referenceGroup: group.id, direction: 'right' as const } } : {}),
   }
   const panel = currentApi.addPanel(options)
   dockWorkspaceGroups.set(panel.group.id, workspaceGroupId)
-  if (!activeWorkspaceGroupId.value) activeWorkspaceGroupId.value = workspaceGroupId
   groupHeadersHidden()
   applyWorkspaceGroupVisibility(undefined, preservedSizes)
-  tick()
 }
 
 function removePanel(tabId: string): void {
@@ -304,7 +304,7 @@ function onReady(event: DockviewReadyEvent): void {
     currentApi.onDidLayoutChange(() => {
       groupHeadersHidden()
       if (!syncingPanels) applyWorkspaceGroupVisibility()
-      tick()
+      else tick()
     }),
     currentApi.onWillDrop((drop) => {
       const data = drop.getData()
@@ -321,24 +321,73 @@ function onReady(event: DockviewReadyEvent): void {
       const panel = currentApi.getPanel(workspaceDrag.tabId)
       if (!panel) return
       syncDockWorkspaceGroups(currentApi)
-      const sourceDockGroupId = panel.group.id
       const targetWorkspaceGroupId = dockWorkspaceGroups.get(drop.group.id) ?? ensurePanelWorkspaceGroup(drop.group.panels[0]?.id ?? workspaceDrag.tabId)
-      panel.api.moveTo({
-        group: drop.group as unknown as PanelMoveGroup,
-        position: drop.position,
-        index: drop.position === 'center' ? drop.group.panels.length : undefined,
-      })
-      if (drop.position === 'center') {
-        panelWorkspaceGroups.set(workspaceDrag.tabId, targetWorkspaceGroupId)
-      } else {
+      // Keep Dockview's layout callbacks out of the compound add-and-move
+      // operation; the new group is distributed before the source is moved.
+      const previousSyncing = syncingPanels
+      syncingPanels = true
+      try {
+        if (drop.position !== 'center') {
+          const direction = edgeDropDirections[drop.position]
+          const sourceGroup = panel.group
+          // A hidden or zero-sized source group can leave a structural branch
+          // around the target. Remove that branch before creating the target
+          // split so Dockview's native distribute sizing sees the real tree.
+          const sourceBounds = sourceGroup.api.boundingBox
+          const sourceHasNoSize = !sourceGroup.api.isVisible
+            || !sourceBounds
+            || sourceBounds.width <= 0
+            || sourceBounds.height <= 0
+          if (sourceHasNoSize) {
+            // The staging direction only chooses a temporary root slot; the
+            // group is removed again when the panel enters the real split.
+            const extractionGroup = currentApi.addGroup({
+              direction: 'right',
+              constraints: workspacePaneConstraints,
+              skipSetActive: true,
+            })
+            panel.api.moveTo({ group: extractionGroup, position: 'center', skipSetActive: true })
+          }
+          const splitGroup = currentApi.addGroup({
+            referenceGroup: drop.group,
+            direction,
+            constraints: workspacePaneConstraints,
+            skipSetActive: true,
+          })
+          dockWorkspaceGroups.set(splitGroup.id, targetWorkspaceGroupId)
+          panel.api.moveTo({ group: splitGroup, position: 'center', skipSetActive: true })
+
+          // If the source group had other tabs, keep those tabs together in
+          // their own pane. Creating that pane through addGroup preserves
+          // Dockview's native distribute sizing for both horizontal and
+          // vertical splits; moving the hidden source group itself does not.
+          if (sourceGroup !== drop.group && sourceGroup.panels.length > 0) {
+            const remainderGroup = currentApi.addGroup({
+              referenceGroup: drop.group,
+              direction,
+              constraints: workspacePaneConstraints,
+              skipSetActive: true,
+            })
+            dockWorkspaceGroups.set(remainderGroup.id, targetWorkspaceGroupId)
+            for (const remainder of [...sourceGroup.panels]) {
+              remainder.api.moveTo({ group: remainderGroup, position: 'center', skipSetActive: true })
+              panelWorkspaceGroups.set(remainder.id, targetWorkspaceGroupId)
+            }
+          }
+        } else {
+          panel.api.moveTo({
+            group: drop.group as unknown as PanelMoveGroup,
+            position: drop.position,
+            index: drop.position === 'center' ? drop.group.panels.length : undefined,
+          })
+        }
+      } finally {
+        syncingPanels = previousSyncing
+      }
+      panelWorkspaceGroups.set(workspaceDrag.tabId, targetWorkspaceGroupId)
+      if (drop.position !== 'center') {
         // An edge drop creates a parallel pane. Merge the two logical groups
         // so they can be switched together and receive split markers.
-        for (const group of currentApi.groups) {
-          if (group.id !== sourceDockGroupId && group.id !== drop.group.id) continue
-          dockWorkspaceGroups.set(group.id, targetWorkspaceGroupId)
-          for (const member of group.panels) panelWorkspaceGroups.set(member.id, targetWorkspaceGroupId)
-        }
-        panelWorkspaceGroups.set(workspaceDrag.tabId, targetWorkspaceGroupId)
         activeWorkspaceGroupId.value = targetWorkspaceGroupId
       }
       syncDockWorkspaceGroups(currentApi)
@@ -362,10 +411,7 @@ function instanceMarker(tabId: string): string {
 
 function selectInstance(tab: Tab): void {
   setBottomPanelActiveTab(tab.id, props.category)
-  const groupId = workspaceGroupForPanel(tab.id)
-  if (groupId) activeWorkspaceGroupId.value = groupId
   applyWorkspaceGroupVisibility(tab.id)
-  tick()
 }
 
 function closeInstance(tabId: string): void {
@@ -424,8 +470,6 @@ watch(
   () => props.category === 'files' ? store.activeFileTabId : store.activeEditorTabId,
   (tabId) => {
     if (!tabId || !api.value) return
-    const groupId = workspaceGroupForPanel(tabId)
-    if (groupId) activeWorkspaceGroupId.value = groupId
     applyWorkspaceGroupVisibility(tabId)
   },
 )

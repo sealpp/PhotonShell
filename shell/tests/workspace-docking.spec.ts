@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 declare global {
   interface Window {
@@ -10,6 +11,33 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/tests/workspace-docking-harness.html')
   await page.locator('.workspace-panel').waitFor()
 })
+
+function workspaceDock(page: Page): Locator {
+  return page.locator('.workspace-category-view.active .workspace-dock')
+}
+
+async function dragInstanceTo(page: Page, dock: Locator, tab: string, x: number, y: number): Promise<void> {
+  const source = page.getByRole('button', { name: tab })
+  const [dockBox, sourceBox] = await Promise.all([dock.boundingBox(), source.boundingBox()])
+  expect(dockBox).not.toBeNull()
+  expect(sourceBox).not.toBeNull()
+  if (!dockBox || !sourceBox) return
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(sourceBox.x - 40, sourceBox.y + sourceBox.height / 2, { steps: 4 })
+  await page.mouse.move(dockBox.x + x, dockBox.y + y, { steps: 12 })
+  await page.mouse.up()
+  await page.waitForTimeout(100)
+}
+
+async function visibleWorkspaceGroups(page: Page) {
+  return page.locator('.workspace-category-view.active .workspace-dockview .dv-groupview').evaluateAll((groups) => groups
+    .map((group) => {
+      const rect = group.getBoundingClientRect()
+      return { width: rect.width, height: rect.height, tabs: [...group.querySelectorAll('.dv-tab')].map((tab) => tab.textContent) }
+    })
+    .filter((group) => group.width > 1 && group.height > 1))
+}
 
 test('keeps fixed categories and shows only the selected category instances', async ({ page }) => {
   await expect(page.getByRole('tab')).toHaveCount(2)
@@ -23,18 +51,20 @@ test('keeps fixed categories and shows only the selected category instances', as
 })
 
 test('keeps grouped markers stable and activates tabs across panes', async ({ page }) => {
-  const dock = page.locator('.workspace-category-view.active .workspace-dock')
-  const source = page.getByRole('button', { name: '远端 /opt' })
-  const [dockBox, sourceBox] = await Promise.all([dock.boundingBox(), source.boundingBox()])
+  const dock = workspaceDock(page)
+  const dockBox = await dock.boundingBox()
   expect(dockBox).not.toBeNull()
-  expect(sourceBox).not.toBeNull()
-  if (!dockBox || !sourceBox) return
+  if (!dockBox) return
+  await dragInstanceTo(page, dock, '远端 /opt', 12, dockBox.height / 2)
 
-  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(sourceBox.x - 40, sourceBox.y + sourceBox.height / 2, { steps: 4 })
-  await page.mouse.move(dockBox.x + 12, dockBox.y + dockBox.height / 2, { steps: 12 })
-  await page.mouse.up()
+  const splitBounds = await page.locator('.workspace-category-view.active .workspace-dockview .dv-groupview').evaluateAll((groups) => groups
+    .map((group) => {
+      const rect = group.getBoundingClientRect()
+      return { width: rect.width, tabs: [...group.querySelectorAll('.dv-tab')].map((tab) => tab.textContent) }
+    })
+    .filter((group) => group.width > 1))
+  expect(splitBounds).toHaveLength(2)
+  expect(Math.abs(splitBounds[0].width - splitBounds[1].width)).toBeLessThan(3)
 
   const instances = page.locator('.workspace-category-view.active .workspace-instance')
   await expect(instances.locator('.workspace-instance-label')).toHaveText(['远端 /opt', '远端 /srv', '远端 /var'])
@@ -54,18 +84,11 @@ test('keeps grouped markers stable and activates tabs across panes', async ({ pa
 })
 
 test('restores the clicked panel when returning to a tabbed group', async ({ page }) => {
-  const dock = page.locator('.workspace-category-view.active .workspace-dock')
-  const source = page.getByRole('button', { name: '远端 /opt' })
-  const [dockBox, sourceBox] = await Promise.all([dock.boundingBox(), source.boundingBox()])
+  const dock = workspaceDock(page)
+  const dockBox = await dock.boundingBox()
   expect(dockBox).not.toBeNull()
-  expect(sourceBox).not.toBeNull()
-  if (!dockBox || !sourceBox) return
-
-  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(sourceBox.x - 40, sourceBox.y + sourceBox.height / 2, { steps: 4 })
-  await page.mouse.move(dockBox.x + dockBox.width / 2, dockBox.y + dockBox.height / 2, { steps: 12 })
-  await page.mouse.up()
+  if (!dockBox) return
+  await dragInstanceTo(page, dock, '远端 /opt', dockBox.width / 2, dockBox.height / 2)
 
   await page.getByRole('button', { name: '远端 /var' }).click()
   await page.getByRole('button', { name: '远端 /opt' }).click()
@@ -75,18 +98,11 @@ test('restores the clicked panel when returning to a tabbed group', async ({ pag
 })
 
 test('activates the clicked tab inside a grouped pane', async ({ page }) => {
-  const dock = page.locator('.workspace-category-view.active .workspace-dock')
-  const source = page.getByRole('button', { name: '远端 /var' })
-  const [dockBox, sourceBox] = await Promise.all([dock.boundingBox(), source.boundingBox()])
+  const dock = workspaceDock(page)
+  const dockBox = await dock.boundingBox()
   expect(dockBox).not.toBeNull()
-  expect(sourceBox).not.toBeNull()
-  if (!dockBox || !sourceBox) return
-
-  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(sourceBox.x - 40, sourceBox.y + sourceBox.height / 2, { steps: 4 })
-  await page.mouse.move(dockBox.x + dockBox.width / 2, dockBox.y + dockBox.height / 2, { steps: 12 })
-  await page.mouse.up()
+  if (!dockBox) return
+  await dragInstanceTo(page, dock, '远端 /var', dockBox.width / 2, dockBox.height / 2)
 
   const groupedDock = page.locator('.workspace-dockview .dv-groupview').filter({
     has: page.locator('.dv-tab').filter({ hasText: '远端 /srv' }),
@@ -103,18 +119,11 @@ test('activates the clicked tab inside a grouped pane', async ({ page }) => {
 })
 
 test('preserves split sizes when switching groups and opening an instance', async ({ page }) => {
-  const dock = page.locator('.workspace-category-view.active .workspace-dock')
-  const source = page.getByRole('button', { name: '远端 /opt' })
-  const [dockBox, sourceBox] = await Promise.all([dock.boundingBox(), source.boundingBox()])
+  const dock = workspaceDock(page)
+  const dockBox = await dock.boundingBox()
   expect(dockBox).not.toBeNull()
-  expect(sourceBox).not.toBeNull()
-  if (!dockBox || !sourceBox) return
-
-  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(sourceBox.x - 40, sourceBox.y + sourceBox.height / 2, { steps: 4 })
-  await page.mouse.move(dockBox.x + 12, dockBox.y + dockBox.height / 2, { steps: 12 })
-  await page.mouse.up()
+  if (!dockBox) return
+  await dragInstanceTo(page, dock, '远端 /opt', 12, dockBox.height / 2)
 
   const sash = page.locator('.workspace-category-view.active .workspace-dockview .dv-sash.dv-enabled').first()
   const sashBox = await sash.boundingBox()
@@ -155,6 +164,95 @@ test('preserves split sizes when switching groups and opening an instance', asyn
   const afterNewGroupSwitch = { opt: await bounds(optGroup), srv: await bounds(srvGroup) }
   expect(Math.abs(afterNewGroupSwitch.opt.width - before.opt.width)).toBeLessThan(3)
   expect(Math.abs(afterNewGroupSwitch.srv.width - before.srv.width)).toBeLessThan(3)
+})
+
+test('equalizes panes created by vertical edge drops', async ({ page }) => {
+  const dock = workspaceDock(page)
+  const dockBox = await dock.boundingBox()
+  expect(dockBox).not.toBeNull()
+  if (!dockBox) return
+  await dragInstanceTo(page, dock, '远端 /opt', dockBox.width / 2, 12)
+
+  const heights = (await visibleWorkspaceGroups(page)).map((group) => group.height)
+  expect(heights).toHaveLength(2)
+  expect(Math.abs(heights[0] - heights[1])).toBeLessThan(3)
+
+  await dragInstanceTo(page, dock, '远端 /var', dockBox.width / 2, dockBox.height - 12)
+  const repeatedHeights = (await visibleWorkspaceGroups(page)).map((group) => group.height)
+  expect(repeatedHeights).toHaveLength(3)
+  expect(Math.max(...repeatedHeights) - Math.min(...repeatedHeights)).toBeLessThan(3)
+
+  await page.evaluate(() => window.__workspaceHarnessAddFile?.())
+  await expect(page.getByRole('button', { name: '远端 /tmp' })).toBeVisible()
+  await dragInstanceTo(page, dock, '远端 /tmp', dockBox.width / 2, dockBox.height - 12)
+  const fourPaneHeights = (await visibleWorkspaceGroups(page)).map((group) => group.height)
+  expect(fourPaneHeights).toHaveLength(4)
+  expect(Math.max(...fourPaneHeights) - Math.min(...fourPaneHeights)).toBeLessThan(3)
+})
+
+test('keeps repeated horizontal edge drops evenly distributed', async ({ page }) => {
+  const dock = workspaceDock(page)
+  const dockBox = await dock.boundingBox()
+  expect(dockBox).not.toBeNull()
+  if (!dockBox) return
+  await dragInstanceTo(page, dock, '远端 /opt', 12, dockBox.height / 2)
+  await dragInstanceTo(page, dock, '远端 /var', dockBox.width - 12, dockBox.height / 2)
+  await page.evaluate(() => window.__workspaceHarnessAddFile?.())
+  await expect(page.getByRole('button', { name: '远端 /tmp' })).toBeVisible()
+  await dragInstanceTo(page, dock, '远端 /tmp', dockBox.width - 12, dockBox.height / 2)
+
+  const widths = (await visibleWorkspaceGroups(page)).map((group) => group.width)
+  expect(widths).toHaveLength(4)
+  expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(3)
+})
+
+test('distributes a pane when its source group already contains tabs', async ({ page }) => {
+  const dock = workspaceDock(page)
+  const dockBox = await dock.boundingBox()
+  expect(dockBox).not.toBeNull()
+  if (!dockBox) return
+  await dragInstanceTo(page, dock, '远端 /opt', dockBox.width / 2, dockBox.height / 2)
+  await page.getByRole('button', { name: '远端 /var' }).click()
+  await dragInstanceTo(page, dock, '远端 /srv', 12, dockBox.height / 2)
+
+  const widths = await visibleWorkspaceGroups(page)
+  expect(widths).toHaveLength(3)
+  expect(Math.max(...widths.map((group) => group.width)) - Math.min(...widths.map((group) => group.width))).toBeLessThan(3)
+  expect(widths.flatMap((group) => group.tabs)).toEqual(expect.arrayContaining(['远端 /opt', '远端 /srv', '远端 /var']))
+})
+
+test('distributes vertically when its source group already contains tabs', async ({ page }) => {
+  const dock = workspaceDock(page)
+  const dockBox = await dock.boundingBox()
+  expect(dockBox).not.toBeNull()
+  if (!dockBox) return
+  await dragInstanceTo(page, dock, '远端 /opt', dockBox.width / 2, dockBox.height / 2)
+  await page.getByRole('button', { name: '远端 /var' }).click()
+  await dragInstanceTo(page, dock, '远端 /srv', dockBox.width / 2, 12)
+
+  const heights = await visibleWorkspaceGroups(page)
+  expect(heights).toHaveLength(3)
+  expect(Math.max(...heights.map((group) => group.height)) - Math.min(...heights.map((group) => group.height))).toBeLessThan(3)
+  expect(heights.flatMap((group) => group.tabs)).toEqual(expect.arrayContaining(['远端 /opt', '远端 /srv', '远端 /var']))
+})
+
+test('keeps a parallel target even when a hidden multi-tab source is split into it', async ({ page }) => {
+  const dock = workspaceDock(page)
+  const dockBox = await dock.boundingBox()
+  expect(dockBox).not.toBeNull()
+  if (!dockBox) return
+  await dragInstanceTo(page, dock, '远端 /opt', dockBox.width / 2, dockBox.height / 2)
+  await page.getByRole('button', { name: '远端 /var' }).click()
+  await page.evaluate(() => window.__workspaceHarnessAddFile?.())
+  await expect(page.getByRole('button', { name: '远端 /tmp' })).toBeVisible()
+  await dragInstanceTo(page, dock, '远端 /tmp', dockBox.width / 2, 12)
+  await page.getByRole('button', { name: '远端 /var' }).click()
+  await dragInstanceTo(page, dock, '远端 /srv', dockBox.width / 2, dockBox.height - 12)
+
+  const heights = await visibleWorkspaceGroups(page)
+  expect(heights).toHaveLength(4)
+  expect(Math.max(...heights.map((group) => group.height)) - Math.min(...heights.map((group) => group.height))).toBeLessThan(3)
+  expect(heights.flatMap((group) => group.tabs)).toEqual(expect.arrayContaining(['远端 /opt', '远端 /srv', '远端 /var', '远端 /tmp']))
 })
 
 test('selects an instance without changing the other category layout', async ({ page }) => {
