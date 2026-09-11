@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Python protobuf bindings for the PhotonShell transport contract."""
+"""Generate Python protobuf bindings for the SealShell transport contract."""
 
 import sys
 from pathlib import Path
@@ -10,8 +10,8 @@ from grpc_tools import protoc
 def main() -> int:
     root = Path(__file__).resolve().parents[2]
     proto_path = root / "contracts"
-    proto_file = "photon.proto"
-    out_dir = root / "node" / "photon"
+    proto_file = "seal.proto"
+    out_dir = root / "node" / "seal"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if not (proto_path / proto_file).exists():

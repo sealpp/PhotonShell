@@ -16,8 +16,8 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
 
-from photon.photon_pb2 import PhotonMessage
-from photon.trust import TrustRepository, load_p256_public_key
+from seal.seal_pb2 import SealMessage
+from seal.trust import TrustRepository, load_p256_public_key
 
 PROTOCOL_VERSION = 1
 
@@ -66,11 +66,11 @@ async def read_pin(process: asyncio.subprocess.Process) -> str:
     raise RuntimeError("Node did not print a pairing code")
 
 
-async def recv_message(ws: websockets.WebSocketClientProtocol) -> PhotonMessage:
+async def recv_message(ws: websockets.WebSocketClientProtocol) -> SealMessage:
     raw = await ws.recv()
     if not isinstance(raw, bytes):
         raise RuntimeError("Node returned a text frame")
-    message = PhotonMessage()
+    message = SealMessage()
     message.ParseFromString(raw)
     return message
 
@@ -86,7 +86,7 @@ async def pair(
         serialization.PublicFormat.SubjectPublicKeyInfo,
     )
     client_nonce = os.urandom(32)
-    begin = PhotonMessage(protocol_version=PROTOCOL_VERSION, request_id="pair-begin")
+    begin = SealMessage(protocol_version=PROTOCOL_VERSION, request_id="pair-begin")
     begin.pair_begin.pairing_code = pin
     begin.pair_begin.device_id = device_id
     begin.pair_begin.device_name = "smoke"
@@ -100,7 +100,7 @@ async def pair(
     node_id = challenge.pair_challenge.node_id
     node_public_key = bytes(challenge.pair_challenge.node_public_key)
     signed = transcript(
-        "PHOTON-PAIR-1",
+        "SEAL-PAIR-1",
         str(PROTOCOL_VERSION),
         pair_id,
         device_id,
@@ -111,7 +111,7 @@ async def pair(
         client_nonce,
         bytes(challenge.pair_challenge.node_nonce),
     )
-    proof = PhotonMessage(protocol_version=PROTOCOL_VERSION, request_id="pair-proof")
+    proof = SealMessage(protocol_version=PROTOCOL_VERSION, request_id="pair-proof")
     proof.pair_proof.pairing_id = pair_id
     proof.pair_proof.device_signature = raw_signature(private_key, signed)
     await ws.send(proof.SerializeToString())
@@ -132,7 +132,7 @@ async def authenticate(
 ) -> None:
     connection_id = "connection-2"
     client_nonce = os.urandom(32)
-    begin = PhotonMessage(protocol_version=PROTOCOL_VERSION, request_id="auth-begin")
+    begin = SealMessage(protocol_version=PROTOCOL_VERSION, request_id="auth-begin")
     begin.auth_begin.device_id = device_id
     begin.auth_begin.connection_id = connection_id
     begin.auth_begin.client_nonce = client_nonce
@@ -143,7 +143,7 @@ async def authenticate(
     assert challenge.auth_challenge.node_id == node_id
     assert bytes(challenge.auth_challenge.node_public_key) == node_public_key
     signed = transcript(
-        "PHOTON-AUTH-1",
+        "SEAL-AUTH-1",
         str(PROTOCOL_VERSION),
         connection_id,
         device_id,
@@ -152,7 +152,7 @@ async def authenticate(
         bytes(challenge.auth_challenge.node_nonce),
     )
     verify_raw(node_public_key, signed, bytes(challenge.auth_challenge.node_signature))
-    proof = PhotonMessage(protocol_version=PROTOCOL_VERSION, request_id="auth-proof")
+    proof = SealMessage(protocol_version=PROTOCOL_VERSION, request_id="auth-proof")
     proof.auth_proof.connection_id = connection_id
     proof.auth_proof.device_signature = raw_signature(private_key, signed)
     await ws.send(proof.SerializeToString())
@@ -168,7 +168,7 @@ async def round_trip(
     payload: bytes,
 ) -> None:
     stream_id = 100 if transport == "tcp" else 200
-    request = PhotonMessage(protocol_version=PROTOCOL_VERSION, request_id=f"open-{transport}")
+    request = SealMessage(protocol_version=PROTOCOL_VERSION, request_id=f"open-{transport}")
     request.transport_open_request.stream_id = stream_id
     request.transport_open_request.transport = transport
     request.transport_open_request.host = "127.0.0.1"
@@ -178,7 +178,7 @@ async def round_trip(
     assert opened.WhichOneof("body") == "transport_opened_event", opened
     assert opened.transport_opened_event.stream_id == stream_id
 
-    data = PhotonMessage(protocol_version=PROTOCOL_VERSION, request_id="")
+    data = SealMessage(protocol_version=PROTOCOL_VERSION, request_id="")
     data.transport_data.stream_id = stream_id
     data.transport_data.sequence = 0
     data.transport_data.payload = payload
@@ -197,7 +197,7 @@ async def round_trip(
             assert response.transport_credit.direction == "input"
             got_credit = True
 
-    close = PhotonMessage(protocol_version=PROTOCOL_VERSION, request_id=f"close-{transport}")
+    close = SealMessage(protocol_version=PROTOCOL_VERSION, request_id=f"close-{transport}")
     close.transport_close_request.stream_id = stream_id
     close.transport_close_request.reason = "smoke"
     await ws.send(close.SerializeToString())
@@ -210,7 +210,7 @@ async def round_trip(
 async def run() -> int:
     root = Path(__file__).resolve().parents[2]
     trust_dir = tempfile.TemporaryDirectory()
-    trust_path = Path(trust_dir.name) / "photon-trust.json"
+    trust_path = Path(trust_dir.name) / "seal-trust.json"
     first_trust = TrustRepository(trust_path)
     trust_key = ec.generate_private_key(ec.SECP256R1())
     trust_public = trust_key.public_key().public_bytes(
@@ -230,17 +230,17 @@ async def run() -> int:
         local_addr=("127.0.0.1", 0),
     )
     udp_port = udp_transport.get_extra_info("sockname")[1]
-    node_port = os.environ.get("PHOTON_TEST_NODE_PORT", "17374")
+    node_port = os.environ.get("SEAL_TEST_NODE_PORT", "17374")
     env = os.environ.copy()
-    env["PHOTON_PORT"] = node_port
-    env["PHOTON_TRUST_PATH"] = str(trust_path)
+    env["SEAL_PORT"] = node_port
+    env["SEAL_TRUST_PATH"] = str(trust_path)
     env["PYTHONPATH"] = str(root / "node")
     process: asyncio.subprocess.Process | None = None
     try:
         process = await asyncio.create_subprocess_exec(
             sys.executable,
             "-m",
-            "photon.main",
+            "seal.main",
             cwd=root / "node",
             env=env,
             stdout=asyncio.subprocess.PIPE,
@@ -250,7 +250,7 @@ async def run() -> int:
         async with websockets.connect(
             f"ws://127.0.0.1:{node_port}",
         ) as unauthenticated:
-            request = PhotonMessage(protocol_version=PROTOCOL_VERSION, request_id="unauthenticated")
+            request = SealMessage(protocol_version=PROTOCOL_VERSION, request_id="unauthenticated")
             request.transport_open_request.stream_id = 1
             request.transport_open_request.transport = "tcp"
             request.transport_open_request.host = "127.0.0.1"
@@ -278,7 +278,7 @@ async def run() -> int:
         process = await asyncio.create_subprocess_exec(
             sys.executable,
             "-m",
-            "photon.main",
+            "seal.main",
             cwd=root / "node",
             env=env,
             stdout=asyncio.subprocess.PIPE,

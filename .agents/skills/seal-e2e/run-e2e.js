@@ -12,9 +12,9 @@ if (fs.existsSync(SHELL_NODE_MODULES)) {
 
 const { chromium } = require('playwright');
 
-const PYTHON = process.env.PHOTON_PYTHON || path.join(REPO, 'node/.venv/bin/python');
+const PYTHON = process.env.SEAL_PYTHON || path.join(REPO, 'node/.venv/bin/python');
 const MOCK_SSH_SCRIPT = path.join(__dirname, 'mock-ssh-server.py');
-const TMP_DIR = path.join(os.tmpdir(), 'photon-e2e');
+const TMP_DIR = path.join(os.tmpdir(), 'seal-e2e');
 const MOCK_SSH_STATE_PATH = path.join(TMP_DIR, 'mock-ssh-state.json');
 const PWA_URL = process.env.PWA_URL || 'http://127.0.0.1:8081';
 
@@ -81,8 +81,8 @@ async function main() {
   const sshPort = await waitForLine(sshProc, /MOCK_SSH_PORT=(\d+)/);
   console.log('mock SSH port:', sshPort);
 
-  const nodeProc = startProcess(PYTHON, ['-m', 'photon.main'], {
-    PHOTON_PORT: '17373',
+  const nodeProc = startProcess(PYTHON, ['-m', 'seal.main'], {
+    SEAL_PORT: '17373',
   });
   const pin = await waitForLine(nodeProc, /pairing code: (\d{6})/);
   console.log('node pairing pin:', pin);
@@ -157,7 +157,7 @@ async function main() {
     await addHost('A');
     if (!hostKeyPromptSeen) throw new Error('first SSH connection did not request host-key confirmation');
     const credentialStore = await page.evaluate(() => new Promise((resolve, reject) => {
-      const request = indexedDB.open('photon-shell');
+      const request = indexedDB.open('seal-shell');
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const transaction = request.result.transaction('credentials', 'readonly');

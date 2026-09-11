@@ -1,4 +1,4 @@
-"""Minimal persistent device trust for PhotonNode."""
+"""Minimal persistent device trust for SealNode."""
 
 from __future__ import annotations
 
@@ -23,11 +23,11 @@ TRUST_SCHEMA_VERSION = 1
 NODE_ID_BYTES = 12
 ECDSA_RAW_SIGNATURE_BYTES = 64
 MAX_PAIRED_DEVICES = 4
-TRUST_FILENAME = "photon-trust.json"
+TRUST_FILENAME = "seal-trust.json"
 
 
 def default_trust_path() -> Path:
-    configured = os.environ.get("PHOTON_TRUST_PATH")
+    configured = os.environ.get("SEAL_TRUST_PATH")
     if configured:
         return Path(configured)
     if getattr(sys, "frozen", False):
@@ -148,7 +148,7 @@ class TrustRepository:
                 raise ValueError("invalid trust device registry")
             return state
         except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-            raise RuntimeError("invalid PhotonNode trust state") from exc
+            raise RuntimeError("invalid SealNode trust state") from exc
 
     def _save(self) -> None:
         value = json.dumps(self._state, separators=(",", ":")).encode("utf-8")

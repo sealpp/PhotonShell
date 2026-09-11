@@ -1,4 +1,4 @@
-"""Entry point for the PhotonNode transport service."""
+"""Entry point for the SealNode transport service."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ import asyncio
 import os
 import sys
 
-from photon.server import serve
-from photon.trust import TrustRepository
+from seal.server import serve
+from seal.trust import TrustRepository
 
 
 def main() -> int:
-    host = os.environ.get("PHOTON_HOST", "127.0.0.1")
-    port = int(os.environ.get("PHOTON_PORT", "17373"))
+    host = os.environ.get("SEAL_HOST", "127.0.0.1")
+    port = int(os.environ.get("SEAL_PORT", "17373"))
 
     try:
         trust = TrustRepository()

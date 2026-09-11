@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('homepage has PhotonShell in title', async ({ page }) => {
+test('homepage has SealShell in title', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveTitle(/PhotonShell/);
+  await expect(page).toHaveTitle(/SealShell/);
 });

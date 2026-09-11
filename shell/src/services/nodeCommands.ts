@@ -8,7 +8,7 @@ import { MenuId } from './actions/menuIds'
 registerAction({
   id: 'node.pair',
   title: (ctx) => ctx.isPaired ? '重新配对' : '配对',
-  description: '配对或重新配对 PhotonNode',
+  description: '配对或重新配对 SealNode',
   category: 'workbench',
   icon: IconPlug,
   run: () => {
@@ -20,7 +20,7 @@ registerAction({
 registerAction({
   id: 'node.disconnect',
   title: '断开当前 Node 连接',
-  description: '断开当前 PhotonNode 连接',
+  description: '断开当前 SealNode 连接',
   category: 'workbench',
   icon: IconLinkOff,
   when: 'isPaired == true',
@@ -31,7 +31,7 @@ registerAction({
 registerAction({
   id: 'node.copyAddress',
   title: '复制 Node 地址',
-  description: '复制当前 PhotonNode 地址',
+  description: '复制当前 SealNode 地址',
   category: 'workbench',
   icon: IconCopy,
   run: async () => {

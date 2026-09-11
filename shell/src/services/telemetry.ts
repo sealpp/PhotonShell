@@ -5,10 +5,10 @@ import { closeExec, exec } from './ws'
 const POLL_INTERVAL_MS = 2000
 const LINUX_PROBE_COMMAND = 'uname -s'
 const LINUX_SAMPLE_COMMAND = [
-  "printf '__PHOTON_CPU__\\n'; cat /proc/stat",
-  "printf '__PHOTON_MEM__\\n'; free -b",
-  "printf '__PHOTON_DISK__\\n'; df -P -k /",
-  "printf '__PHOTON_PROCS__\\n'; ps -eo pid",
+  "printf '__SEAL_CPU__\\n'; cat /proc/stat",
+  "printf '__SEAL_MEM__\\n'; free -b",
+  "printf '__SEAL_DISK__\\n'; df -P -k /",
+  "printf '__SEAL_PROCS__\\n'; ps -eo pid",
 ].join('; ')
 
 type CpuSample = {
@@ -34,7 +34,7 @@ function parseSections(text: string): Record<SectionName, string> {
   let current: SectionName | null = null
 
   for (const line of text.split(/\r?\n/)) {
-    const marker = line.match(/^__PHOTON_(CPU|MEM|DISK|PROCS)__$/)
+    const marker = line.match(/^__SEAL_(CPU|MEM|DISK|PROCS)__$/)
     if (marker) {
       current = marker[1] as SectionName
       sections[current] = ''

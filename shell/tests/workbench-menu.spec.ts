@@ -63,14 +63,14 @@ test('opens the empty settings dialog and supports standard dismissal', async ({
   await expect(page.getByRole('dialog')).toBeHidden()
 })
 
-test('opens the minimal about dialog with the PhotonShell logo', async ({ page }) => {
+test('opens the minimal about dialog with the SealShell logo', async ({ page }) => {
   await openMenu(page)
   await page.getByRole('menuitem', { name: '关于' }).click()
 
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
   await expect(dialog.locator('.about-dialog-logo')).toHaveAttribute('src', '/icon.svg')
-  await expect(dialog.locator('.about-dialog-body > span')).toHaveText('PhotonShell')
+  await expect(dialog.locator('.about-dialog-body > span')).toHaveText('SealShell')
   await expect(dialog.locator('.workbench-dialog-title')).toHaveCSS('position', 'absolute')
   await expect(dialog.locator('.workbench-dialog-title')).toHaveCSS('width', '1px')
 

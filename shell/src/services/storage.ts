@@ -1,6 +1,6 @@
 import type { FolderProfile, HostProfile } from '../stores/app'
 
-const DB_NAME = 'photon-shell'
+const DB_NAME = 'seal-shell'
 const DB_VERSION = 3
 
 export type { HostProfile } from '../stores/app'

@@ -4,9 +4,9 @@ import {
   AuthProofSchema,
   PairBeginSchema,
   PairProofSchema,
-  PhotonMessageSchema,
-  type PhotonMessage,
-} from '../proto/photon_pb'
+  SealMessageSchema,
+  type SealMessage,
+} from '../proto/seal_pb'
 import { randomId } from '../utils/id'
 import {
   clearIdentity,
@@ -25,7 +25,7 @@ export interface NodeCallbacks {
 }
 
 interface PendingRequest {
-  resolve: (message: PhotonMessage) => void
+  resolve: (message: SealMessage) => void
   reject: (error: Error) => void
 }
 
@@ -130,7 +130,7 @@ export class NodeClient {
     this.identity = await readIdentity()
     store.identityLoaded = true
     store.deviceId = this.identity?.deviceId ?? ''
-    store.deviceName = this.identity?.deviceName ?? 'PhotonShell PWA'
+    store.deviceName = this.identity?.deviceName ?? 'SealShell PWA'
     store.paired = Boolean(this.identity?.nodeId && this.identity?.nodePublicKey)
   }
 
@@ -142,7 +142,7 @@ export class NodeClient {
 
     const clientNonce = randomBytes(32)
     const pairRequestId = this.nextRequestId()
-    const begin = create(PhotonMessageSchema, {
+    const begin = create(SealMessageSchema, {
       protocolVersion: PROTOCOL_VERSION,
       requestId: pairRequestId,
       body: {
@@ -168,7 +168,7 @@ export class NodeClient {
       deviceName: identity.deviceName,
     }
     const transcript = encodeTranscript(
-      'PHOTON-PAIR-1',
+      'SEAL-PAIR-1',
       String(PROTOCOL_VERSION),
       challengeData.pairingId,
       identity.deviceId,
@@ -179,7 +179,7 @@ export class NodeClient {
       challengeData.clientNonce,
       challenge.body.value.nodeNonce,
     )
-    const proof = create(PhotonMessageSchema, {
+    const proof = create(SealMessageSchema, {
       protocolVersion: PROTOCOL_VERSION,
       requestId: this.nextRequestId(),
       body: {
@@ -210,13 +210,13 @@ export class NodeClient {
     const identity = this.identity ?? await readIdentity()
     this.identity = identity
     if (!identity?.nodeId || !identity.nodePublicKey) {
-      throw new Error('PWA device is not paired with PhotonNode')
+      throw new Error('PWA device is not paired with SealNode')
     }
 
     await this.openSocket()
     const connectionId = randomId()
     const clientNonce = randomBytes(32)
-    const begin = create(PhotonMessageSchema, {
+    const begin = create(SealMessageSchema, {
       protocolVersion: PROTOCOL_VERSION,
       requestId: this.nextRequestId(),
       body: {
@@ -248,7 +248,7 @@ export class NodeClient {
       nodePublicKey,
     }
     const transcript = encodeTranscript(
-      'PHOTON-AUTH-1',
+      'SEAL-AUTH-1',
       String(PROTOCOL_VERSION),
       authData.connectionId,
       authData.deviceId,
@@ -260,7 +260,7 @@ export class NodeClient {
       throw new Error('Node authentication signature is invalid')
     }
 
-    const proof = create(PhotonMessageSchema, {
+    const proof = create(SealMessageSchema, {
       protocolVersion: PROTOCOL_VERSION,
       requestId: this.nextRequestId(),
       body: {
@@ -282,11 +282,11 @@ export class NodeClient {
     return `ws://${window.location.hostname}:17373`
   }
 
-  sendMessage(message: PhotonMessage): void {
+  sendMessage(message: SealMessage): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
       throw new Error('Node WebSocket is not connected')
     }
-    this.socket.send(toBinary(PhotonMessageSchema, message))
+    this.socket.send(toBinary(SealMessageSchema, message))
   }
 
   clearPairing(): void {
@@ -367,7 +367,7 @@ export class NodeClient {
   private handleMessage(event: MessageEvent): void {
     try {
       const data = new Uint8Array(event.data as ArrayBuffer)
-      const message = fromBinary(PhotonMessageSchema, data)
+      const message = fromBinary(SealMessageSchema, data)
       const body = message.body.case
       const pending = this.pending.get(message.requestId)
       if (!pending) return
@@ -380,7 +380,7 @@ export class NodeClient {
     }
   }
 
-  private request(message: PhotonMessage): Promise<PhotonMessage> {
+  private request(message: SealMessage): Promise<SealMessage> {
     return new Promise((resolve, reject) => {
       this.pending.set(message.requestId, { resolve, reject })
       try {

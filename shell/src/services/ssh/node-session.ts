@@ -2,12 +2,12 @@ import { create, fromBinary, toBinary } from '@bufbuild/protobuf'
 import {
   AuthBeginSchema,
   AuthProofSchema,
-  PhotonMessageSchema,
+  SealMessageSchema,
   TransportCloseRequestSchema,
   TransportCreditSchema,
   TransportDataSchema,
   TransportOpenRequestSchema,
-} from '../../proto/photon_pb'
+} from '../../proto/seal_pb'
 import { randomId } from '../../utils/id'
 import { readIdentity } from '../storage'
 import { requireWebCrypto } from '../webCrypto'
@@ -90,7 +90,7 @@ export class NodeSessionTransport {
 
   async connect(host: string, port: number): Promise<void> {
     const identity = await readIdentity()
-    if (!identity?.nodeId || !identity.nodePublicKey) throw new Error('PWA device is not paired with PhotonNode')
+    if (!identity?.nodeId || !identity.nodePublicKey) throw new Error('PWA device is not paired with SealNode')
     this.socket = new WebSocket(nodeUrl())
     this.socket.binaryType = 'arraybuffer'
     this.socket.onmessage = (event) => this.handleMessage(event)
@@ -107,7 +107,7 @@ export class NodeSessionTransport {
 
     const connectionId = randomId()
     const clientNonce = bytes(32)
-    const begin = create(PhotonMessageSchema, {
+    const begin = create(SealMessageSchema, {
       protocolVersion: PROTOCOL_VERSION,
       requestId: this.nextId(),
       body: { case: 'authBegin', value: create(AuthBeginSchema, { deviceId: identity.deviceId, connectionId, clientNonce }) },
@@ -121,9 +121,9 @@ export class NodeSessionTransport {
     if (nodePublicKey.length !== expectedNodeKey.length || nodePublicKey.some((value, index) => value !== expectedNodeKey[index])) {
       throw new Error('Node identity key changed')
     }
-    const authTranscript = transcript('PHOTON-AUTH-1', String(PROTOCOL_VERSION), connectionId, identity.deviceId, identity.nodeId, clientNonce, new Uint8Array(challenge.body.value.nodeNonce))
+    const authTranscript = transcript('SEAL-AUTH-1', String(PROTOCOL_VERSION), connectionId, identity.deviceId, identity.nodeId, clientNonce, new Uint8Array(challenge.body.value.nodeNonce))
     if (!await verify(nodePublicKey, new Uint8Array(challenge.body.value.nodeSignature), authTranscript)) throw new Error('Node authentication signature is invalid')
-    const proof = create(PhotonMessageSchema, {
+    const proof = create(SealMessageSchema, {
       protocolVersion: PROTOCOL_VERSION,
       requestId: this.nextId(),
       body: { case: 'authProof', value: create(AuthProofSchema, { connectionId, deviceSignature: await sign(identity, authTranscript) }) },
@@ -131,7 +131,7 @@ export class NodeSessionTransport {
     const authenticated = await this.request(proof)
     if (authenticated.body.case !== 'authSucceeded') throw new Error('Node authentication failed')
 
-    const opened = await this.request(create(PhotonMessageSchema, {
+    const opened = await this.request(create(SealMessageSchema, {
       protocolVersion: PROTOCOL_VERSION,
       requestId: this.nextId(),
       body: { case: 'transportOpenRequest', value: create(TransportOpenRequestSchema, { streamId: this.allocateStreamId(), transport: 'tcp', host, port }) },
@@ -148,7 +148,7 @@ export class NodeSessionTransport {
       const chunk = payload.slice(offset, offset + MAX_CHUNK)
       while (this.inputCredit < chunk.length) await new Promise<void>((resolve) => this.dataWaiters.push(resolve))
       this.inputCredit -= chunk.length
-      this.sendMessage(create(PhotonMessageSchema, {
+      this.sendMessage(create(SealMessageSchema, {
         protocolVersion: PROTOCOL_VERSION,
         requestId: '',
         body: { case: 'transportData', value: create(TransportDataSchema, { streamId: this.streamId, sequence: this.inputSequence, payload: chunk }) },
@@ -174,7 +174,7 @@ export class NodeSessionTransport {
     this.closed = true
     this.connected = false
     if (this.socket?.readyState === WebSocket.OPEN && this.streamId) {
-      this.sendMessage(create(PhotonMessageSchema, {
+      this.sendMessage(create(SealMessageSchema, {
         protocolVersion: PROTOCOL_VERSION,
         requestId: '',
         body: { case: 'transportCloseRequest', value: create(TransportCloseRequestSchema, { streamId: this.streamId, reason }) },
@@ -186,13 +186,13 @@ export class NodeSessionTransport {
 
   private handleMessage(event: MessageEvent): void {
     try {
-      const message = fromBinary(PhotonMessageSchema, new Uint8Array(event.data as ArrayBuffer))
+      const message = fromBinary(SealMessageSchema, new Uint8Array(event.data as ArrayBuffer))
       if (message.body.case === 'transportData') {
         if (message.body.value.streamId !== this.streamId || message.body.value.sequence !== this.outputSequence) return
         this.outputSequence += 1n
         const payload = new Uint8Array(message.body.value.payload)
         this.dataHandler?.(payload)
-        this.sendMessage(create(PhotonMessageSchema, {
+        this.sendMessage(create(SealMessageSchema, {
           protocolVersion: PROTOCOL_VERSION,
           requestId: '',
           body: { case: 'transportCredit', value: create(TransportCreditSchema, { streamId: this.streamId, direction: 'output', addBytes: BigInt(payload.length) }) },
@@ -230,7 +230,7 @@ export class NodeSessionTransport {
 
   private sendMessage(message: any): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) throw new Error('Node session WebSocket is not connected')
-    this.socket.send(toBinary(PhotonMessageSchema, message))
+    this.socket.send(toBinary(SealMessageSchema, message))
   }
 
   private fail(error: Error): void {

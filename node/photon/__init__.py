@@ -1,1 +1,0 @@
-"""PhotonShell local node."""

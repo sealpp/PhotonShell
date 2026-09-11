@@ -10,15 +10,15 @@ function close() {
 <template>
   <UiDialog
     :open="store.aboutModalOpen"
-    title="关于 PhotonShell"
+    title="关于 SealShell"
     width="320px"
     :show-title="false"
     content-class="about-dialog-content"
     @close="close"
   >
     <div class="about-dialog-body">
-      <img src="/icon.svg" class="about-dialog-logo" alt="PhotonShell" />
-      <span>PhotonShell</span>
+      <img src="/icon.svg" class="about-dialog-logo" alt="SealShell" />
+      <span>SealShell</span>
     </div>
   </UiDialog>
 </template>

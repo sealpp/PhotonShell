@@ -39,7 +39,7 @@ class MemoryBackend implements SftpBackend {
   }
   async mkdir(path: string): Promise<void> { this.stats.set(path, entry(path, 'directory')) }
   async remove(path: string): Promise<void> {
-    if (this.failCleanup && path.includes('.photonshell-')) throw new Error('cleanup failed')
+    if (this.failCleanup && path.includes('.sealshell-')) throw new Error('cleanup failed')
     this.files.delete(path)
     this.stats.delete(path)
   }
@@ -85,7 +85,7 @@ describe('SFTP clipboard and transfer pipeline', () => {
     const result = await transferFile(source, target, '/src.txt', '/dst.txt')
     expect(result.atomic).toBe(true)
     expect(new TextDecoder().decode(target.files.get('/dst.txt'))).toBe('hello')
-    expect(Array.from(target.files.keys()).some((path) => path.includes('.photonshell-'))).toBe(false)
+    expect(Array.from(target.files.keys()).some((path) => path.includes('.sealshell-'))).toBe(false)
   })
 
   it('retains an orphan when temporary cleanup fails', async () => {

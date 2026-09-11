@@ -20,14 +20,14 @@ class MockSSHServer(asyncssh.SSHServer):
 
 call_count = {"shell": 0, "stat": 0}
 state_path = os.environ.get("MOCK_SSH_STATE_PATH")
-mock_sftp_root = Path(os.environ.get("MOCK_SFTP_ROOT", "/tmp/photon-mock-sftp"))
+mock_sftp_root = Path(os.environ.get("MOCK_SFTP_ROOT", "/tmp/seal-mock-sftp"))
 mock_sftp_root.mkdir(parents=True, exist_ok=True)
-(mock_sftp_root / "README.md").write_text("PhotonShell SFTP mock\n", encoding="utf-8")
+(mock_sftp_root / "README.md").write_text("SealShell SFTP mock\n", encoding="utf-8")
 SAMPLE_COMMAND = (
-    "printf '__PHOTON_CPU__\\n'; cat /proc/stat; "
-    "printf '__PHOTON_MEM__\\n'; free -b; "
-    "printf '__PHOTON_DISK__\\n'; df -P -k /; "
-    "printf '__PHOTON_PROCS__\\n'; ps -eo pid"
+    "printf '__SEAL_CPU__\\n'; cat /proc/stat; "
+    "printf '__SEAL_MEM__\\n'; free -b; "
+    "printf '__SEAL_DISK__\\n'; df -P -k /; "
+    "printf '__SEAL_PROCS__\\n'; ps -eo pid"
 )
 
 
@@ -37,14 +37,14 @@ def sample_output() -> str:
     total = 600 + call_count["stat"] * 100
     idle = 400 + call_count["stat"] * 20
     return (
-        "__PHOTON_CPU__\n"
+        "__SEAL_CPU__\n"
         f"cpu  {total - idle - 100} 0 100 {idle}\n"
-        "__PHOTON_MEM__\n"
+        "__SEAL_MEM__\n"
         "Mem: 16000000000 4000000000 4000000000 0 2000000000 12000000000\n"
-        "__PHOTON_DISK__\n"
+        "__SEAL_DISK__\n"
         "Filesystem 1K-blocks Used Available Use% Mounted on\n"
         "/dev/sda1 100000 40000 60000 40% /\n"
-        "__PHOTON_PROCS__\n"
+        "__SEAL_PROCS__\n"
         "PID\n1\n2\n3\n"
     )
 
@@ -77,7 +77,7 @@ async def handle_shell(process: asyncssh.SSHServerProcess) -> None:
         if not command:
             continue
         marker = re.search(
-            r"printf '(__PHOTON_EXEC_START_[A-Za-z0-9]+__)\\n'; (.*); status=\$\?; printf '\\n(__PHOTON_EXEC_END_[A-Za-z0-9]+__)%s\\n'",
+            r"printf '(__SEAL_EXEC_START_[A-Za-z0-9]+__)\\n'; (.*); status=\$\?; printf '\\n(__SEAL_EXEC_END_[A-Za-z0-9]+__)%s\\n'",
             command,
         )
         if marker:

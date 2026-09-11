@@ -1,9 +1,9 @@
 ---
-name: photon-e2e
-description: 运行和维护 PhotonShell 端到端测试（PWA/WASM 协议客户端 + PhotonNode transport + mock SSH）。当要写 E2E、调试 PWA telemetry polling、复现标签生命周期或完整验证 PWA ↔ Node ↔ 远端协议链路时使用。
+name: seal-e2e
+description: 运行和维护 SealShell 端到端测试（PWA/WASM 协议客户端 + SealNode transport + mock SSH）。当要写 E2E、调试 PWA telemetry polling、复现标签生命周期或完整验证 PWA ↔ Node ↔ 远端协议链路时使用。
 ---
 
-# PhotonShell E2E 测试指南
+# SealShell E2E 测试指南
 
 ## 测试栈
 
@@ -12,12 +12,12 @@ Playwright (Chromium)
   ↓ HTTP/WebSocket
 PWA (Vite/Vue + libssh2 WASM Workers)
   ↓ loopback WebSocket transport
-PhotonNode (Python pairing + TCP/UDP relay)
+SealNode (Python pairing + TCP/UDP relay)
   ↓ TCP
 mock SSH server (asyncssh)
 ```
 
-PhotonNode 不实现 SSH，也不保存主机或凭据业务数据。完整链路中的 SSH 协议由 PWA/WASM
+SealNode 不实现 SSH，也不保存主机或凭据业务数据。完整链路中的 SSH 协议由 PWA/WASM
 Worker 执行；mock SSH 只属于测试依赖。
 
 ## 端口
@@ -26,7 +26,7 @@ Worker 执行；mock SSH 只属于测试依赖。
    loopback 且不做 Origin 校验，PWA 端口变化无需调整 Node 配置。
 2. Node WebSocket 默认监听 `17373`，PWA transport 地址在 `shell/src/services/nodeClient.ts`
    中固定使用当前页面 hostname 和该端口。
-3. 如果宿主机已有进程占用 `17373`，不要终止无关进程。将 PWA、mock SSH、PhotonNode 和
+3. 如果宿主机已有进程占用 `17373`，不要终止无关进程。将 PWA、mock SSH、SealNode 和
    Playwright 放进同一个 network namespace；`unshare --net` 后先执行 `ip link set lo up`。
 
 示例：
@@ -34,11 +34,11 @@ Worker 执行；mock SSH 只属于测试依赖。
 ```bash
 unshare --net -- bash -lc '
   ip link set lo up
-  npm --prefix shell run dev -- --port 8081 --host 127.0.0.1 >/tmp/photon-e2e-vite.log 2>&1 &
+  npm --prefix shell run dev -- --port 8081 --host 127.0.0.1 >/tmp/seal-e2e-vite.log 2>&1 &
   pwa_pid=$!
   trap "kill $pwa_pid 2>/dev/null || true" EXIT
   until curl -fsS http://127.0.0.1:8081 >/dev/null; do sleep 0.2; done
-  PWA_URL=http://127.0.0.1:8081 node .agents/skills/photon-e2e/run-e2e.js
+  PWA_URL=http://127.0.0.1:8081 node .agents/skills/seal-e2e/run-e2e.js
 '
 ```
 
@@ -56,7 +56,7 @@ profile key 自动解锁，不需要额外的口令配置。
 
 ## mock SSH
 
-`.agents/skills/photon-e2e/mock-ssh-server.py` 应覆盖：
+`.agents/skills/seal-e2e/mock-ssh-server.py` 应覆盖：
 
 - 密码认证；
 - PWA libssh2 的交互式 PTY shell；
@@ -106,6 +106,6 @@ Vite 配置会从已锁定的 npm 依赖复制以下运行时资源到开发/构
 
 ## 文件卫生
 
-- 失败截图和临时日志放在 `/tmp/photon-e2e/`；
+- 失败截图和临时日志放在 `/tmp/seal-e2e/`；
 - `node_modules`、`.venv`、`shell/dist`、`shell/src/proto` 和 WASM 运行时复制文件不提交；
 - 测试脚本、端口策略、选择器或链路行为变化时同步更新本 skill。

@@ -8,7 +8,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 function copyRuntimeAssets() {
   let config: ResolvedConfig
   return {
-    name: 'photon-copy-runtime-assets',
+    name: 'seal-copy-runtime-assets',
     configResolved(resolved: ResolvedConfig) {
       config = resolved
       const assets = [
@@ -33,8 +33,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
       manifest: {
-        name: 'PhotonShell',
-        short_name: 'PhotonShell',
+        name: 'SealShell',
+        short_name: 'SealShell',
         description: 'Local-first SSH terminal console',
         theme_color: '#0f172a',
         background_color: '#0f172a',

@@ -30,7 +30,7 @@ registerAction({
 registerAction({
   id: 'workbench.openAbout',
   title: '关于',
-  description: '查看 PhotonShell 信息',
+  description: '查看 SealShell 信息',
   category: 'workbench',
   run: () => {
     store.settingsModalOpen = false

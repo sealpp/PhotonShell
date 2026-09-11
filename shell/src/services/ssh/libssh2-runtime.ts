@@ -392,7 +392,7 @@ export class Libssh2Session {
   }
 
   supports(extension: string): boolean {
-    return extension === 'posix-rename@openssh.com' && (this.module as any)?.__photonshellPatchedPosixRename === true
+    return extension === 'posix-rename@openssh.com' && (this.module as any)?.__sealshellPatchedPosixRename === true
   }
 
   private async openFile(path: string, flags: number, mode: number): Promise<number> {

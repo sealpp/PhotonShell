@@ -92,7 +92,7 @@ export async function transferFile(
   const normalizedTarget = normalizeRemotePath(targetPath)
   const sourceStat = await source.stat(normalizedSource)
   if (sourceStat.kind !== 'file') throw new Error(`Only regular files can use the file transfer pipeline: ${normalizedSource}`)
-  const temporary = joinRemotePath(normalizedTarget.slice(0, normalizedTarget.lastIndexOf('/')) || '/', `.${basenameRemotePath(normalizedTarget)}.photonshell-${randomId()}.tmp`)
+  const temporary = joinRemotePath(normalizedTarget.slice(0, normalizedTarget.lastIndexOf('/')) || '/', `.${basenameRemotePath(normalizedTarget)}.sealshell-${randomId()}.tmp`)
   let bytes = 0
   try {
     if (sourceStat.size === 0) await target.write(temporary, new ArrayBuffer(0), 0)

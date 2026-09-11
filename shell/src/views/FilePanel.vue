@@ -122,7 +122,7 @@ function onDragStart(event: DragEvent, entry: FileEntry): void {
   if (!current) return
   if (!current.file.selectedPaths.includes(entry.path)) current.file.selectedPaths = [entry.path]
   event.dataTransfer.effectAllowed = 'copyMove'
-  event.dataTransfer.setData('application/x-photonshell-sftp', JSON.stringify({ sourceTabId: tabId.value, paths: current.file.selectedPaths }))
+  event.dataTransfer.setData('application/x-sealshell-sftp', JSON.stringify({ sourceTabId: tabId.value, paths: current.file.selectedPaths }))
 }
 
 function onDragEnter(): void {
@@ -139,7 +139,7 @@ async function onDrop(event: DragEvent, entry?: FileEntry): Promise<void> {
   onDragLeave()
   event.preventDefault()
   dropTarget.value = null
-  const raw = event.dataTransfer?.getData('application/x-photonshell-sftp')
+  const raw = event.dataTransfer?.getData('application/x-sealshell-sftp')
   if (!raw) return
   let payload: { sourceTabId: string; paths: string[] }
   try { payload = JSON.parse(raw) as { sourceTabId: string; paths: string[] } } catch { return }

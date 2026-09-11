@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package photon;
+package seal;
 
-message PhotonMessage {
+message SealMessage {
   uint32 protocol_version = 1;
   string request_id = 2;
 

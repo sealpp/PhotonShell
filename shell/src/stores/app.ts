@@ -210,7 +210,7 @@ export const store = reactive<AppState>({
   identityLoaded: false,
   paired: false,
   deviceId: '',
-  deviceName: 'PhotonShell PWA',
+  deviceName: 'SealShell PWA',
   error: '',
   hosts: [],
   folders: [],

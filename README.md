@@ -1,28 +1,28 @@
-# PhotonShell
+# SealShell
 
-<img src="shell/public/icon.svg" width="128" alt="PhotonShell Logo" />
+<img src="shell/public/icon.svg" width="128" alt="SealShell Logo" />
 
-Local-first PWA shell console. The PWA owns protocol clients, product logic, and product storage; PhotonNode is a localhost WebSocket-to-TCP/UDP transport and pairing helper.
+Local-first PWA shell console. The PWA owns protocol clients, product logic, and product storage; SealNode is a localhost WebSocket-to-TCP/UDP transport and pairing helper.
 
 ## Layout
 
-- `node/` — Python PhotonNode: loopback WebSocket, pairing/device trust, opaque TCP/UDP transport.
+- `node/` — Python SealNode: loopback WebSocket, pairing/device trust, opaque TCP/UDP transport.
 - `shell/` — Vue 3 + Vite PWA, IndexedDB vault, WASM SSH client, telemetry providers, and UI.
 - `contracts/` — protobuf contract for pairing, device authentication, and multiplexed transport.
-- `me_PhotonShell/` — private architecture and design documentation (separate repository).
+- `me_SealShell/` — private architecture and design documentation (separate repository).
 
 ## Quick start
 
-### PhotonNode
+### SealNode
 
 ```bash
 cd node
 uv venv
 uv pip install -e ".[dev]"
-uv run python -m photon.main
+uv run python -m seal.main
 ```
 
-The Node prints a six-digit pairing code and listens on `127.0.0.1:17373`. Device trust is kept in `photon-trust.json` beside the packaged executable (or beside `node/` in source mode). Set `PHOTON_TRUST_PATH` to override the file path.
+The Node prints a six-digit pairing code and listens on `127.0.0.1:17373`. Device trust is kept in `seal-trust.json` beside the packaged executable (or beside `node/` in source mode). Set `SEAL_TRUST_PATH` to override the file path.
 
 ### PWA
 
@@ -35,19 +35,19 @@ npm run gen:proto
 npm run dev
 ```
 
-Then open `http://127.0.0.1:8080`, enter the pairing code, and add a host. The PWA stores host profiles and encrypted credentials in the browser's IndexedDB. SSH protocol traffic is implemented by the PWA WASM client and transported through PhotonNode as opaque bytes.
+Then open `http://127.0.0.1:8080`, enter the pairing code, and add a host. The PWA stores host profiles and encrypted credentials in the browser's IndexedDB. SSH protocol traffic is implemented by the PWA WASM client and transported through SealNode as opaque bytes.
 
 ## Environment variables
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `PHOTON_HOST` | `127.0.0.1` | WebSocket listen host; only loopback addresses are accepted. |
-| `PHOTON_PORT` | `17373` | WebSocket listen port. |
-| `PHOTON_TRUST_PATH` | application directory + `photon-trust.json` | Node identity and paired device trust file. |
+| `SEAL_HOST` | `127.0.0.1` | WebSocket listen host; only loopback addresses are accepted. |
+| `SEAL_PORT` | `17373` | WebSocket listen port. |
+| `SEAL_TRUST_PATH` | application directory + `seal-trust.json` | Node identity and paired device trust file. |
 
 ## Protocol generation
 
-After changing `contracts/photon.proto`:
+After changing `contracts/seal.proto`:
 
 ```bash
 cd node && uv run python scripts/generate_proto.py
@@ -68,8 +68,8 @@ cd node
 
 ## Notes
 
-- PhotonNode binds loopback only and rejects non-loopback listen addresses. The loopback boundary plus device challenge authentication are the security controls; there is no WebSocket Origin check.
-- SSH, RDP, X11, and other client protocol implementations belong in the PWA. Adding a protocol does not require a PhotonNode protocol update.
-- PhotonNode does not expose local files, local processes, TCP listeners, SOCKS, or reverse-connection capabilities.
+- SealNode binds loopback only and rejects non-loopback listen addresses. The loopback boundary plus device challenge authentication are the security controls; there is no WebSocket Origin check.
+- SSH, RDP, X11, and other client protocol implementations belong in the PWA. Adding a protocol does not require a SealNode protocol update.
+- SealNode does not expose local files, local processes, TCP listeners, SOCKS, or reverse-connection capabilities.
 - The PWA vault uses AES-256-GCM records and a browser profile key for automatic unlock. Vault data is local to the browser profile; v0 has no export, backup, migration, or recovery path.
 - Tabs and layout are runtime state. Refreshing the PWA closes active transport streams; host profiles, credentials, and pairing identity remain in IndexedDB.

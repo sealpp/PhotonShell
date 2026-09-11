@@ -352,9 +352,9 @@ onBeforeUnmount(() => {
         </div>
         <div v-else class="welcome">
           <div class="welcome-logo">
-            <img src="/icon.svg" class="logo-img" alt="PhotonShell" />
+            <img src="/icon.svg" class="logo-img" alt="SealShell" />
           </div>
-          <h2>PhotonShell</h2>
+          <h2>SealShell</h2>
           <p v-if="!store.paired">请点击左下角 Node 状态按钮，选择「配对」。</p>
           <p v-else-if="!store.hosts.length">暂无保存的主机，点击侧边栏「+ 新建连接」添加。</p>
           <p v-else>选择左侧主机（支持 Ctrl/Shift 多选），或右键批量操作。</p>

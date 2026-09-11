@@ -428,7 +428,7 @@ function onDragStart(event: DragEvent, tab: Tab): void {
   draggingId.value = tab.id
   activeWorkspaceDrag = { tabId: tab.id, category: props.category }
   event.dataTransfer.effectAllowed = 'move'
-  event.dataTransfer.setData('application/x-photonshell-workspace', JSON.stringify({ tabId: tab.id, category: props.category }))
+  event.dataTransfer.setData('application/x-sealshell-workspace', JSON.stringify({ tabId: tab.id, category: props.category }))
 }
 
 function onDragEnd(): void {
@@ -438,7 +438,7 @@ function onDragEnd(): void {
 
 function readWorkspaceDrag(event: DragEvent | PointerEvent): { tabId: string; category: BottomPanelCategory } | undefined {
   if (!(event instanceof DragEvent)) return undefined
-  const raw = event.dataTransfer?.getData('application/x-photonshell-workspace')
+  const raw = event.dataTransfer?.getData('application/x-sealshell-workspace')
   if (!raw) return undefined
   try {
     const data = JSON.parse(raw) as { tabId?: string; category?: BottomPanelCategory }

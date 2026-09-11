@@ -1,4 +1,4 @@
-"""Loopback WebSocket to TCP/UDP transport for PhotonShell."""
+"""Loopback WebSocket to TCP/UDP transport for SealShell."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from typing import Any
 
 import websockets
 
-from photon.photon_pb2 import PhotonMessage
-from photon.trust import TrustRepository, verify_device_signature
+from seal.seal_pb2 import SealMessage
+from seal.trust import TrustRepository, verify_device_signature
 
 MAX_MESSAGE_BYTES = 64 * 1024
 MAX_DATA_PAYLOAD = 60 * 1024
@@ -290,7 +290,7 @@ class UdpStream(TransportStream):
 
 
 class ClientConnection:
-    def __init__(self, server: PhotonServer, websocket: Any):
+    def __init__(self, server: SealServer, websocket: Any):
         self.server = server
         self.websocket = websocket
         self.authenticated = False
@@ -302,12 +302,12 @@ class ClientConnection:
         self._tasks: set[asyncio.Task[Any]] = set()
         self.closed = False
 
-    def message(self) -> PhotonMessage:
-        msg = PhotonMessage()
+    def message(self) -> SealMessage:
+        msg = SealMessage()
         msg.protocol_version = PROTOCOL_VERSION
         return msg
 
-    async def send(self, msg: PhotonMessage) -> None:
+    async def send(self, msg: SealMessage) -> None:
         async with self._send_lock:
             if not self.closed:
                 await self.websocket.send(msg.SerializeToString())
@@ -340,7 +340,7 @@ class ClientConnection:
                     await self.send_error("", "message_too_large", "WebSocket message is too large")
                     await self.websocket.close(1009, "message too large")
                     return
-                msg = PhotonMessage()
+                msg = SealMessage()
                 try:
                     msg.ParseFromString(raw)
                     await self.dispatch(msg)
@@ -355,7 +355,7 @@ class ClientConnection:
             for stream in list(self.streams.values()):
                 await stream.close("websocket_closed", notify=False)
 
-    async def dispatch(self, msg: PhotonMessage) -> None:
+    async def dispatch(self, msg: SealMessage) -> None:
         if msg.protocol_version != PROTOCOL_VERSION:
             raise ProtocolError("protocol_version", "unsupported protocol version")
         body = msg.WhichOneof("body")
@@ -394,7 +394,7 @@ class ClientConnection:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
-    async def _pair_begin(self, msg: PhotonMessage) -> None:
+    async def _pair_begin(self, msg: SealMessage) -> None:
         if self.authenticated:
             raise ProtocolError("invalid_state", "connection is already authenticated")
         if self.server.pin_expired:
@@ -412,7 +412,7 @@ class ClientConnection:
         if not 16 <= len(msg.pair_begin.client_nonce) <= 64:
             raise ProtocolError("invalid_message", "client nonce is invalid")
         try:
-            from photon.trust import load_p256_public_key
+            from seal.trust import load_p256_public_key
 
             load_p256_public_key(bytes(msg.pair_begin.device_public_key))
         except ValueError as exc:
@@ -437,12 +437,12 @@ class ClientConnection:
         response.pair_challenge.node_nonce = node_nonce
         await self.send(response)
 
-    async def _pair_proof(self, msg: PhotonMessage) -> None:
+    async def _pair_proof(self, msg: SealMessage) -> None:
         pending = self.pending_pair
         if pending is None or msg.pair_proof.pairing_id != pending["pairing_id"]:
             raise ProtocolError("invalid_pairing", "pairing challenge is not active")
         transcript = _transcript(
-            "PHOTON-PAIR-1",
+            "SEAL-PAIR-1",
             str(PROTOCOL_VERSION),
             pending["pairing_id"],
             pending["device_id"],
@@ -474,7 +474,7 @@ class ClientConnection:
         response.pair_succeeded.node_public_key = self.server.trust.node_public_key
         await self.send(response)
 
-    async def _auth_begin(self, msg: PhotonMessage) -> None:
+    async def _auth_begin(self, msg: SealMessage) -> None:
         if self.authenticated:
             raise ProtocolError("invalid_state", "connection is already authenticated")
         _is_valid_identifier(msg.auth_begin.device_id, "device_id")
@@ -495,7 +495,7 @@ class ClientConnection:
             "request_id": msg.request_id,
         }
         transcript = _transcript(
-            "PHOTON-AUTH-1",
+            "SEAL-AUTH-1",
             str(PROTOCOL_VERSION),
             msg.auth_begin.connection_id,
             msg.auth_begin.device_id,
@@ -512,12 +512,12 @@ class ClientConnection:
         response.auth_challenge.node_signature = self.server.trust.sign(transcript)
         await self.send(response)
 
-    async def _auth_proof(self, msg: PhotonMessage) -> None:
+    async def _auth_proof(self, msg: SealMessage) -> None:
         pending = self.pending_auth
         if pending is None or msg.auth_proof.connection_id != pending["connection_id"]:
             raise ProtocolError("invalid_auth", "authentication challenge is not active")
         transcript = _transcript(
-            "PHOTON-AUTH-1",
+            "SEAL-AUTH-1",
             str(PROTOCOL_VERSION),
             pending["connection_id"],
             pending["device_id"],
@@ -538,7 +538,7 @@ class ClientConnection:
         response.auth_succeeded.node_id = self.server.trust.node_id
         await self.send(response)
 
-    async def _open_transport(self, msg: PhotonMessage) -> None:
+    async def _open_transport(self, msg: SealMessage) -> None:
         request = msg.transport_open_request
         try:
             if request.stream_id == 0 or request.stream_id in self.streams:
@@ -585,7 +585,7 @@ class ClientConnection:
                 code, message = "connect_failed", str(exc)
             await self.send_error(msg.request_id, code, message, request.stream_id)
 
-    async def _transport_data(self, msg: PhotonMessage) -> None:
+    async def _transport_data(self, msg: SealMessage) -> None:
         data = msg.transport_data
         stream = self.streams.get(data.stream_id)
         if stream is None:
@@ -598,7 +598,7 @@ class ClientConnection:
         stream.input_sequence += 1
         await stream.accept_input(payload)
 
-    async def _transport_credit(self, msg: PhotonMessage) -> None:
+    async def _transport_credit(self, msg: SealMessage) -> None:
         credit = msg.transport_credit
         stream = self.streams.get(credit.stream_id)
         if stream is None:
@@ -607,20 +607,20 @@ class ClientConnection:
             raise ProtocolError("invalid_credit", "only output credit can be granted by the PWA")
         await stream.add_output_credit(int(credit.add_bytes))
 
-    async def _transport_half_close(self, msg: PhotonMessage) -> None:
+    async def _transport_half_close(self, msg: SealMessage) -> None:
         stream = self.streams.get(msg.transport_half_close_request.stream_id)
         if stream is None:
             raise ProtocolError("stream_not_found", "transport stream does not exist")
         await stream.half_close()
 
-    async def _transport_close(self, msg: PhotonMessage) -> None:
+    async def _transport_close(self, msg: SealMessage) -> None:
         stream = self.streams.get(msg.transport_close_request.stream_id)
         if stream is None:
             return
         await stream.close(msg.transport_close_request.reason)
 
 
-class PhotonServer:
+class SealServer:
     def __init__(self, trust: TrustRepository):
         self.trust = trust
         self.pairing_code = f"{secrets.randbelow(1_000_000):06d}"
@@ -643,8 +643,8 @@ class PhotonServer:
 
 async def serve(trust: TrustRepository, host: str, port: int) -> None:
     if not _validate_loopback_bind(host):
-        raise ValueError("PhotonNode must bind to localhost loopback")
-    server = PhotonServer(trust)
+        raise ValueError("SealNode must bind to localhost loopback")
+    server = SealServer(trust)
     async with websockets.serve(server.handle, host, port, max_size=MAX_MESSAGE_BYTES):
         print(
             f"Listening on ws://{host}:{port}, pairing code: {server.pairing_code}",

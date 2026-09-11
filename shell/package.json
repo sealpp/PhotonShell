@@ -1,5 +1,5 @@
 {
-  "name": "photon-shell",
+  "name": "seal-shell",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "preview:lan": "vite preview --port 18080 --host 0.0.0.0",
-    "gen:proto": "node -e \"require('fs').mkdirSync('./src/proto', { recursive: true })\" && protoc --plugin=protoc-gen-es=./node_modules/.bin/protoc-gen-es --es_out=./src/proto --es_opt=target=ts --proto_path=../contracts photon.proto",
+    "gen:proto": "node -e \"require('fs').mkdirSync('./src/proto', { recursive: true })\" && protoc --plugin=protoc-gen-es=./node_modules/.bin/protoc-gen-es --es_out=./src/proto --es_opt=target=ts --proto_path=../contracts seal.proto",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:unit": "vitest run --config vitest.config.ts"

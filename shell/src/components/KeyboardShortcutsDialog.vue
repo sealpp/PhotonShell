@@ -152,7 +152,7 @@ function bindingLabel(binding: ResolvedKeybinding | undefined): string {
   >
     <div class="keybindings-info" role="note">
       <p>1. 建议使用 Chrome 浏览器，以更流畅地使用快捷键功能。</p>
-      <p>2. 当前显示的快捷键为 PhotonShell 内置功能快捷键，可能会被浏览器、系统应用或其他组件占用。</p>
+      <p>2. 当前显示的快捷键为 SealShell 内置功能快捷键，可能会被浏览器、系统应用或其他组件占用。</p>
       <p>3. 快捷键只在对应功能上下文中生效，例如终端命令需要终端处于可用状态。</p>
       <p>4. 如果某个快捷键不生效但不影响正常使用，可暂时忽略；也可以重新设置或关闭它。</p>
     </div>

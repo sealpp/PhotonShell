@@ -17,11 +17,11 @@ export async function runSftpFeasibilitySpike(backend: SftpBackend, options: Sft
     const root = options.defaultPath || '/'
     const listing = await backend.list(root)
     checks.directoryListing = Array.isArray(listing.entries)
-    const probe = `${root.replace(/\/$/, '')}/.photonshell-spike-${Date.now()}`
-    const bytes = new TextEncoder().encode('photon-shell-sftp-spike').buffer
+    const probe = `${root.replace(/\/$/, '')}/.sealshell-spike-${Date.now()}`
+    const bytes = new TextEncoder().encode('seal-shell-sftp-spike').buffer
     await backend.write(probe, bytes)
     const read = await backend.read(probe)
-    checks.smallFileReadWrite = new TextDecoder().decode(read) === 'photon-shell-sftp-spike'
+    checks.smallFileReadWrite = new TextDecoder().decode(read) === 'seal-shell-sftp-spike'
     await backend.remove(probe)
     checks.cleanup = true
     return { passed: Object.values(checks).every(Boolean), checks, backend: 'sftp-backend' }
