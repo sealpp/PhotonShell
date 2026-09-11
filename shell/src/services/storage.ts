@@ -1,4 +1,4 @@
-import type { FolderProfile, HostProfile } from '../stores/app'
+import type { FolderProfile, HostProfile, TerminalPreferences } from '../stores/app'
 
 const DB_NAME = 'seal-shell'
 const DB_VERSION = 3
@@ -37,6 +37,8 @@ export interface KeybindingPreferences {
   overrides: Array<{ commandId: string; key: string | null }>
   disabled: string[]
 }
+
+export type StoredTerminalPreferences = TerminalPreferences
 
 let database: Promise<IDBDatabase> | undefined
 

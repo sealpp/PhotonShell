@@ -7,6 +7,44 @@ export type TabKind = 'terminal' | 'file' | 'editor'
 export type BottomPanelCategory = 'files' | 'editors'
 export type FocusedDock = 'terminal' | 'bottomPanel'
 
+export type TerminalFontWeight = 400 | 500 | 600 | 700
+
+export interface TerminalTheme {
+  foreground: string
+  background: string
+  cursor: string
+  cursorAccent: string
+  selectionBackground: string
+  selectionForeground: string
+  black: string
+  red: string
+  green: string
+  yellow: string
+  blue: string
+  magenta: string
+  cyan: string
+  white: string
+  brightBlack: string
+  brightRed: string
+  brightGreen: string
+  brightYellow: string
+  brightBlue: string
+  brightMagenta: string
+  brightCyan: string
+  brightWhite: string
+}
+
+export interface TerminalPreferences {
+  key: 'terminalPreferences'
+  version: 1
+  theme: string
+  fontFamily: string
+  fontSize: number
+  lineHeight: number
+  fontWeight: TerminalFontWeight
+  fontWeightBold: TerminalFontWeight
+}
+
 export type FileSortKey = 'name' | 'modified' | 'size' | 'type'
 export type FileSortDirection = 'asc' | 'desc'
 
@@ -203,6 +241,7 @@ export interface AppState {
   } | null
   nodeConnected: boolean
   sftpClipboard: SftpClipboardState | null
+  terminalPreferences: TerminalPreferences
 }
 
 export const store = reactive<AppState>({
@@ -263,6 +302,16 @@ export const store = reactive<AppState>({
   manualPaste: null,
   nodeConnected: false,
   sftpClipboard: null,
+  terminalPreferences: {
+    key: 'terminalPreferences',
+    version: 1,
+    theme: 'Xterm Default',
+    fontFamily: '0xProto Nerd Font Mono',
+    fontSize: 13,
+    lineHeight: 1,
+    fontWeight: 400,
+    fontWeightBold: 700,
+  },
 })
 
 export function getActiveBottomPanelTabId(): string {

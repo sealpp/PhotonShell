@@ -11,6 +11,7 @@ import {
 import CommandContextMenu from '../components/CommandContextMenu.vue'
 import { TERMINAL_MENU_ID } from '../services/actions/menuIds'
 import type { CommandContext } from '../services/context'
+import { getTerminalFontFamily, getTerminalTheme } from '../services/terminalPreferences'
 import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps<{ tabId: string }>()
@@ -30,6 +31,7 @@ const unwatchState = ref<() => void>()
 const unwatchStream = ref<() => void>()
 const unwatchActive = ref<() => void>()
 const unwatchEncoding = ref<() => void>()
+const unwatchPreferences = ref<() => void>()
 const unwatchTerminalMount = ref<() => void>()
 
 const tab = computed(() => store.tabs.find((t) => t.id === props.tabId))
@@ -119,9 +121,16 @@ function isTerminalScreenTarget(event: MouseEvent): boolean {
   return target instanceof Element && target.closest('.xterm-screen') !== null
 }
 
-function getTerminalColor(name: string, fallback: string): string {
-  if (!termEl.value) return fallback
-  return getComputedStyle(termEl.value).getPropertyValue(name).trim() || fallback
+function applyTerminalPreferences() {
+  if (!terminal) return
+  const preferences = store.terminalPreferences
+  terminal.options.fontFamily = getTerminalFontFamily(preferences.fontFamily)
+  terminal.options.fontSize = preferences.fontSize
+  terminal.options.lineHeight = preferences.lineHeight
+  terminal.options.fontWeight = preferences.fontWeight
+  terminal.options.fontWeightBold = preferences.fontWeightBold
+  terminal.options.theme = getTerminalTheme(preferences.theme)
+  scheduleFit()
 }
 
 function bindOutput() {
@@ -141,15 +150,16 @@ function bindOutput() {
 function initTerminal() {
   if (terminal || !termEl.value || !tab.value) return
 
+  const preferences = store.terminalPreferences
   terminal = new Terminal({
     cursorBlink: true,
     rightClickSelectsWord: false,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-    fontSize: 13,
-    theme: {
-      background: getTerminalColor('--terminal-background', '#0d0d0d'),
-      foreground: getTerminalColor('--terminal-foreground', '#d4d4d4'),
-    },
+    fontFamily: getTerminalFontFamily(preferences.fontFamily),
+    fontSize: preferences.fontSize,
+    lineHeight: preferences.lineHeight,
+    fontWeight: preferences.fontWeight,
+    fontWeightBold: preferences.fontWeightBold,
+    theme: getTerminalTheme(preferences.theme),
   })
 
   fitAddon = new FitAddon()
@@ -216,6 +226,12 @@ function initTerminal() {
     },
   )
 
+  unwatchPreferences.value = watch(
+    () => store.terminalPreferences,
+    () => applyTerminalPreferences(),
+    { deep: true },
+  )
+
   bindOutput()
 }
 
@@ -252,6 +268,7 @@ onBeforeUnmount(() => {
   unwatchStream.value?.()
   unwatchActive.value?.()
   unwatchEncoding.value?.()
+  unwatchPreferences.value?.()
   unwatchTerminalMount.value?.()
   if (tab.value?.sessionId) {
     setTerminalOutputHandler(tab.value.sessionId, null)

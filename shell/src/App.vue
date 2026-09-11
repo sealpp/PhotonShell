@@ -30,6 +30,7 @@ import TransferPanel from './views/TransferPanel.vue'
 import BottomPanel from './views/BottomPanel.vue'
 import BottomPanelStatusButton from './components/BottomPanelStatusButton.vue'
 import { loadTransferConcurrency } from './services/sftp/transfer-runtime'
+import { loadTerminalPreferences } from './services/terminalPreferences'
 
 type ResizeSide = 'left' | 'right'
 
@@ -270,6 +271,7 @@ onMounted(async () => {
     await initializePwa()
     await loadTransferConcurrency()
     await loadKeybindingPreferences()
+    await loadTerminalPreferences()
     if (!store.paired) {
       store.pairingModalOpen = true
     } else {

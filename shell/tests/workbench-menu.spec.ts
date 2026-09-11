@@ -36,7 +36,7 @@ test('opens an upward menu from the bottom of the left activity bar', async ({ p
   expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(page.viewportSize()!.width)
 })
 
-test('opens the empty settings dialog and supports standard dismissal', async ({ page }) => {
+test('opens the terminal appearance settings and supports standard dismissal', async ({ page }) => {
   await openMenu(page)
   await page.getByRole('menuitem', { name: '设置' }).click()
 
@@ -47,7 +47,12 @@ test('opens the empty settings dialog and supports standard dismissal', async ({
   await expect(dialog.locator('.workbench-dialog-description')).toHaveCount(1)
   await expect(dialog.locator('.workbench-dialog-description')).toHaveCSS('position', 'absolute')
   await expect(dialog.locator('.workbench-dialog-description')).toHaveCSS('width', '1px')
-  await expect(dialog.locator('.workbench-dialog-body')).toHaveText('')
+  await expect(dialog.getByRole('heading', { name: '外观' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '外观' })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: '文本' })).toBeVisible()
+  await expect(dialog.getByLabel('配色方案')).toHaveValue('Xterm Default')
+  await expect(dialog.getByLabel('字体')).toHaveValue('0xProto Nerd Font Mono')
+  await expect(dialog.locator('.terminal-preview .xterm-screen')).toBeVisible()
 
   const dialogBox = await dialog.boundingBox()
   expect(dialogBox).not.toBeNull()
