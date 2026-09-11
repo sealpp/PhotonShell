@@ -8,6 +8,12 @@ const CALLBACK_SEND = 5
 const CALLBACK_RECV = 6
 const BUFFER_SIZE = 64 * 1024
 
+// libssh2_sftp_open() takes LIBSSH2_FXF_* protocol flags. These are distinct
+// from the POSIX O_* values (for example, CREAT is 0x08 and TRUNC is 0x10).
+const SFTP_FXF_WRITE = 0x00000002
+const SFTP_FXF_CREAT = 0x00000008
+const SFTP_FXF_TRUNC = 0x00000010
+
 function kindFromMode(mode: number): 'file' | 'directory' | 'symlink' | 'unknown' {
   const type = mode & 0o170000
   if (type === 0o040000) return 'directory'
@@ -306,7 +312,7 @@ export class Libssh2Session {
   }
 
   async writePath(path: string, payload: ArrayBuffer, offset = 0): Promise<void> {
-    const handle = await this.openFile(path, 1 | 64 | (offset === 0 ? 512 : 0), 0o644)
+    const handle = await this.openFile(path, SFTP_FXF_WRITE | SFTP_FXF_CREAT | (offset === 0 ? SFTP_FXF_TRUNC : 0), 0o644)
     const data = new Uint8Array(payload)
     const ptr = this.module._malloc(Math.max(1, data.length))
     try {
