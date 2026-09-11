@@ -19,6 +19,7 @@ Local-first PWA shell console. The PWA owns protocol clients, product logic, and
 cd node
 uv venv
 uv pip install -e ".[dev]"
+uv run python scripts/generate_proto.py
 uv run python -m seal.main
 ```
 
