@@ -72,6 +72,7 @@ export interface EditorState {
   content: string
   size: number
   largeFileConfirmed: boolean
+  contentVersion: number
 }
 
 export interface FileEntry {

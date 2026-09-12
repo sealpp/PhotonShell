@@ -7,6 +7,7 @@ import type { SftpBackend, SftpConnectionOptions } from './types'
 import { getRuntimePassword } from '../ssh'
 import { transferFile } from './transfer'
 import { confirmDialog } from '../dialogs'
+import { encodingDecoder } from '../encodings'
 
 const MAX_EDIT_SIZE = 10 * 1024 * 1024
 
@@ -15,15 +16,22 @@ function detectLanguage(name: string): string {
   return ({ ts: 'typescript', js: 'javascript', json: 'json', md: 'markdown', py: 'python', sh: 'shell' } as Record<string, string>)[extension] ?? 'text'
 }
 
-function decodeFile(buffer: ArrayBuffer): Pick<EditorTab['editor'], 'content' | 'encoding' | 'bom' | 'lineEnding'> {
+function bomSignature(bytes: Uint8Array): { encoding: 'utf-8' | 'utf-16le' | 'utf-16be'; offset: number } | null {
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return { encoding: 'utf-8', offset: 3 }
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return { encoding: 'utf-16le', offset: 2 }
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return { encoding: 'utf-16be', offset: 2 }
+  return null
+}
+
+function decodeFile(buffer: ArrayBuffer, forcedEncoding?: string): Pick<EditorTab['editor'], 'content' | 'encoding' | 'bom' | 'lineEnding'> {
   const bytes = new Uint8Array(buffer)
-  let encoding: EditorTab['editor']['encoding'] = 'utf-8'
-  let offset = 0
-  let bom = false
-  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) { bom = true; offset = 3 }
-  else if (bytes[0] === 0xff && bytes[1] === 0xfe) { bom = true; offset = 2; encoding = 'utf-16le' }
-  else if (bytes[0] === 0xfe && bytes[1] === 0xff) { bom = true; offset = 2; encoding = 'utf-16be' }
-  const content = new TextDecoder(encoding).decode(bytes.slice(offset))
+  const signature = bomSignature(bytes)
+  const encoding = forcedEncoding ?? signature?.encoding ?? 'utf-8'
+  // A BOM is only honored when it matches the effective decoding; under a
+  // forced foreign encoding the signature bytes decode as regular content.
+  const bom = !!signature && (!forcedEncoding || signature.encoding === forcedEncoding)
+  const offset = bom ? signature.offset : 0
+  const content = new TextDecoder(encodingDecoder(encoding)).decode(bytes.slice(offset))
   const crlf = (content.match(/\r\n/g) ?? []).length
   const cr = (content.match(/\r(?!\n)/g) ?? []).length
   const lf = (content.match(/(?<!\r)\n/g) ?? []).length
@@ -35,7 +43,9 @@ function encodeFile(editor: EditorTab['editor']): ArrayBuffer {
   const normalized = editor.content.replace(/\r\n|\r|\n/g, editor.lineEnding)
   let body: Uint8Array
   if (editor.encoding === 'utf-8') body = new TextEncoder().encode(normalized)
-  else {
+  else if (editor.encoding !== 'utf-16le' && editor.encoding !== 'utf-16be') {
+    throw new Error(`Saving with ${editor.encoding} encoding is not supported yet`)
+  } else {
     body = new Uint8Array(normalized.length * 2)
     for (let index = 0; index < normalized.length; index += 1) {
       const code = normalized.charCodeAt(index)
@@ -78,6 +88,7 @@ export async function openEditorTab(fileTabId: string, entry: FileEntry): Promis
       content: '',
       size: entry.size,
       largeFileConfirmed: false,
+      contentVersion: 0,
     },
   }
   store.tabs.push(editor)
@@ -104,6 +115,30 @@ export async function openEditorTab(fileTabId: string, entry: FileEntry): Promis
     target.error = error instanceof Error ? error.message : String(error)
     return target
   }
+}
+
+// Re-decodes the remote file under a chosen encoding. The bump of
+// contentVersion tells the editor view to rebuild its document.
+export async function reopenEditorTab(tabId: string, encoding: string): Promise<void> {
+  const tab = store.tabs.find((candidate) => candidate.id === tabId) as EditorTab | undefined
+  const backend = getSftpBackend(tabId)
+  if (!tab || !backend) throw new Error('Editor session is unavailable')
+  if (tab.editor.dirty) {
+    const confirmed = await confirmDialog('以该编码重新打开', '当前文件有未保存的修改，重新打开将丢弃这些修改。', { confirmLabel: '丢弃修改并重新打开', danger: true })
+    if (!confirmed) return
+  }
+  const stat = await backend.stat(tab.editor.path)
+  const decoded = decodeFile(await backend.read(tab.editor.path, 0, stat.size), encoding)
+  tab.editor = { ...tab.editor, ...decoded, size: stat.size, dirty: false, contentVersion: tab.editor.contentVersion + 1 }
+}
+
+// Marks the editor to be written under a different encoding on the next save.
+export function setEditorEncoding(tabId: string, encoding: string, bom: boolean): void {
+  const tab = store.tabs.find((candidate) => candidate.id === tabId) as EditorTab | undefined
+  if (!tab) return
+  tab.editor.encoding = encoding
+  tab.editor.bom = bom
+  tab.editor.dirty = true
 }
 
 export async function saveEditorTab(tabId: string): Promise<void> {

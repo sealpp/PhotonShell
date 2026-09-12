@@ -12,6 +12,7 @@ import { python } from '@codemirror/lang-python'
 import { IconDeviceFloppy, IconSearch, IconX } from '@tabler/icons-vue'
 import { store, type EditorTab } from '../stores/app'
 import { saveEditorTab } from '../services/sftp/editor-tabs'
+import { alertDialog } from '../services/dialogs'
 import { commandService } from '../services/commands'
 
 const props = defineProps<{ params: { params: { tabId: string; [key: string]: unknown }; [key: string]: unknown } }>()
@@ -53,12 +54,23 @@ function mountEditor(): void {
   view = new EditorView({ state, parent: editorEl.value })
 }
 
-async function save(): Promise<void> { await saveEditorTab(tabId.value) }
+async function save(): Promise<void> {
+  try {
+    await saveEditorTab(tabId.value)
+  } catch (error) {
+    await alertDialog('保存失败', error instanceof Error ? error.message : String(error))
+  }
+}
 function openFind(): void { if (view) void openSearchPanel(view) }
 
 onMounted(mountEditor)
 watch(() => tab.value?.state, (state) => {
   if (state === 'online') mountEditor()
+})
+watch(() => tab.value?.editor.contentVersion, () => {
+  view?.destroy()
+  view = undefined
+  mountEditor()
 })
 onBeforeUnmount(() => { view?.destroy(); view = undefined })
 </script>
