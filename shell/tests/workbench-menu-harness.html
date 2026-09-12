@@ -42,9 +42,9 @@
             h('div', { class: 'statusbar' }, [
               h('span', { class: 'statusbar-left' }, 'Node'),
             ]),
-            h(SettingsDialog),
-            h(KeyboardShortcutsDialog),
-            h(AboutDialog),
+            store.settingsModalOpen ? h(SettingsDialog) : null,
+            store.keyboardShortcutsModalOpen ? h(KeyboardShortcutsDialog) : null,
+            store.aboutModalOpen ? h(AboutDialog) : null,
           ])
         },
       }).mount('#app')

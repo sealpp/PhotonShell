@@ -50,8 +50,8 @@ test('opens the terminal appearance settings and supports standard dismissal', a
   await expect(dialog.getByRole('heading', { name: '外观' })).toBeVisible()
   await expect(dialog.getByRole('button', { name: '外观' })).toBeVisible()
   await expect(dialog.getByRole('heading', { name: '文本' })).toBeVisible()
-  await expect(dialog.getByLabel('配色方案')).toHaveValue('Xterm Default')
-  await expect(dialog.getByLabel('字体')).toHaveValue('0xProto Nerd Font Mono')
+  await expect(dialog.getByLabel('配色方案', { exact: true })).toHaveValue('Xterm Default')
+  await expect(dialog.getByLabel('字体', { exact: true })).toHaveValue('0xProto Nerd Font Mono')
   await expect(dialog.locator('.terminal-preview .xterm-screen')).toBeVisible()
 
   const dialogBox = await dialog.boundingBox()
