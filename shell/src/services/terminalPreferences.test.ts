@@ -1,11 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_TERMINAL_PREFERENCES,
   getTerminalTheme,
+  syncTerminalChrome,
   terminalFontOptions,
   terminalThemeNames,
   terminalWeightOptions,
 } from './terminalPreferences'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('terminal preferences', () => {
   it('exposes the agreed defaults', () => {
@@ -28,6 +33,19 @@ describe('terminal preferences', () => {
       expect(theme.brightWhite).toMatch(/^#/)
       expect(theme.red).toMatch(/^#/)
     }
+  })
+
+  it('pushes the active theme colors onto the chrome css vars', () => {
+    const vars = new Map<string, string>()
+    vi.stubGlobal('document', {
+      documentElement: { style: { setProperty: (name: string, value: string) => vars.set(name, value) } },
+    })
+    syncTerminalChrome('Solarized Dark')
+    expect(vars.get('--terminal-background')).toBe('#002b36')
+    expect(vars.get('--terminal-foreground')).toBe('#839496')
+    vars.clear()
+    syncTerminalChrome('missing-theme')
+    expect(vars.get('--terminal-background')).toBe('#0d0d0d')
   })
 
   it('contains the requested fonts and named common weights', () => {

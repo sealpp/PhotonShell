@@ -32,6 +32,7 @@ function applyPreview(): void {
   preview.options.fontWeight = p.fontWeight
   preview.options.fontWeightBold = p.fontWeightBold
   preview.options.theme = getTerminalTheme(p.theme)
+  previewEl.value?.style.setProperty('--terminal-background', getTerminalTheme(p.theme).background ?? '#0d0d0d')
   fitAddon?.fit()
 }
 async function save(): Promise<void> {
@@ -60,7 +61,7 @@ onMounted(async () => {
   preview.write('\x1b[32m$\x1b[0m printf "\x1b[31m彩色文本\x1b[0m 你好，世界 👋\\n"\r\n')
   preview.write('\x1b[33m普通  中等  半粗  粗体\x1b[0m\r\n')
   preview.write('Unicode: λ → ✓  |  ANSI: \x1b[1;35mbold magenta\x1b[0m\r\n')
-  fitAddon.fit()
+  applyPreview()
   resizeObserver = new ResizeObserver(() => fitAddon?.fit())
   resizeObserver.observe(previewEl.value)
 })

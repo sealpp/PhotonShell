@@ -66,14 +66,26 @@ export function getTerminalTheme(name: string): ITheme {
   return themes[name] ?? themes['Xterm Default']
 }
 
+// The surfaces framing the terminal (panel remainder, group view, active tab,
+// preview padding) read --terminal-* vars; push the active theme so they match
+// the xterm canvas instead of staying on the default scheme colors.
+export function syncTerminalChrome(name: string): void {
+  const theme = getTerminalTheme(name)
+  const style = document.documentElement.style
+  style.setProperty('--terminal-background', theme.background ?? '#0d0d0d')
+  style.setProperty('--terminal-foreground', theme.foreground ?? '#d4d4d4')
+}
+
 export async function loadTerminalPreferences(): Promise<void> {
   const stored = await readMeta<TerminalPreferences>(TERMINAL_PREFERENCES_KEY)
   if (stored) store.terminalPreferences = stored
+  syncTerminalChrome(store.terminalPreferences.theme)
 }
 
 export async function saveTerminalPreferences(preferences: TerminalPreferences): Promise<void> {
   await saveMeta(preferences)
   store.terminalPreferences = preferences
+  syncTerminalChrome(preferences.theme)
 }
 
 export function defaultTerminalPreferences(): TerminalPreferences {
