@@ -31,9 +31,11 @@ Do not duplicate the detailed caveats here; update the skill directly. This sect
 
 After finishing local testing or browser validation, kill the PWA Vite dev server (`npm run dev`, usually on `127.0.0.1:8080`) and the SealNode Python process (`./.venv/bin/python -m seal.main`, usually on `127.0.0.1:17373`) unless the user explicitly asks to keep them running. This avoids keeping ports 8080/17373 occupied when the user wants to start their own manual tests.
 
-## Known Pitfalls Index
+## Engineering Docs Index
 
-长期有效的实现踩坑、根因和修复规则集中维护在私有文档：
-`me_SealShell/docs/engineering/pitfalls.md`。
+长期有效的工程经验集中维护在私有目录 `me_SealShell/docs/engineering/`：
 
-修复可复用问题后先合并、删减或改写该文档，再提交代码；不要在本文件复制正文或追加一次性 workaround。
+- `pitfalls.md`：实现踩坑、根因和修复规则。
+- `debugging.md`：问题排查纪律——先复现、逐层收敛定位根因、修复针对根因、禁止创可贴式补丁与冗余防御分支。
+
+排查问题时先遵循 debugging 文档；修复可复用问题后先合并、删减或改写 pitfalls 文档，再提交代码；不要在本文件复制正文或追加一次性 workaround。
