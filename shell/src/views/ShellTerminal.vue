@@ -12,6 +12,7 @@ import CommandContextMenu from '../components/CommandContextMenu.vue'
 import { TERMINAL_MENU_ID } from '../services/actions/menuIds'
 import type { CommandContext } from '../services/context'
 import { getTerminalFontFamily, getTerminalTheme } from '../services/terminalPreferences'
+import { encodingDecoder } from '../services/encodings'
 import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps<{ tabId: string }>()
@@ -87,10 +88,9 @@ function scheduleBackendResize(columns: number, rows: number) {
 }
 
 function resetDecoder(encoding: string) {
-  if (!terminal) return
   const flushed = decoder.decode()
-  if (flushed) terminal.write(flushed)
-  decoder = new TextDecoder(encoding, { fatal: false })
+  if (flushed) terminal?.write(flushed)
+  decoder = new TextDecoder(encodingDecoder(encoding), { fatal: false })
 }
 
 function writeOutput(data: Uint8Array) {
@@ -224,6 +224,7 @@ function initTerminal() {
         resetDecoder(enc)
       }
     },
+    { immediate: true },
   )
 
   unwatchPreferences.value = watch(

@@ -1,6 +1,6 @@
 import type { Terminal } from '@xterm/xterm'
 import { store } from '../stores/app'
-import { closeTab, connectHost } from './ws'
+import { closeTab, connectHost, createHost } from './ws'
 import { writeToClipboard, readFromClipboard } from '../utils/clipboard'
 import { getBufferText, getScreenText, getSelectedText } from '../utils/terminalText'
 import type { CommandContext } from './context'
@@ -8,24 +8,16 @@ import { registerAction, registerSubmenu } from './commands'
 import { MenuId } from './actions/menuIds'
 import { createFileTab } from './sftp/file-tabs'
 import { normalizeRemotePath } from './sftp/path'
+import { ENCODINGS } from './encodings'
 
-const encodingLocales = [
-  { id: 'en_US', label: 'English(en_US)', encodings: ['utf-8', 'us-ascii', 'iso-8859-15', 'iso-8859-1'] },
-  { id: 'zh_CN', label: '简体中文(zh_CN)', encodings: ['utf-8', 'gb18030', 'gbk', 'gb2312'] },
-  { id: 'zh_TW', label: '繁體中文(zh_TW)', encodings: ['utf-8', 'big5'] },
-  { id: 'c', label: 'C', encodings: ['us-ascii'] },
-  { id: 'posix', label: 'POSIX', encodings: ['us-ascii'] },
-]
-
-const encodingLabels: Record<string, string> = {
-  'utf-8': 'UTF-8',
-  'us-ascii': 'US-ASCII',
-  'iso-8859-15': 'ISO-8859-15',
-  'iso-8859-1': 'ISO-8859-1',
-  gb18030: 'GB18030',
-  gbk: 'GBK',
-  gb2312: 'GB2312',
-  big5: 'Big5',
+// Applies an encoding to the current tab only and persists it on the host so
+// tabs opened later inherit it; other open tabs keep their own decoder.
+export function setTerminalEncoding(tabId: string | undefined, encoding: string): void {
+  const tab = store.tabs.find((item) => item.id === tabId)
+  if (!tab) return
+  tab.encoding = encoding
+  const host = store.hosts.find((item) => item.id === tab.hostId)
+  if (host) void createHost({ ...host, encoding })
 }
 
 function getTab(ctx: CommandContext) {
@@ -38,7 +30,7 @@ function getTerminal(ctx: CommandContext): Terminal | undefined {
 
 registerSubmenu({ id: MenuId.TerminalCopy, title: '复制', parentMenuId: MenuId.TerminalContext, order: 20 })
 registerSubmenu({ id: MenuId.TerminalPaste, title: '粘贴', parentMenuId: MenuId.TerminalContext, order: 30 })
-registerSubmenu({ id: MenuId.TerminalCharset, title: '字符集', parentMenuId: MenuId.TerminalContext, order: 40 })
+registerSubmenu({ id: MenuId.TerminalEncoding, title: '编码', parentMenuId: MenuId.TerminalContext, order: 40 })
 
 registerAction({
   id: 'terminal.newTab',
@@ -148,25 +140,18 @@ registerAction({
   menus: [{ menuId: MenuId.TerminalPaste, order: 20 }],
 })
 
-for (const locale of encodingLocales) {
-  const submenuId = `terminal.charset.${locale.id}`
-  registerSubmenu({ id: submenuId, title: locale.label, parentMenuId: MenuId.TerminalCharset, order: encodingLocales.indexOf(locale) })
-  for (const enc of locale.encodings) {
-    registerAction({
-      id: `terminal.charset.${locale.id}.${enc}`,
-      title: encodingLabels[enc] ?? enc,
-      description: `将终端字符集切换为 ${encodingLabels[enc] ?? enc}`,
-      category: 'terminal',
-      when: 'area == "terminal"',
-      enablement: 'tabExists',
-      checked: (ctx) => ctx.tabEncoding === enc,
-      run: (ctx) => {
-        const tab = getTab(ctx)
-        if (tab) tab.encoding = enc
-      },
-      menus: [{ menuId: submenuId, order: locale.encodings.indexOf(enc) }],
-    })
-  }
+for (const enc of ENCODINGS) {
+  registerAction({
+    id: `terminal.encoding.${enc.id}`,
+    title: enc.label,
+    description: `将终端编码切换为 ${enc.label}`,
+    category: 'terminal',
+    when: 'area == "terminal"',
+    enablement: 'tabExists',
+    checked: (ctx) => ctx.tabEncoding === enc.id,
+    run: (ctx) => setTerminalEncoding(ctx.tabId, enc.id),
+    menus: [{ menuId: MenuId.TerminalEncoding, order: ENCODINGS.indexOf(enc) }],
+  })
 }
 
 registerAction({

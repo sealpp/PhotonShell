@@ -7,7 +7,7 @@ export const MenuId = {
   TerminalContext: 'terminal.context',
   TerminalCopy: 'terminal.copy',
   TerminalPaste: 'terminal.paste',
-  TerminalCharset: 'terminal.charset',
+  TerminalEncoding: 'terminal.encoding',
   FileContext: 'file.context',
   NodeStatus: 'node.status',
 } as const
