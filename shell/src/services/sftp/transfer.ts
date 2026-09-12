@@ -100,8 +100,9 @@ export async function transferFile(
       assertNotCancelled(options.signal)
       const chunk = await source.read(normalizedSource, offset, Math.min(CHUNK_SIZE, sourceStat.size - offset))
       if (chunk.byteLength === 0) throw new Error('SFTP source returned an empty chunk before EOF')
+      const chunkLength = chunk.byteLength
       await target.write(temporary, chunk, offset)
-      offset += chunk.byteLength
+      offset += chunkLength
       bytes = offset
       options.onProgress?.(bytes, sourceStat.size)
     }
