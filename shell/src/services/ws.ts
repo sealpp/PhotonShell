@@ -198,7 +198,7 @@ export function addTab(host: HostProfile, password: string, insertAfterTabId?: s
     sessionId,
     terminalId,
     telemetry: null,
-    encoding: 'utf-8',
+    encoding: host.encoding ?? 'utf-8',
   }
 
   if (insertAfterTabId) {

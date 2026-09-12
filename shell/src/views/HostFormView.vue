@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { store, type HostProfile } from '../stores/app'
 import { addTab, createHost } from '../services/ws'
+import { DEFAULT_ENCODING, ENCODINGS } from '../services/encodings'
 import { saveCredentialRecord } from '../services/vault'
 import { randomId } from '../utils/id'
 import UiDialog from '../components/UiDialog.vue'
@@ -11,6 +12,7 @@ const address = ref('')
 const port = ref(22)
 const username = ref('root')
 const password = ref('')
+const encoding = ref(DEFAULT_ENCODING)
 const localError = ref('')
 const saving = ref(false)
 const nameBlurred = ref(false)
@@ -36,11 +38,13 @@ function init() {
     address.value = h.address
     port.value = h.port
     username.value = h.username
+    encoding.value = h.encoding ?? DEFAULT_ENCODING
   } else {
     name.value = ''
     address.value = ''
     port.value = 22
     username.value = 'root'
+    encoding.value = DEFAULT_ENCODING
   }
   password.value = ''
   nameBlurred.value = false
@@ -81,6 +85,7 @@ function hostFromForm(): HostProfile {
     address: address.value,
     port: port.value,
     username: username.value,
+    encoding: encoding.value,
     folderId: store.editingHostId
       ? (store.hosts.find((item) => item.id === store.editingHostId)?.folderId ?? null)
       : store.newHostFolderId,
@@ -195,6 +200,12 @@ function close() {
       <label for="host-password">密码</label>
       <input id="host-password" v-model="password" type="password" placeholder="password" />
     </div>
+    <div class="form-group">
+      <label for="host-encoding">编码</label>
+      <select id="host-encoding" v-model="encoding">
+        <option v-for="item in ENCODINGS" :key="item.id" :value="item.id">{{ item.label }}</option>
+      </select>
+    </div>
     <p v-if="localError || store.error" class="error">{{ localError || store.error }}</p>
 
     <template #actions>
@@ -243,7 +254,8 @@ function close() {
   font-size: 12px;
 }
 
-input {
+input,
+select {
   width: 100%;
   box-sizing: border-box;
   padding: var(--workbench-space-2);

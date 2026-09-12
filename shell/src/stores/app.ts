@@ -66,7 +66,7 @@ export interface EditorState {
   path: string
   language: string
   dirty: boolean
-  encoding: 'utf-8' | 'utf-16le' | 'utf-16be'
+  encoding: string
   bom: boolean
   lineEnding: '\n' | '\r\n' | '\r'
   content: string
@@ -92,6 +92,7 @@ export interface HostProfile {
   address: string
   port: number
   username: string
+  encoding?: string
   folderId: string | null
 }
 
