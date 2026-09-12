@@ -29,6 +29,8 @@ import InteractionDialog from './components/InteractionDialog.vue'
 import TransferPanel from './views/TransferPanel.vue'
 import BottomPanel from './views/BottomPanel.vue'
 import BottomPanelStatusButton from './components/BottomPanelStatusButton.vue'
+import EncodingStatusItem from './components/EncodingStatusItem.vue'
+import EncodingPickerDialog from './components/EncodingPickerDialog.vue'
 import { loadTransferConcurrency } from './services/sftp/transfer-runtime'
 import { loadTerminalPreferences } from './services/terminalPreferences'
 
@@ -228,6 +230,7 @@ const stopContextSync = watch(
     store.aboutModalOpen,
     store.dirtyCloseConfirm,
     store.interactionDialog,
+    store.encodingPicker,
   ],
   () => {
     syncAppContext({
@@ -241,7 +244,7 @@ const stopContextSync = watch(
       [ContextKeys.panelOpen]: store.panelOpen,
       [ContextKeys.isPaired]: store.paired,
       [ContextKeys.nodeConnected]: store.nodeConnected,
-      [ContextKeys.modalOpen]: store.pairingModalOpen || store.connectionModalOpen || store.loginDialogOpen || store.settingsModalOpen || store.keyboardShortcutsModalOpen || store.aboutModalOpen || !!store.dirtyCloseConfirm || !!store.interactionDialog,
+      [ContextKeys.modalOpen]: store.pairingModalOpen || store.connectionModalOpen || store.loginDialogOpen || store.settingsModalOpen || store.keyboardShortcutsModalOpen || store.aboutModalOpen || !!store.dirtyCloseConfirm || !!store.interactionDialog || !!store.encodingPicker,
     })
   },
   { immediate: true },
@@ -380,12 +383,14 @@ onBeforeUnmount(() => {
     <div class="statusbar">
       <NodeStatusMenu />
       <BottomPanelStatusButton />
+      <EncodingStatusItem />
     </div>
     <PairingView v-if="store.pairingModalOpen" />
     <HostFormView v-if="store.connectionModalOpen" />
     <LoginDialog v-if="store.loginDialogOpen" />
     <TerminalSessionInfo v-if="store.terminalSessionInfo?.open" />
     <ManualPasteDialog v-if="store.manualPaste?.open" />
+    <EncodingPickerDialog v-if="store.encodingPicker" />
     <HostKeyPrompt />
     <DeleteConfirm v-if="store.deleteConfirmOpen" />
     <FolderDialog v-if="store.folderModalOpen" />

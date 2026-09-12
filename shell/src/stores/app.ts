@@ -244,6 +244,9 @@ export interface AppState {
   nodeConnected: boolean
   sftpClipboard: SftpClipboardState | null
   terminalPreferences: TerminalPreferences
+  encodingPicker: {
+    tabId: string
+  } | null
 }
 
 export const store = reactive<AppState>({
@@ -304,6 +307,7 @@ export const store = reactive<AppState>({
   manualPaste: null,
   nodeConnected: false,
   sftpClipboard: null,
+  encodingPicker: null,
   terminalPreferences: {
     key: 'terminalPreferences',
     version: 1,
